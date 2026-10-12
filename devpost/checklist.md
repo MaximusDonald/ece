@@ -59,7 +59,7 @@ Build mode: mixte (learn for RAG/scoring/incremental, fast for auth/CRUD/UI)
   Learner check: Add complementary info for your doc, verify the update is fast and the diff highlights exactly what changed.
   Commit: `Incremental update via complementary context, version diff with markers`
 
-- [ ] **6. Admin Governance Console**
+- [x] **6. Admin Governance Console**
   Becomes usable: `platform_admin` user accesses `/admin/*` pages: Sources table (validate, mark abrogated, replace, verify URL), Scoring Rules editor (weights, thresholds, preview), LLM Config (provider, model, temperature, system prompt version), Country Modules (activate/deactivate, link corpus), Users table (roles, orgs, quotas), Audit Logs (immutable action trail).
   Why now: Completes the sovereign governance story — corpus curation, rule transparency, auditability. Required for demo credibility.
   PRD ref: `prd.md > The Core Journey` (step 9), `prd.md > Screens and Layout` (11-admin-governance)
