@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Response
 from sqlmodel import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from uuid import UUID
 from typing import List, Optional
+from datetime import datetime
 
 from app.core.database import get_async_session
 from app.core.security import get_current_active_user, require_role
@@ -24,6 +25,8 @@ from app.schemas.admin import (
     AuditLogRead
 )
 from app.services.diff_engine import compute_diff, compute_diff_summary
+from app.services.minio_client import get_minio_client, get_bucket_name, get_presigned_url
+from app.services.pdf_generator import generate_pdf_from_markdown
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -175,6 +178,46 @@ async def get_report_diff(
         diff_lines=[line.to_dict() for line in diff_lines],
         summary=summary,
     )
+
+
+@router.get("/{report_version_id}/export")
+async def export_report(
+    report_version_id: UUID,
+    format: str = Query("pdf", pattern="^(pdf|markdown)$"),
+    type: str = Query("report1", pattern="^(report1|report2)$"),
+    current_user = Depends(get_current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Export report as PDF or Markdown."""
+    report = await session.get(ReportVersion, report_version_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    
+    from app.models.user import Project
+    project = await session.get(Project, report.project_id)
+    if not project or project.org_id != current_user.org_id:
+        raise HTTPException(status_code=404, detail="Report not found")
+    
+    if format == "pdf":
+        # Return presigned URL for PDF download
+        minio_client = get_minio_client()
+        bucket_name = get_bucket_name(str(project.org_id), "reports")
+        
+        pdf_path = report.report1_pdf_minio if type == "report1" else report.report2_pdf_minio
+        if not pdf_path:
+            raise HTTPException(status_code=404, detail="PDF not yet generated")
+        
+        url = get_presigned_url(minio_client, bucket_name, pdf_path, expires_seconds=3600)
+        return {"url": url, "filename": f"ece_{type}_v{report.version}.pdf"}
+    else:
+        # Return Markdown content
+        content = report.report1_markdown if type == "report1" else report.report2_markdown
+        filename = f"ece_{type}_v{report.version}.md"
+        return Response(
+            content=content,
+            media_type="text/markdown",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        )
 
 
 from app.models.user import Project

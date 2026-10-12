@@ -39,13 +39,13 @@ async def run_report_generation(report_version_id: UUID) -> None:
             # Report 1: Findings
             html1 = markdown_to_html(report.report1_markdown, "Rapport d'Analyse Documentaire")
             pdf1_bytes = generate_pdf_from_html(html1)
-            pdf1_object = f"{report_version_id}/report1_findings.pdf"
+            pdf1_object = f"{report.id}/report1_findings.pdf"
             upload_file(minio_client, bucket_name, pdf1_object, pdf1_bytes, "application/pdf")
             
             # Report 2: Legal Synthesis
             html2 = markdown_to_html(report.report2_markdown, "Synthèse Juridique & Réglementaire")
             pdf2_bytes = generate_pdf_from_html(html2)
-            pdf2_object = f"{report_version_id}/report2_legal.pdf"
+            pdf2_object = f"{report.id}/report2_legal.pdf"
             upload_file(minio_client, bucket_name, pdf2_object, pdf2_bytes, "application/pdf")
             
             # Update report with PDF paths
