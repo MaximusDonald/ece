@@ -29,7 +29,7 @@ Build mode: mixte (learn for RAG/scoring/incremental, fast for auth/CRUD/UI)
   Learner check: Upload your StockOpti architecture PDF, watch the stepper, and verify the extracted text looks correct.
   Commit: `Document upload, MinIO storage, Celery extraction worker, progress UI`
 
-- [ ] **3. Semantic Analysis + Legal Research (RAG Kernel) + Scoring — LEARN MODE**
+- [x] **3. Semantic Analysis + Legal Research (RAG Kernel) + Scoring — LEARN MODE**
   Becomes usable: After extraction, the pipeline runs: NER + clause classification → embeddings → PGVector hybrid search (filtered by country=BJ + level) → LLM consensus prompt → confidence badges (High/Medium/Low), obsolescence flags, conflict detection (CEDEAO vs national) → deterministic scoring (5 levels) → findings persisted.
   Why now: **This is the unique kernel** — sovereign RAG with consensus, confidence, obsolescence, and conflict detection. Building it early proves the core value and surfaces LLM/prompt issues while time remains.
   PRD ref: `prd.md > The Core Journey` (step 6), `prd.md > Features and Behavior` (3. Recherche Juridique, Consensus & Badge de Confiance, 4. Double Rapport, 5. Complément d'Information)
