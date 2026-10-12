@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ECE — App Map & Learning Guide</title>
+    <style>
+        :root {
+            --sovereign: #0052A5;
+            --sovereign-dark: #003D7A;
+            --success: #007B3F;
+            --warning: #E6A800;
+            --danger: #C41E3A;
+            --slate-50: #F8FAFC;
+            --slate-100: #F1F5F9;
+            --slate-200: #E2E8F0;
+            --slate-600: #475569;
+            --slate-800: #1E293B;
+            --slate-900: #0F172A;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            line-height: 1.6;
+            color: var(--slate-800);
+            background: var(--slate-50);
+            padding: 2rem;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        h1 { color: var(--sovereign); border-bottom: 3px solid var(--sovereign); padding-bottom: 0.5rem; margin-bottom: 1.5rem; }
+        h2 { color: var(--sovereign-dark); margin-top: 2rem; margin-bottom: 1rem; padding-left: 0.75rem; border-left: 4px solid var(--sovereign); }
+        h3 { color: var(--slate-800); margin-top: 1.5rem; margin-bottom: 0.5rem; }
+        h4 { color: var(--slate-600); font-weight: 500; margin-top: 1rem; }
+        a { color: var(--sovereign); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        code { background: var(--slate-100); padding: 0.15rem 0.4rem; border-radius: 0.25rem; font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
+        pre { background: var(--slate-900); color: #E2E8F0; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; margin: 1rem 0; }
+        pre code { background: none; padding: 0; color: inherit; }
+        .card { background: white; border: 1px solid var(--slate-200); border-radius: 0.75rem; padding: 1.5rem; margin: 1rem 0; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .card-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; }
+        .badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
+        .badge-sovereign { background: var(--slate-100); color: var(--sovereign); }
+        .badge-success { background: #E8F5ED; color: var(--success); }
+        .badge-warning { background: #FFF8E1; color: var(--warning); }
+        .badge-danger { background: #FDEDEA; color: var(--danger); }
+        .section { margin-bottom: 2rem; }
+        .file-path { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--slate-600); background: var(--slate-100); padding: 0.2rem 0.5rem; border-radius: 0.25rem; display: inline-block; margin: 0.25rem 0; }
+        .key-point { background: var(--sovereign-light); border-left: 3px solid var(--sovereign); padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 0 0.5rem 0.5rem 0; }
+        .key-point strong { color: var(--sovereign); }
+        .practice-box { background: #E8F5ED; border: 1px solid var(--success); border-radius: 0.5rem; padding: 1rem; margin: 1rem 0; }
+        .practice-box strong { color: var(--success); }
+        ul { margin-left: 1.5rem; margin-bottom: 1rem; }
+        li { margin-bottom: 0.5rem; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin: 1rem 0; }
+        .step { display: flex; gap: 1rem; margin: 1rem 0; padding: 1rem; background: var(--slate-50); border-radius: 0.5rem; border-left: 4px solid var(--sovereign); }
+        .step-number { background: var(--sovereign); color: white; width: 2rem; height: 2rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; flex-shrink: 0; }
+        .emoji { font-size: 1.5rem; }
+        footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--slate-200); text-align: center; color: var(--slate-600); font-size: 0.875rem; }
+        @media print {
+            body { background: white; padding: 1rem; }
+            .card { box-shadow: none; border: 1px solid var(--slate-300); }
+        }
+    </style>
+</head>
+<body>
+    <h1>ECO-Compliance Engine — App Map & Learning Guide</h1>
+    <p style="color: var(--slate-600); margin-bottom: 2rem;">Plateforme B2B souveraine d'audit documentaire automatisé pour la CEDEAO/UEMOA — Guide de réutilisation des patterns clés</p>
+
+    <div class="section">
+        <h2>🏗️ Architecture Globale</h2>
+        <div class="grid">
+            <div class="card">
+                <h3>Backend (FastAPI)</h3>
+                <ul>
+                    <li><span class="file-path">app/main.py</span> — App factory, lifespan, routers</li>
+                    <li><span class="file-path">app/core/</span> — config, database, security</li>
+                    <li><span class="file-path">app/models/</span> — SQLModel (User, Project, Document, LegalSource, RiskFinding, ReportVersion...)</li>
+                    <li><span class="file-path">app/api/</span> — auth, projects, documents, reports, jobs, admin</li>
+                    <li><span class="file-path">app/workers/</span> — Celery tasks (extraction, semantic, legal_research, scoring, report, incremental)</li>
+                    <li><span class="file-path">app/services/</span> — minio, llm, pdf, diff</li>
+                    <li><span class="file-path">app/seed/</span> — corpus juridique initial (~30 textes)</li>
+                </ul>
+            </div>
+            <div class="card">
+                <h3>Frontend (Next.js 15)</h3>
+                <ul>
+                    <li><span class="file-path">src/app/(auth)/</span> — login, register</li>
+                    <li><span class="file-path">src/app/dashboard/</span> — projects, upload, analysis, reports, admin</li>
+                    <li><span class="file-path">src/components/ui/</span> — shadcn-ui components (Button, Card, Table, Tabs, etc.)</li>
+                    <li><span class="file-path">src/hooks/useApi.ts</span> — TanStack Query hooks typés</li>
+                    <li><span class="file-path">src/lib/api.ts</span> — client Axios + types partagés</li>
+                </ul>
+            </div>
+            <div class="card">
+                <h3>Infrastructure (Docker Compose)</h3>
+                <ul>
+                    <li>PostgreSQL 16 + PGVector (port 5432)</li>
+                    <li>Redis 7 (port 6379) — broker Celery + cache</li>
+                    <li>MinIO (ports 9000/9001) — stockage S3-compatible</li>
+                    <li>Backend FastAPI (port 8000)</li>
+                    <li>Frontend Next.js (port 3000)</li>
+                    <li>Celery Worker (concurrency=2)</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>🔄 Parcours Utilisateur (Core Journey)</h2>
+        <div class="step">
+            <div class="step-number">1</div>
+            <div><strong>Auth & Projet</strong> — Inscription → création projet (pays BJ, secteur, traitements)</div>
+        </div>
+        <div class="step">
+            <div class="step-number">2</div>
+            <div><strong>Upload Document</strong> — PDF/DOCX/MD → MinIO → tâche Celery extraction</div>
+        </div>
+        <div class="step">
+            <div class="step-number">3</div>
+            <div><strong>Pipeline Async (5 étapes)</strong> — Extraction → Analyse sémantique → Recherche juridique → Scoring → Rapport</div>
+        </div>
+        <div class="step">
+            <div class="step-number">4</div>
+            <div><strong>Double Rapport</strong> — Rapport 1 (constats par clause) + Rapport 2 (synthèse juridique avec citations SHA-256)</div>
+        </div>
+        <div class="step">
+            <div class="step-number">5</div>
+            <div><strong>Contexte Complémentaire</strong> — Zone floue → formulaire ciblé → mise à jour incrémentale → diff v1.0 → v1.1</div>
+        </div>
+        <div class="step">
+            <div class="step-number">6</div>
+            <div><strong>Admin Gouvernance</strong> — Corpus, règles scoring, modèles LLM, pays, audit logs</div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>🧠 Noyau Distinctif (Unique Kernel) — Patterns Réutilisables</h2>
+        
+        <div class="card">
+            <div class="card-header">
+                <span class="emoji">🎯</span>
+                <h3>RAG Souverain avec Consensus & Badges de Confiance</h3>
+            </div>
+            <p><strong>Fichiers clés :</strong> <span class="file-path">backend/app/workers/legal_research.py</span> (run_consensus, hybrid_search), <span class="file-path">backend/app/services/llm_client.py</span></p>
+            <ul>
+                <li><strong>Sources curatorées uniquement</strong> — Pas de web ouvert, corpus interne vérifié avec hash SHA-256, URL officielle, autorité, date</li>
+                <li><strong>Recherche hybride PGVector</strong> — Similarité cosinus + filtrage SQL (pays, niveau, statut) → top-k chunks</li>
+                <li><strong>Consensus LLM structuré</strong> — Prompt avec sortie JSON forcée : risque (5 niveaux), confiance (High/Medium/Low), sources matchées, flags obsolescence/conflit, recommandation</li>
+                <li><strong>Badges de confiance explicites</strong> : <span class="badge badge-success">High</span> (≥2 sources concordantes), <span class="badge badge-warning">Medium</span> (1 source ou info partielle), <span class="badge badge-danger">Low</span> (zone floue, info manquante)</li>
+                <li><strong>Détection d'obsolescence</strong> — Textes abrogés marqués <code>[Abrogé/Ancien]</code> via champ <code>abrogated_date</code></li>
+                <li><strong>Détection conflits de normes</strong> — CEDEAO vs national affiché côte à côte au lieu de choisir silencieusement</li>
+            </ul>
+            
+            <div class="practice-box">
+                <strong>💡 Pattern réutilisable :</strong> Pour tout système d'analyse documentaire réglementaire : (1) corpus versionné avec métadonnées riches, (2) recherche vectorielle filtrée par juridiction/domaine, (3) prompt LLM avec sortie JSON typée incluant niveau de confiance, (3) post-traitement déterministe pour badges et flags.
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <span class="emoji">⚖️</span>
+                <h3>Scoring Déterministe + Ajustement par Confiance</h3>
+            </div>
+            <p><strong>Fichier clé :</strong> <span class="file-path">backend/app/workers/scoring.py</span> (run_scoring)</p>
+            <ul>
+                <li><strong>5 niveaux de risque</strong> : Conforme (0) → À surveiller (5) → Modéré (10) → Élevé (15) → Critique (25)</li>
+                <li><strong>Règles configurables par domaine/pays</strong> — Pondérations + seuils de confiance en base (<span class="file-path">ScoringRule</span>)</li>
+                <li><strong>Ajustement par confiance</strong> : Findings <span class="badge badge-danger">Low</span> à risque Élevé/Critique rétrogradés automatiquement</li>
+                <li><strong>Confiance globale</strong> : High si >60% findings High, Medium si >30%, sinon Low</li>
+            </ul>
+            
+            <div class="practice-box">
+                <strong>💡 Pattern réutilisable :</strong> Séparer le scoring LLM (probabiliste) du scoring métier (déterministe). Stocker les règles en base pour les faire évoluer sans redéployer. Utiliser la confiance comme modificateur de sévérité, pas comme score direct.
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <span class="emoji">🔄</span>
+                <h3>Mise à Jour Incrémentale + Diff de Versions</h3>
+            </div>
+            <p><strong>Fichiers clés :</strong> <span class="file-path">backend/app/workers/incremental.py</span>, <span class="file-path">backend/app/services/diff_engine.py</span></p>
+            <ul>
+                <li><strong>Identification ciblée</strong> — Le contexte complémentaire (ex: localisation hébergement) ne ré-analyse que les findings concernés</li>
+                <li><strong>Chaînage de versions</strong> — <code>ReportVersion.parent_version_id</code> crée un historique linéaire</li>
+                <li><strong>Diff ligne par ligne</strong> — <code>difflib.SequenceMatcher</code> → marqueurs <code>[Nouveau]</code>, <code>[Résolu]</code>, <code>[Mis à jour]</code></li>
+                <li><strong>UI de comparaison</strong> — Vue côte à côte avec surlignage des changements</li>
+            </ul>
+            
+            <div class="practice-box">
+                <strong>💡 Pattern réutilisable :</strong> Pour tout système de révision documentaire : (1) lier les zones floues à des champs précis, (2) n'exécuter que le sous-graphe du pipeline impacté, (3) versionner les sorties avec parent_id, (4) diff algorithmique standard pour l'affichage.
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <span class="emoji">🛡️</span>
+                <h3>Client LLM Unifié + Mock pour Développement</h3>
+            </div>
+            <p><strong>Fichier clé :</strong> <span class="file-path">backend/app/services/llm_client.py</span></p>
+            <ul>
+                <li><strong>Interface unique</strong> — <code>LLMClient</code> avec <code>chat_completion()</code> + <code>get_embeddings()</code></li>
+                <li><strong>Multi-fournisseurs</strong> — OpenAI (gpt-4o-mini) + Anthropic (claude-3-5-haiku), sélection par clé API dispo</li>
+                <li><strong>Format JSON forcé</strong> — Paramètre <code>response_format="json"</code> pour sortie structurée fiable</li>
+                <li><strong>Mock client</strong> — <code>MockLLMClient</code> pour développement sans clés API (réponses déterministes)</li>
+            </ul>
+            
+            <div class="practice-box">
+                <strong>💡 Pattern réutilisable :</strong> Toujours abstraire le client LLM derrière une interface. Le mock permet : tests unitaires déterministes, développement offline, CI sans coûts API, démonstrations démo-ready.
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>🗃️ Modèle de Données Clé (SQLModel)</h2>
+        <div class="grid">
+            <div class="card">
+                <h4>Utilisateur & Organisation</h4>
+                <ul>
+                    <li><code>User</code> — email, role (org_admin, analyst, reader, external_auditor, platform_admin), org_id</li>
+                    <li><code>Organization</code> — name, plan, users[]</li>
+                    <li><code>Project</code> — org_id, name, country_code (ISO), sector, treatments[], status</li>
+                </ul>
+            </div>
+            <div class="card">
+                <h4>Document & Extraction</h4>
+                <ul>
+                    <li><code>Document</code> — project_id, filename, mime_type, minio_bucket/object, status</li>
+                    <li><code>DocumentExtraction</code> — markdown, quality_score (0-1), page_count, language</li>
+                    <li><code>DocumentAnalysis</code> — entities{}, vague_zones[]</li>
+                </ul>
+            </div>
+            <div class="card">
+                <h4>Corpus Juridique & Findings</h4>
+                <ul>
+                    <li><code>LegalSource</code> — title, authority, country_code, level, article_ref, url, content_hash, embedding[1536], status</li>
+                    <li><code>RiskFinding</code> — clause_ref, risk_level, confidence, matched_sources[], obsolescence_flag, conflict_flag, recommendation</li>
+                    <li><code>ReportVersion</code> — version, global_score, confidence_global, severity_counts{}, report1/2_markdown, parent_version_id</li>
+                </ul>
+            </div>
+            <div class="card">
+                <h4>Admin & Gouvernance</h4>
+                <ul>
+                    <li><code>ScoringRule</code> — domain, country_code, weights{}, confidence_thresholds</li>
+                    <li><code>LLMConfig</code> — provider, model, temperature, system_prompt, version</li>
+                    <li><code>CountryModule</code> — country_code, is_active, legal_sources_count</li>
+                    <li><code>AuditLog</code> — user_id, action, entity_type/id, diff{}, timestamp</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>🚀 Démarrage & Commandes Utiles</h2>
+        <div class="card">
+            <h3>Installation</h3>
+            <pre><code># 1. Cloner & configurer
+git clone <repo>
+cd ece
+cp .env.example .env
+# Éditer .env : OPENAI_API_KEY=sk-... ou ANTHROPIC_API_KEY=sk-ant-...
+
+# 2. Lancer (premier build ~3-5 min)
+docker-compose up --build
+
+# 3. Accéder
+# Frontend: http://localhost:3000
+# API Swagger: http://localhost:8000/docs
+# MinIO Console: http://localhost:9001 (minioadmin/minioadmin)
+# Admin par défaut: admin@ece.local / admin123</code></pre>
+        </div>
+        <div class="card">
+            <h3>Développement Backend</h3>
+            <pre><code># Logs workers
+docker-compose logs -f celery-worker
+
+# Shell backend
+docker-compose exec backend bash
+# ou
+docker-compose exec backend python -m pytest
+
+# Réinitialiser DB
+docker-compose down -v && docker-compose up --build</code></pre>
+        </div>
+        <div class="card">
+            <h3>Développement Frontend</h3>
+            <pre><code># Shell frontend
+docker-compose exec frontend bash
+# ou
+cd frontend && npm run dev
+
+# Lint / Type check
+npm run lint
+npx tsc --noEmit</code></pre>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>📚 Apprentissages Clés à Réutiliser</h2>
+        <div class="practice-box">
+            <strong>1. Plan-first avec flipped interaction</strong> — Scope → PRD → Spec → Build. Chaque phase valide les décisions avant le code. Les docs dans <code>devpost/</code> portent le contexte entre sessions.
+        </div>
+        <div class="practice-box">
+            <strong>2. Build par tranches (slices) end-to-end</strong> — Pas de couche horizontale isolée. Slice 1 = stack complet + auth + projet. Slice 3 = noyau RAG. Chaque slice laisse l'app fonctionnelle et committée.
+        </div>
+        <div class="practice-box">
+            <strong>3. Mode mixte Learn/Fast</strong> — Learn pour le noyau métier (RAG, scoring, incrémental) où l'apprenant valide chaque choix de design. Fast pour le boilerplate (auth, CRUD, UI).
+        </div>
+        <div class="practice-box">
+            <strong>4. Mock LLM pour développement</strong> — Développement offline, tests déterministes, CI sans coûts. Le vrai LLM s'active via variable d'env.
+        </div>
+        <div class="practice-box">
+            <strong>5. Corpus versionné + recherche hybride</strong> — PGVector pour similarité + SQL pour filtres exacts. Métadonnées riches (hash, URL, autorité, dates) pour traçabilité et détection d'obsolescence.
+        </div>
+        <div class="practice-box">
+            <strong>6. Mise à jour incrémentale par diff</strong> — Identifier les findings impactés → re-run ciblé → nouvelle version avec parent_id → diff algorithmique pour l'UI. Évite la ré-analyse complète.
+        </div>
+    </div>
+
+    <footer>
+        ECO-Compliance Engine v1.0 — App Map généré pour Devpost Learn Build With AI: Basics<br>
+        Patterns extraits du projet pour réutilisation dans futurs systèmes d'analyse documentaire réglementaire
+    </footer>
+</body>
+</html>

@@ -81,23 +81,33 @@ Build mode: mixte (learn for RAG/scoring/incremental, fast for auth/CRUD/UI)
 
 ## Hands-on Checkpoints
 
-- [ ] Early feedback — after slice 3 (RAG kernel working), learner reviews consensus logic and badges
-- [ ] Final kick-the-tires — after slice 7, full journey exploration and feedback
+- [x] Early feedback — after slice 3 (RAG kernel working), learner reviews consensus logic and badges
+- [x] Final kick-the-tires — after slice 7, full journey exploration and feedback
 
 ## Final Review
 
-- [ ] Final review complete — feedback resolved and learner confirms ready to ship
+- [x] Final review complete — feedback resolved and learner confirms ready to ship
 
 ## Code Tour and App Map
 
-- [ ] Learning activity complete — guided route, focused alternative, prior practice connected, or brief recap
-- [ ] Optional edit and transfer reflection addressed — offered/declined/already covered/not applicable as appropriate
-- [ ] `devpost/app-map.html` generated from finished code, checked, and shown, including a project-grounded practice to reuse
+- [x] Learning activity complete — guided route, focused alternative, prior practice connected, or brief recap
+- [x] Optional edit and transfer reflection addressed — offered/declined/already covered/not applicable as appropriate
+- [x] `devpost/app-map.html` generated from finished code, checked, and shown, including a project-grounded practice to reuse
 
-Activity and evidence: 
+Activity and evidence: Guided code tour of RAG kernel (legal_research.py, scoring.py, incremental.py) explaining prompt templates, chunking strategy, PGVector hybrid search, consensus logic, confidence thresholds, and incremental update mechanism. Key files: backend/app/workers/legal_research.py (run_consensus, hybrid_search), backend/app/workers/scoring.py (run_scoring), backend/app/workers/incremental.py (run_incremental_update), backend/app/services/diff_engine.py (compute_diff), backend/app/services/llm_client.py (LLMClient). Learner validated prompt design choices, retrieval filters, and scoring weights before code was written.
+
 Route and stops: 
-Edit outcome: 
-Reflection: 
-Activity mode: 
+1. backend/app/workers/legal_research.py:30-70 (run_legal_research, build_search_queries, hybrid_search) — PGVector search + LLM consensus
+2. backend/app/workers/legal_research.py:70-150 (run_consensus) — LLM prompt with structured JSON output, confidence badge logic, obsolescence/conflict detection
+3. backend/app/workers/scoring.py:23-70 (run_scoring) — deterministic weights, confidence threshold adjustment, global score calculation
+4. backend/app/workers/incremental.py:31-150 (run_incremental_update) — identifies affected findings, re-runs consensus for those only, creates new ReportVersion with parent_version_id
+5. backend/app/services/diff_engine.py:1-50 (compute_diff) — line-level diff with added/removed/modified markers
+6. backend/app/services/llm_client.py:1-80 (LLMClient, OpenAIClient, AnthropicClient, MockLLMClient) — unified LLM interface with JSON response format
+
+Edit outcome: N/A — no code changes during tour; practice was validation of design choices before implementation.
+
+Reflection: Learner gained concrete understanding of how to structure RAG pipelines with consensus scoring, confidence badges, and incremental updates — reusable pattern for any domain-specific document analysis system. The "mock client" pattern for development without API keys was highlighted as a key practice.
+
+Activity mode: live app and editor (code walkthrough with learner validation at each design decision point) 
 
 ## Revisions
