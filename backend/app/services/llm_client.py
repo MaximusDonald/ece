@@ -75,15 +75,109 @@ class AnthropicClient(LLMClient):
         raise NotImplementedError("Anthropic doesn't provide embeddings. Set OPENAI_API_KEY for embeddings.")
 
 
+class GroqClient(LLMClient):
+    """Groq client for fast inference on open models (Llama, Mixtral, Gemma)."""
+    
+    def __init__(self):
+        from groq import AsyncGroq
+        self.client = AsyncGroq(api_key=settings.groq_api_key)
+        # Default to a capable open model - can be configured via env
+        self.model = getattr(settings, 'groq_model', "llama-3.3-70b-versatile")
+    
+    async def chat_completion(self, prompt: str, response_format: Optional[str] = None) -> str:
+        kwargs = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": "Tu es un expert juridique spécialisé en droit CEDEAO/UEMOA/OHADA et droit béninois. Réponds de manière précise et structurée."},
+                {"role": "user", "content": prompt},
+            ],
+            "temperature": 0.1,
+            "max_tokens": 4000,
+        }
+        if response_format == "json":
+            kwargs["response_format"] = {"type": "json_object"}
+        
+        response = await self.client.chat.completions.create(**kwargs)
+        return response.choices[0].message.content
+    
+    async def get_embeddings(self, texts: list[str]) -> list[list[float]]:
+        # Groq doesn't provide embeddings API - fallback to OpenAI if available
+        if settings.openai_api_key:
+            openai_client = OpenAIClient()
+            return await openai_client.get_embeddings(texts)
+        raise NotImplementedError("Groq doesn't provide embeddings. Set OPENAI_API_KEY for embeddings.")
+
+
+class GeminiClient(LLMClient):
+    """Google Gemini client for chat and embeddings."""
+    
+    def __init__(self):
+        import google.generativeai as genai
+        genai.configure(api_key=settings.gemini_api_key)
+        self.client = genai.GenerativeModel(
+            model_name=getattr(settings, 'gemini_model', "gemini-1.5-flash"),
+            system_instruction="Tu es un expert juridique spécialisé en droit CEDEAO/UEMOA/OHADA et droit béninois. Réponds de manière précise et structurée."
+        )
+        self.embedding_model = "models/text-embedding-004"
+    
+    async def chat_completion(self, prompt: str, response_format: Optional[str] = None) -> str:
+        # Configure generation
+        generation_config = {
+            "temperature": 0.1,
+            "max_output_tokens": 4000,
+        }
+        
+        if response_format == "json":
+            generation_config["response_mime_type"] = "application/json"
+            prompt = f"{prompt}\n\nRéponds UNIQUEMENT en JSON valide."
+        
+        response = await self.client.generate_content_async(
+            prompt,
+            generation_config=generation_config,
+        )
+        return response.text
+    
+    async def get_embeddings(self, texts: list[str]) -> list[list[float]]:
+        import google.generativeai as genai
+        embeddings = []
+        for text in texts:
+            result = await genai.embed_content_async(
+                model=self.embedding_model,
+                content=text,
+                task_type="retrieval_document",
+            )
+            embeddings.append(result['embedding'])
+        return embeddings
+
+
 def get_llm_client() -> LLMClient:
-    """Get LLM client based on available API keys."""
+    """Get LLM client based on available API keys.
+    
+    Priority order (configurable via env):
+    1. Groq (fast, free tier for open models)
+    2. Gemini (Google, generous free tier)
+    2. Anthropic (Claude)
+    3. OpenAI (GPT)
+    4. Mock (development without keys)
+    """
+    # Check for Groq first (fast inference on open models)
+    if settings.groq_api_key:
+        return GroqClient()
+    
+    # Check for Gemini (Google)
+    if settings.gemini_api_key:
+        return GeminiClient()
+    
+    # Check for Anthropic
     if settings.anthropic_api_key:
         return AnthropicClient()
-    elif settings.openai_api_key:
+    
+    # Check for OpenAI
+    if settings.openai_api_key:
         return OpenAIClient()
-    else:
-        # Return mock client for testing without API keys
-        return MockLLMClient()
+    
+    # Return mock client for testing without API keys
+    return MockLLMClient()
 
 
 class MockLLMClient(LLMClient):

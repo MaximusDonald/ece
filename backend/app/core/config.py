@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     # LLM
     openai_api_key: Optional[str] = Field(default=None, validation_alias="OPENAI_API_KEY")
     anthropic_api_key: Optional[str] = Field(default=None, validation_alias="ANTHROPIC_API_KEY")
+    groq_api_key: Optional[str] = Field(default=None, validation_alias="GROQ_API_KEY")
+    groq_model: Optional[str] = Field(default="llama-3.3-70b-versatile", validation_alias="GROQ_MODEL")
+    gemini_api_key: Optional[str] = Field(default=None, validation_alias="GEMINI_API_KEY")
+    gemini_model: Optional[str] = Field(default="gemini-1.5-flash", validation_alias="GEMINI_MODEL")
     
     # OAuth
     google_oauth_client_id: Optional[str] = Field(default=None, validation_alias="GOOGLE_OAUTH_CLIENT_ID")
