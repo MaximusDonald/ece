@@ -11,6 +11,7 @@ from app.core.config import get_settings
 from app.models.legal import RiskFinding, ReportVersion
 from app.services.minio_client import get_minio_client, upload_file, get_bucket_name
 from app.services.pdf_generator import generate_pdf_from_html
+from app.workers.celery_app import celery_app
 
 settings = get_settings()
 

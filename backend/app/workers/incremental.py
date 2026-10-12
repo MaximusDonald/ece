@@ -13,6 +13,7 @@ from app.models.legal import RiskFinding, ReportVersion, RiskLevel, ConfidenceLe
 from app.models.document import DocumentExtraction, DocumentAnalysis
 from app.services.llm_client import get_llm_client
 from app.services.diff_engine import compute_diff
+from app.workers.celery_app import celery_app
 
 settings = get_settings()
 

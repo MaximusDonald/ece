@@ -12,6 +12,7 @@ import asyncio
 from app.core.config import get_settings
 from app.models.document import Document, DocumentExtraction, DocumentStatus
 from app.services.minio_client import get_minio_client, download_file
+from app.workers.celery_app import celery_app
 
 settings = get_settings()
 

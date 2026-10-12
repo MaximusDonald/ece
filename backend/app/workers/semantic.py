@@ -10,6 +10,7 @@ from datetime import datetime
 from app.core.config import get_settings
 from app.models.document import DocumentExtraction, DocumentAnalysis
 from app.services.llm_client import get_llm_client
+from app.workers.celery_app import celery_app
 
 settings = get_settings()
 

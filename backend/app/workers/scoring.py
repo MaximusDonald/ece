@@ -8,6 +8,7 @@ from datetime import datetime
 from app.core.config import get_settings
 from app.models.legal import RiskFinding, ReportVersion, RiskLevel, ConfidenceLevel
 from app.models.admin import ScoringRule
+from app.workers.celery_app import celery_app
 
 settings = get_settings()
 
