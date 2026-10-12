@@ -69,7 +69,7 @@ Build mode: mixte (learn for RAG/scoring/incremental, fast for auth/CRUD/UI)
   Learner check: Explore the admin console — verify you can manage the corpus and scoring rules without code changes.
   Commit: `Admin governance console: sources, rules, models, countries, users, audit logs`
 
-- [ ] **7. End-to-end Polish + Final Verification**
+- [x] **7. End-to-end Polish + Final Verification**
   Becomes usable: Full core journey works smoothly: sign up → create project → upload doc → watch analysis → view double report → add context → see diff → admin manages corpus. Edge cases handled (empty states, errors, loading).
   Why now: Final integration slice — catches cross-cutting bugs, polishes UX to demo quality.
   PRD ref: `prd.md > What We're Building` (all 11 items), `prd.md > States and Boundaries`
