@@ -49,7 +49,7 @@ Build mode: mixte (learn for RAG/scoring/incremental, fast for auth/CRUD/UI)
   Learner check: View the generated double report for your StockOpti doc — verify Findings tab shows clause-level issues, Legal Sources tab cites real articles with hashes, Recommendations tab has actionable items.
   Commit: `Double report generation (Markdown+PDF), report dashboard with 3 tabs`
 
-- [ ] **5. Complementary Context + Incremental Update + Version Diff**
+- [x] **5. Complementary Context + Incremental Update + Version Diff**
   Becomes usable: On a vague zone (e.g., "Lieu d'hébergement non précisé"), user clicks "Add Complementary Context", fills a targeted form (hosting location, subcontractor, transfer details) → system re-runs Legal Research + Scoring **only for affected findings** → creates ReportVersion v1.1 → Diff page shows side-by-side comparison with `[Nouveau]`, `[Résolu]`, `[Mis à jour]` markers.
   Why now: Proves the incremental update kernel — a key differentiator. Avoids full re-analysis, shows surgical diff.
   PRD ref: `prd.md > The Core Journey` (steps 7-8), `prd.md > Screens and Layout` (09-complementary-info, 10-history-comparison)
