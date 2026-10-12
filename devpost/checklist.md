@@ -39,7 +39,7 @@ Build mode: mixte (learn for RAG/scoring/incremental, fast for auth/CRUD/UI)
   Learner check: We'll walk through the prompt templates, chunking strategy, retrieval filters, consensus logic, and confidence thresholds together — you validate each design choice before code is written.
   Commit: `RAG kernel: semantic analysis, legal research with consensus badges, conflict detection, scoring`
 
-- [ ] **4. Double Report Generation + Report Dashboard (3 tabs)**
+- [x] **4. Double Report Generation + Report Dashboard (3 tabs)**
   Becomes usable: Worker generates two Markdown reports (Report 1: Findings per clause; Report 2: Legal Synthesis with article citations, URLs, SHA-256 hashes) + PDFs via WeasyPrint → stored in MinIO. Dashboard shows global score (0-100), global confidence, severity breakdown (Critical/High/Medium/Low), and 3 tabs: Findings, Legal Sources, Recommendations.
   Why now: Completes the core journey — user sees the full audit output. Report generation is the deliverable; dashboard is the consumption surface.
   PRD ref: `prd.md > The Core Journey` (step 6), `prd.md > Screens and Layout` (08-report-dashboard)
