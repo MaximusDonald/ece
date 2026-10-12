@@ -6,15 +6,18 @@ from uuid import UUID
 from typing import List, Optional
 from datetime import datetime
 import os
+import io
+import uuid
 
 from app.core.database import get_async_session
 from app.core.security import get_current_active_user, require_role
-from app.models.user import User, UserRole
+from app.models.user import User, UserRole, Project
 from app.models.document import Document, DocumentExtraction, DocumentAnalysis, DocumentStatus
 from app.models.legal import ReportVersion
 from app.schemas.document import DocumentRead, DocumentExtractionRead, DocumentAnalysisRead, JobResponse, JobStatus, JobStep
 from app.services.minio_client import get_minio_client
 from app.workers.celery_app import celery_app
+from app.workers.extraction import extract_document_task
 
 router = APIRouter(prefix="/projects/{project_id}/documents", tags=["documents"])
 
@@ -48,7 +51,6 @@ async def upload_document(
 ):
     """Upload a document for analysis."""
     # Verify project access
-    from app.models.user import Project
     project = await session.get(Project, project_id)
     if not project or project.org_id != current_user.org_id:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -69,7 +71,6 @@ async def upload_document(
         )
     
     # Generate unique object name
-    import uuid
     file_ext = os.path.splitext(file.filename)[1].lower()
     object_name = f"{uuid.uuid4()}{file_ext}"
     
@@ -104,11 +105,7 @@ async def upload_document(
     await session.refresh(document)
     
     # Enqueue extraction task
-    from app.workers.extraction import extract_document_task
     task = extract_document_task.delay(str(document.id))
-    
-    # Update document with job ID (we could store this in a separate job table)
-    # For now, we'll track via the task ID returned
     
     return document
 
@@ -121,7 +118,6 @@ async def list_documents(
 ):
     """List documents for a project."""
     # Verify project access
-    from app.models.user import Project
     project = await session.get(Project, project_id)
     if not project or project.org_id != current_user.org_id:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -142,7 +138,6 @@ async def get_document(
 ):
     """Get document details."""
     # Verify project access
-    from app.models.user import Project
     project = await session.get(Project, project_id)
     if not project or project.org_id != current_user.org_id:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -163,7 +158,6 @@ async def get_document_extraction(
 ):
     """Get document extraction results."""
     # Verify project access
-    from app.models.user import Project
     project = await session.get(Project, project_id)
     if not project or project.org_id != current_user.org_id:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -184,7 +178,6 @@ async def get_document_analysis(
 ):
     """Get document analysis results."""
     # Verify project access
-    from app.models.user import Project
     project = await session.get(Project, project_id)
     if not project or project.org_id != current_user.org_id:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -211,7 +204,6 @@ async def get_job_status(
 ):
     """Get job status for polling."""
     # Verify project access
-    from app.models.user import Project
     project = await session.get(Project, project_id)
     if not project or project.org_id != current_user.org_id:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -249,6 +241,3 @@ async def get_job_status(
         result=task_result.result if task_result.state == "SUCCESS" else None,
         error=str(task_result.info) if task_result.state == "FAILURE" else None,
     )
-
-
-import io
