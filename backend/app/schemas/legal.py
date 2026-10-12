@@ -1,0 +1,120 @@
+from uuid import UUID
+from datetime import datetime
+from typing import Optional, List, Dict, Any
+from pydantic import BaseModel, Field
+from app.models.legal import RiskLevel, ConfidenceLevel, LegalLevel, SourceStatus
+
+
+# Legal Source Schemas
+class LegalSourceBase(BaseModel):
+    title: str = Field(max_length=500)
+    authority: str = Field(max_length=255)
+    country_code: Optional[str] = Field(default=None, max_length=2)
+    level: LegalLevel
+    article_ref: str = Field(max_length=100)
+    url_official: str = Field(max_length=1000)
+    content_hash: str = Field(max_length=64)
+    content_text: str
+    status: SourceStatus = SourceStatus.TO_VERIFY
+    effective_date: Optional[datetime] = None
+    abrogated_date: Optional[datetime] = None
+
+
+class LegalSourceCreate(LegalSourceBase):
+    pass
+
+
+class LegalSourceUpdate(BaseModel):
+    status: Optional[SourceStatus] = None
+    abrogated_date: Optional[datetime] = None
+    replacement_source_id: Optional[UUID] = None
+
+
+class LegalSourceRead(LegalSourceBase):
+    id: UUID
+    embedding: List[float] = []
+    created_at: datetime
+    updated_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
+# Risk Finding Schemas
+class RiskFindingBase(BaseModel):
+    clause_ref: str
+    finding_text: str
+    risk_level: RiskLevel
+    confidence: ConfidenceLevel
+    matched_sources: List[UUID] = []
+    obsolescence_flag: bool = False
+    conflict_flag: bool = False
+    conflict_details: Optional[str] = None
+    recommendation: str
+
+
+class RiskFindingRead(RiskFindingBase):
+    id: UUID
+    report_version_id: UUID
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
+# Report Version Schemas
+class ReportVersionBase(BaseModel):
+    version: str
+    global_score: int = Field(ge=0, le=100)
+    confidence_global: ConfidenceLevel
+    severity_counts: Dict[str, int] = {}
+
+
+class ReportVersionCreate(ReportVersionBase):
+    report1_markdown: str
+    report2_markdown: str
+    report1_pdf_minio: Optional[str] = None
+    report2_pdf_minio: Optional[str] = None
+    parent_version_id: Optional[UUID] = None
+
+
+class ReportVersionRead(ReportVersionBase):
+    id: UUID
+    project_id: UUID
+    report1_markdown: str
+    report2_markdown: str
+    report1_pdf_minio: Optional[str]
+    report2_pdf_minio: Optional[str]
+    parent_version_id: Optional[UUID]
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
+class ReportVersionListItem(BaseModel):
+    id: UUID
+    version: str
+    global_score: int
+    confidence_global: ConfidenceLevel
+    severity_counts: Dict[str, int]
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
+# Diff Schemas
+class DiffLine(BaseModel):
+    type: str  # "added", "removed", "unchanged", "modified"
+    content: str
+    line_number_old: Optional[int] = None
+    line_number_new: Optional[int] = None
+
+
+class ReportDiff(BaseModel):
+    version_old: str
+    version_new: str
+    report_type: str  # "report1" or "report2"
+    diff_lines: List[DiffLine]
+    summary: Dict[str, int]  # {added: 3, removed: 1, modified: 2}

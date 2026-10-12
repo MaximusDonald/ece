@@ -1,0 +1,202 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --font-inter: 'Inter', system-ui, sans-serif;
+    --font-jetbrains-mono: 'JetBrains Mono', monospace;
+  }
+  
+  * {
+    @apply border-slate-200;
+  }
+  
+  body {
+    @apply font-sans text-slate-800 bg-slate-50 antialiased;
+  }
+  
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  
+  .btn-primary {
+    @apply btn bg-sovereign-500 text-white hover:bg-sovereign-600 focus:ring-sovereign-500;
+  }
+  
+  .btn-secondary {
+    @apply btn bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 focus:ring-sovereign-500;
+  }
+  
+  .btn-danger {
+    @apply btn bg-danger-500 text-white hover:bg-danger-600 focus:ring-danger-500;
+  }
+  
+  .btn-ghost {
+    @apply btn bg-transparent text-slate-600 hover:bg-slate-100 focus:ring-sovereign-500;
+  }
+  
+  .input {
+    @apply w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sovereign-500 focus:border-transparent transition-all duration-150;
+  }
+  
+  .input-error {
+    @apply border-danger-500 focus:ring-danger-500;
+  }
+  
+  .label {
+    @apply block text-sm font-medium text-slate-700 mb-1;
+  }
+  
+  .card {
+    @apply bg-white rounded-xl border border-slate-200 shadow-sm;
+  }
+  
+  .card-header {
+    @apply px-6 py-4 border-b border-slate-200;
+  }
+  
+  .card-content {
+    @apply p-6;
+  }
+  
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+  
+  .badge-critique {
+    @apply badge bg-danger-50 text-danger-600;
+  }
+  
+  .badge-eleve {
+    @apply badge bg-warning-50 text-warning-600;
+  }
+  
+  .badge-modere {
+    @apply badge bg-warning-50 text-warning-700;
+  }
+  
+  .badge-a_surveiller {
+    @apply badge bg-sovereign-50 text-sovereign-600;
+  }
+  
+  .badge-conforme {
+    @apply badge bg-success-50 text-success-600;
+  }
+  
+  .badge-high {
+    @apply badge bg-success-50 text-success-600;
+  }
+  
+  .badge-medium {
+    @apply badge bg-warning-50 text-warning-600;
+  }
+  
+  .badge-low {
+    @apply badge bg-danger-50 text-danger-600;
+  }
+  
+  .table-container {
+    @apply overflow-x-auto;
+  }
+  
+  .table {
+    @apply w-full text-sm;
+  }
+  
+  .table th {
+    @apply px-4 py-3 text-left font-medium text-slate-500 uppercase tracking-wider bg-slate-50 border-b border-slate-200;
+  }
+  
+  .table td {
+    @apply px-4 py-3 border-b border-slate-100;
+  }
+  
+  .table tbody tr:hover {
+    @apply bg-slate-50;
+  }
+  
+  .sidebar-link {
+    @apply flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-600 rounded-lg transition-colors hover:bg-sovereign-50 hover:text-sovereign-600;
+  }
+  
+  .sidebar-link-active {
+    @apply bg-sovereign-50 text-sovereign-600 font-semibold;
+  }
+  
+  .page-title {
+    @apply text-2xl font-bold text-slate-900;
+  }
+  
+  .page-subtitle {
+    @apply text-slate-500 mt-1;
+  }
+  
+  .section-title {
+    @apply text-lg font-semibold text-slate-800;
+  }
+  
+  .stepper-step {
+    @apply relative flex items-center;
+  }
+  
+  .stepper-step::before {
+    @apply content-[''] absolute top-1/2 left-full w-full h-0.5 bg-slate-200 -translate-y-1/2;
+  }
+  
+  .stepper-step:last-child::before {
+    @apply hidden;
+  }
+  
+  .stepper-step-active .stepper-circle {
+    @apply bg-sovereign-500 border-sovereign-500 text-white;
+  }
+  
+  .stepper-step-completed .stepper-circle {
+    @apply bg-success-500 border-success-500 text-white;
+  }
+  
+  .stepper-circle {
+    @apply relative z-10 w-8 h-8 rounded-full border-2 border-slate-300 bg-white flex items-center justify-center text-sm font-medium text-slate-400;
+  }
+  
+  .stepper-label {
+    @apply mt-1 text-xs text-slate-500 text-center w-24;
+  }
+  
+  .stepper-step-active .stepper-label,
+  .stepper-step-completed .stepper-label {
+    @apply text-sovereign-600 font-medium;
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: theme('colors.slate.300') transparent;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: theme('colors.slate.300');
+    border-radius: 3px;
+  }
+  
+  .text-balance {
+    text-wrap: balance;
+  }
+}
