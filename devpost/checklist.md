@@ -19,7 +19,7 @@ Build mode: mixte (learn for RAG/scoring/incremental, fast for auth/CRUD/UI)
   Learner check: Open the app, sign up, create a project, and confirm the flow feels smooth and the UI matches the sovereign aesthetic.
   Commit: `Scaffold full stack: docker-compose, FastAPI+Next.js, auth, project CRUD, dashboard`
 
-- [ ] **2. Document Upload + Extraction + Progress UI**
+- [x] **2. Document Upload + Extraction + Progress UI**
   Becomes usable: In a project, user uploads a PDF/DOCX/Markdown file (drag-drop, ≤50 MB), sees a 5-step progress stepper (Extraction → Semantic Analysis → Legal Research → Scoring → Report Generation) with estimated time, and can view the extracted structured Markdown with quality score.
   Why now: First domain behavior — proves file storage (MinIO), async workers (Celery), and extraction pipeline work. Extraction is the gateway to all downstream analysis.
   PRD ref: `prd.md > The Core Journey` (steps 4-5), `prd.md > Screens and Layout` (05-project-overview, 06-doc-upload, 07-analysis-progress)
