@@ -2,10 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi_users import FastAPIUsers
 from fastapi_users.authentication import AuthenticationBackend, BearerTransport, JWTStrategy
 from fastapi_users.manager import BaseUserManager, UUIDIDMixin
-from fastapi_users.db import SQLAlchemyUserDatabase
+from fastapi_users_db_sqlalchemy import SQLAlchemyUserDatabase
 from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID
 from typing import Optional
+from typing import Any, Optional
 
 from app.core.config import get_settings
 from app.core.database import get_async_session
@@ -89,7 +90,7 @@ router.include_router(
 
 # OAuth routers (optional - only if credentials provided)
 if settings.google_oauth_client_id and settings.google_oauth_client_secret:
-    from fastapi_users.authentication import OAuth2AuthorizationCodeBearer
+    from fastapi.security import OAuth2AuthorizationCodeBearer
     from httpx_oauth.clients.google import GoogleOAuth2
     
     google_oauth_client = GoogleOAuth2(

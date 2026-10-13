@@ -1,0 +1,226 @@
+﻿docker-compose : time="2026-10-13T09:29:07+01:00" level=warning msg="The \"GROQ_API_KEY\" variable is not set. 
+Defaulting to a blank string."
+Au caractère Ligne:1 : 1
++ docker-compose up --build 2>&1 | Out-File -FilePath build2.log -Encod ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (time="2026-10-1... blank string.":String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+time="2026-10-13T09:29:08+01:00" level=warning msg="The \"OPENAI_API_KEY\" variable is not set. Defaulting to a blank 
+string."
+time="2026-10-13T09:29:08+01:00" level=warning msg="The \"ANTHROPIC_API_KEY\" variable is not set. Defaulting to a 
+blank string."
+time="2026-10-13T09:29:08+01:00" level=warning msg="The \"OPENAI_API_KEY\" variable is not set. Defaulting to a blank 
+string."
+time="2026-10-13T09:29:08+01:00" level=warning msg="The \"ANTHROPIC_API_KEY\" variable is not set. Defaulting to a 
+blank string."
+time="2026-10-13T09:29:08+01:00" level=warning msg="The \"GROQ_API_KEY\" variable is not set. Defaulting to a blank 
+string."
+time="2026-10-13T09:29:08+01:00" level=warning msg="D:\\Programmation\\Hackathon-afrique_evpost\\docker-compose.yml: 
+the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion"
+ Image hackathon-afrique_evpost-frontend Building 
+ Image hackathon-afrique_evpost-celery-worker Building 
+ Image hackathon-afrique_evpost-backend Building 
+#1 [internal] load local bake definitions
+#1 reading from stdin 1.64kB 0.1s done
+#1 DONE 0.1s
+
+#2 [backend internal] load build definition from Dockerfile
+#2 DONE 0.0s
+
+#3 [frontend internal] load build definition from Dockerfile
+#3 transferring dockerfile: 180B 0.0s done
+#3 DONE 0.1s
+
+#2 [backend internal] load build definition from Dockerfile
+#2 transferring dockerfile: 374B 0.0s done
+#2 DONE 0.1s
+
+#4 [auth] library/python:pull token for registry-1.docker.io
+#4 DONE 0.0s
+
+#5 [auth] library/node:pull token for registry-1.docker.io
+#5 DONE 0.0s
+
+#6 [backend internal] load metadata for docker.io/library/python:3.12-slim
+#6 DONE 2.4s
+
+#7 [frontend internal] load metadata for docker.io/library/node:20-alpine
+#7 DONE 2.4s
+
+#8 [backend internal] load .dockerignore
+#8 transferring context: 2B 0.0s done
+#8 DONE 0.1s
+
+#9 [frontend internal] load .dockerignore
+#9 transferring context: 2B 0.0s done
+#9 DONE 0.0s
+
+#10 [frontend 1/5] FROM docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
+#10 DONE 0.0s
+
+#11 [backend 1/6] FROM docker.io/library/python:3.12-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1
+#11 DONE 0.0s
+
+#12 [celery-worker internal] load build context
+#12 transferring context: 1.74kB 0.0s done
+#12 DONE 0.1s
+
+#13 [frontend internal] load build context
+#13 transferring context: 4.40kB 0.0s done
+#13 DONE 0.1s
+
+#14 [frontend 2/5] WORKDIR /app
+#14 CACHED
+
+#15 [frontend 3/5] COPY package*.json ./
+#15 CACHED
+
+#16 [backend 2/6] WORKDIR /app
+#16 CACHED
+
+#17 [backend 4/6] COPY requirements.txt .
+#17 CACHED
+
+#18 [backend 3/6] RUN apt-get update && apt-get install -y --no-install-recommends     gcc     libpq-dev     && rm -rf /var/lib/apt/lists/*
+#18 CACHED
+
+#19 [backend 5/6] RUN pip install --no-cache-dir -r requirements.txt
+#19 CACHED
+
+#20 [backend 6/6] COPY . .
+#20 CACHED
+
+#21 [celery-worker] exporting to image
+#21 exporting layers done
+#21 writing image sha256:bb6ca84cc63bacd2cd697231322f7f5eaaf31eae76adf920b5ad7a8bcf63e096 0.0s done
+#21 naming to docker.io/library/hackathon-afrique_evpost-celery-worker 0.0s done
+#21 DONE 0.1s
+
+#22 [backend] exporting to image
+#22 exporting layers done
+#22 writing image sha256:aeb77c4f090467493da28e0e5e53fb7274d516bef3d477605eb677df9348da6f 0.0s done
+#22 naming to docker.io/library/hackathon-afrique_evpost-backend 0.0s done
+#22 DONE 0.1s
+
+#23 [frontend 4/5] RUN npm install --legacy-peer-deps
+#23 ...
+
+#24 [celery-worker] resolving provenance for metadata file
+#24 DONE 0.0s
+
+#25 [backend] resolving provenance for metadata file
+#25 DONE 0.1s
+
+#23 [frontend 4/5] RUN npm install --legacy-peer-deps
+#23 266.5 npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
+#23 266.6 npm warn deprecated glob@7.2.3: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+#23 268.2 npm warn deprecated rimraf@3.0.2: Rimraf versions prior to v4 are no longer supported
+#23 271.8 npm warn deprecated @humanwhocodes/object-schema@2.0.3: Use @eslint/object-schema instead
+#23 272.3 npm warn deprecated @humanwhocodes/config-array@0.13.0: Use @eslint/config-array instead
+#23 284.7 npm warn deprecated eslint@8.57.1: This version is no longer supported. Please see https://eslint.org/version-support for other options.
+#23 327.9 npm warn deprecated next@15.0.0: This version has a security vulnerability. Please upgrade to a patched version. See https://nextjs.org/blog/CVE-2025-66478 for more details.
+#23 329.0 
+#23 329.0 added 444 packages, and audited 445 packages in 5m
+#23 329.0 
+#23 329.0 156 packages are looking for funding
+#23 329.0   run `npm fund` for details
+#23 329.5 
+#23 329.5 12 vulnerabilities (2 moderate, 9 high, 1 critical)
+#23 329.5 
+#23 329.5 To address issues that do not require attention, run:
+#23 329.5   npm audit fix
+#23 329.5 
+#23 329.5 To address all issues (including breaking changes), run:
+#23 329.5   npm audit fix --force
+#23 329.5 
+#23 329.5 Run `npm audit` for details.
+#23 329.5 npm notice
+#23 329.5 npm notice New major version of npm available! 10.8.2 -> 12.2.0
+#23 329.5 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+#23 329.5 npm notice To update run: npm install -g npm@12.2.0
+#23 329.5 npm notice
+#23 DONE 329.7s
+
+#26 [frontend 5/5] COPY . .
+#26 DONE 0.2s
+
+#27 [frontend] exporting to image
+#27 exporting layers
+#27 exporting layers 13.1s done
+#27 writing image sha256:b9127334ba718a5a353d5b1f1359b05b0fe87198f37c471650e73ecaf11e8f11 0.0s done
+#27 naming to docker.io/library/hackathon-afrique_evpost-frontend 0.0s done
+#27 DONE 13.3s
+
+#28 [frontend] resolving provenance for metadata file
+#28 DONE 0.0s
+ Image hackathon-afrique_evpost-celery-worker Built 
+ Image hackathon-afrique_evpost-backend Built 
+ Image hackathon-afrique_evpost-frontend Built 
+ Network hackathon-afrique_evpost_default Creating 
+ Volume hackathon-afrique_evpost_minio_data Creating 
+ Volume hackathon-afrique_evpost_postgres_data Creating 
+ Volume hackathon-afrique_evpost_redis_data Creating 
+ Network hackathon-afrique_evpost_default Creating 
+ Volume hackathon-afrique_evpost_minio_data Creating 
+ Volume hackathon-afrique_evpost_redis_data Creating 
+ Volume hackathon-afrique_evpost_postgres_data Creating 
+ Volume hackathon-afrique_evpost_postgres_data Created 
+ Volume hackathon-afrique_evpost_postgres_data Created 
+ Volume hackathon-afrique_evpost_redis_data Created 
+ Volume hackathon-afrique_evpost_redis_data Created 
+ Volume hackathon-afrique_evpost_minio_data Created 
+ Volume hackathon-afrique_evpost_minio_data Created 
+ Network hackathon-afrique_evpost_default Created 
+ Network hackathon-afrique_evpost_default Created 
+ Container hackathon-afrique_evpost-redis-1 Creating 
+ Container hackathon-afrique_evpost-postgres-1 Creating 
+ Container hackathon-afrique_evpost-minio-1 Creating 
+ Container hackathon-afrique_evpost-minio-1 Created 
+ Container hackathon-afrique_evpost-redis-1 Created 
+ Container hackathon-afrique_evpost-postgres-1 Created 
+ Container hackathon-afrique_evpost-celery-worker-1 Creating 
+ Container hackathon-afrique_evpost-backend-1 Creating 
+ Container hackathon-afrique_evpost-celery-worker-1 Created 
+ Container hackathon-afrique_evpost-backend-1 Created 
+ Container hackathon-afrique_evpost-frontend-1 Creating 
+ Container hackathon-afrique_evpost-frontend-1 Created 
+Attaching to backend-1, celery-worker-1, frontend-1, minio-1, postgres-1, redis-1
+ Container hackathon-afrique_evpost-minio-1 Starting 
+ Container hackathon-afrique_evpost-postgres-1 Starting 
+ Container hackathon-afrique_evpost-redis-1 Starting 
+ Container hackathon-afrique_evpost-minio-1 Started 
+ Container hackathon-afrique_evpost-postgres-1 Started 
+postgres-1  | The files belonging to this database system will be owned by user "postgres".
+postgres-1  | This user must also own the server process.
+postgres-1  | 
+postgres-1  | The database cluster will be initialized with locale "en_US.utf8".
+postgres-1  | The default database encoding has accordingly been set to "UTF8".
+postgres-1  | The default text search configuration will be set to "english".
+postgres-1  | 
+postgres-1  | Data page checksums are disabled.
+postgres-1  | 
+postgres-1  | fixing permissions on existing directory /var/lib/postgresql/data ... ok
+postgres-1  | creating subdirectories ... ok
+postgres-1  | selecting dynamic shared memory implementation ... posix
+postgres-1  | selecting default max_connections ... 100
+minio-1     | INFO: Formatting 1st pool, 1 set(s), 1 drives per set.
+minio-1     | INFO: WARNING: Host local has more than 0 drives of set. A host failure will result in data becoming 
+unavailable.
+postgres-1  | selecting default shared_buffers ... 128MB
+minio-1     | MinIO Object Storage Server
+minio-1     | Copyright: 2015-2026 MinIO, Inc.
+minio-1     | License: GNU AGPLv3 - https://www.gnu.org/licenses/agpl-3.0.html
+minio-1     | Version: DEVELOPMENT.GOGET (go1.24.13 linux/amd64)
+minio-1     | 
+minio-1     | API: http://172.19.0.2:9000  http://127.0.0.1:9000 
+minio-1     | WebUI: http://172.19.0.2:9001 http://127.0.0.1:9001  
+minio-1     | 
+minio-1     | Docs: https://docs.min.io
+minio-1     | WARN: Detected default credentials 'minioadmin:minioadmin', we recommend that you change these values 
+with 'MINIO_ROOT_USER' and 'MINIO_ROOT_PASSWORD' environment variables
+postgres-1  | selecting default time zone ... Etc/UTC
+postgres-1  | creating configuration files ... ok
+Error response from daemon: failed to set up container networking: driver failed programming external connectivity on 
+endpoint hackathon-afrique_evpost-redis-1 (db3b62b37b7880906764a73016cc097b727f7fa30c13f3e15c4d0dd78b7c8dbb): Bind for 
+0.0.0.0:6379 failed: port is already allocated

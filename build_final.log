@@ -1,0 +1,161 @@
+﻿docker-compose : time="2026-10-13T09:40:16+01:00" level=warning msg="The \"OPENAI_API_KEY\" variable is not set. 
+Defaulting to a blank string."
+Au caractère Ligne:1 : 1
++ docker-compose up --build 2>&1 | Out-File -FilePath build_final.log - ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (time="2026-10-1... blank string.":String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+time="2026-10-13T09:40:16+01:00" level=warning msg="The \"ANTHROPIC_API_KEY\" variable is not set. Defaulting to a 
+blank string."
+time="2026-10-13T09:40:16+01:00" level=warning msg="The \"GROQ_API_KEY\" variable is not set. Defaulting to a blank 
+string."
+time="2026-10-13T09:40:16+01:00" level=warning msg="The \"OPENAI_API_KEY\" variable is not set. Defaulting to a blank 
+string."
+time="2026-10-13T09:40:16+01:00" level=warning msg="The \"ANTHROPIC_API_KEY\" variable is not set. Defaulting to a 
+blank string."
+time="2026-10-13T09:40:16+01:00" level=warning msg="The \"GROQ_API_KEY\" variable is not set. Defaulting to a blank 
+string."
+time="2026-10-13T09:40:16+01:00" level=warning msg="D:\\Programmation\\Hackathon-afrique_evpost\\docker-compose.yml: 
+the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion"
+ Image hackathon-afrique_evpost-backend Building 
+ Image hackathon-afrique_evpost-frontend Building 
+ Image hackathon-afrique_evpost-celery-worker Building 
+#1 [internal] load local bake definitions
+#1 reading from stdin 1.64kB 0.1s done
+#1 DONE 0.1s
+
+#2 [celery-worker internal] load build definition from Dockerfile
+#2 transferring dockerfile: 374B 0.1s done
+#2 transferring dockerfile: 374B 0.1s done
+#2 DONE 0.2s
+
+#3 [frontend internal] load build definition from Dockerfile
+#3 transferring dockerfile: 180B 0.1s done
+#3 DONE 0.3s
+
+#4 [celery-worker internal] load metadata for docker.io/library/python:3.12-slim
+#4 ...
+
+#5 [auth] library/node:pull token for registry-1.docker.io
+#5 DONE 0.0s
+
+#6 [auth] library/python:pull token for registry-1.docker.io
+#6 DONE 0.0s
+
+#7 [frontend internal] load metadata for docker.io/library/node:20-alpine
+#7 DONE 2.5s
+
+#4 [celery-worker internal] load metadata for docker.io/library/python:3.12-slim
+#4 ...
+
+#8 [frontend internal] load .dockerignore
+#8 transferring context: 2B 0.0s done
+#8 DONE 0.1s
+
+#9 [frontend 1/5] FROM docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
+#9 DONE 0.0s
+
+#10 [frontend internal] load build context
+#10 transferring context: 4.40kB 0.0s done
+#10 DONE 0.1s
+
+#11 [frontend 2/5] WORKDIR /app
+#11 CACHED
+
+#12 [frontend 3/5] COPY package*.json ./
+#12 CACHED
+
+#13 [frontend 4/5] RUN npm install --legacy-peer-deps
+#13 CACHED
+
+#14 [frontend 5/5] COPY . .
+#14 CACHED
+
+#15 [frontend] exporting to image
+#15 exporting layers done
+#15 writing image sha256:b9127334ba718a5a353d5b1f1359b05b0fe87198f37c471650e73ecaf11e8f11 done
+#15 naming to docker.io/library/hackathon-afrique_evpost-frontend done
+#15 DONE 0.0s
+
+#4 [celery-worker internal] load metadata for docker.io/library/python:3.12-slim
+#4 ...
+
+#16 [frontend] resolving provenance for metadata file
+#16 DONE 0.1s
+
+#4 [celery-worker internal] load metadata for docker.io/library/python:3.12-slim
+#4 DONE 4.1s
+
+#17 [celery-worker internal] load .dockerignore
+#17 transferring context: 2B 0.0s done
+#17 DONE 0.1s
+
+#18 [backend 1/6] FROM docker.io/library/python:3.12-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1
+#18 DONE 0.0s
+
+#19 [celery-worker internal] load build context
+#19 transferring context: 1.74kB 0.1s done
+#19 DONE 0.1s
+
+#20 [celery-worker 3/6] RUN apt-get update && apt-get install -y --no-install-recommends     gcc     libpq-dev     && rm -rf /var/lib/apt/lists/*
+#20 CACHED
+
+#21 [celery-worker 2/6] WORKDIR /app
+#21 CACHED
+
+#22 [celery-worker 4/6] COPY requirements.txt .
+#22 CACHED
+
+#23 [celery-worker 5/6] RUN pip install --no-cache-dir -r requirements.txt
+#23 CACHED
+
+#24 [celery-worker 6/6] COPY . .
+#24 CACHED
+
+#25 [celery-worker] exporting to image
+#25 exporting layers done
+#25 writing image sha256:bb6ca84cc63bacd2cd697231322f7f5eaaf31eae76adf920b5ad7a8bcf63e096 0.0s done
+#25 naming to docker.io/library/hackathon-afrique_evpost-celery-worker
+#25 naming to docker.io/library/hackathon-afrique_evpost-celery-worker 0.0s done
+#25 DONE 0.1s
+
+#26 [backend] exporting to image
+#26 exporting layers done
+#26 writing image sha256:aeb77c4f090467493da28e0e5e53fb7274d516bef3d477605eb677df9348da6f 0.0s done
+#26 naming to docker.io/library/hackathon-afrique_evpost-backend 0.0s done
+#26 DONE 0.1s
+
+#27 [celery-worker] resolving provenance for metadata file
+#27 DONE 0.1s
+
+#28 [backend] resolving provenance for metadata file
+#28 DONE 0.1s
+ Image hackathon-afrique_evpost-backend Built 
+ Image hackathon-afrique_evpost-celery-worker Built 
+ Image hackathon-afrique_evpost-frontend Built 
+ Container hackathon-afrique_evpost-postgres-1 Running 
+ Container hackathon-afrique_evpost-minio-1 Running 
+Attaching to backend-1, celery-worker-1, frontend-1, minio-1, postgres-1, redis-1
+ Container hackathon-afrique_evpost-redis-1 Starting 
+ Container hackathon-afrique_evpost-redis-1 Started 
+ Container hackathon-afrique_evpost-redis-1 Waiting 
+ Container hackathon-afrique_evpost-minio-1 Waiting 
+ Container hackathon-afrique_evpost-postgres-1 Waiting 
+ Container hackathon-afrique_evpost-minio-1 Waiting 
+ Container hackathon-afrique_evpost-postgres-1 Waiting 
+ Container hackathon-afrique_evpost-redis-1 Waiting 
+redis-1  | 1:C 13 Oct 2026 08:40:27.952 * oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo
+redis-1  | 1:C 13 Oct 2026 08:40:27.952 * Redis version=7.4.11, bits=64, commit=00000000, modified=0, pid=1, just started
+redis-1  | 1:C 13 Oct 2026 08:40:27.952 # Warning: no config file specified, using the default config. In order to specify a config file use redis-server /path/to/redis.conf
+redis-1  | 1:M 13 Oct 2026 08:40:27.958 * monotonic clock: POSIX clock_gettime
+redis-1  | 1:M 13 Oct 2026 08:40:27.961 * Running mode=standalone, port=6379.
+redis-1  | 1:M 13 Oct 2026 08:40:27.962 * Server initialized
+redis-1  | 1:M 13 Oct 2026 08:40:27.962 * Ready to accept connections tcp
+ Container hackathon-afrique_evpost-minio-1 Error dependency minio failed to start
+ Container hackathon-afrique_evpost-redis-1 Error dependency redis failed to start
+ Container hackathon-afrique_evpost-postgres-1 Error dependency postgres failed to start
+ Container hackathon-afrique_evpost-postgres-1 Healthy 
+ Container hackathon-afrique_evpost-minio-1 Error dependency minio failed to start
+ Container hackathon-afrique_evpost-redis-1 Error dependency redis failed to start
+dependency failed to start: container hackathon-afrique_evpost-minio-1 is unhealthy

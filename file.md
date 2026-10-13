@@ -529,3 +529,12 @@ I l y a le modèle cascade que les gars qui ont travaillé sur FFSTC2 ont utilis
 **[USER]**
 
 Au final, on a fait quels modifs ?
+
+
+
+
+healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5

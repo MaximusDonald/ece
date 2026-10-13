@@ -9,14 +9,16 @@ from datetime import datetime
 from app.core.database import get_async_session
 from app.core.security import get_current_active_user, require_role
 from app.models.user import User, UserRole
-from app.models.legal import LegalSource, SourceStatus, LegalLevel
-from app.models.admin import ScoringRule, LLMConfig, LLMProvider, CountryModule, AuditLog
+from app.models.legal import LegalSource, SourceStatus, LegalLevel, AuditLog
+from app.models.admin import ScoringRule, LLMConfig, LLMProvider, CountryModule
 from app.schemas.admin import (
-    LegalSourceRead, LegalSourceCreate, LegalSourceUpdate,
     ScoringRuleRead, ScoringRuleCreate, ScoringRuleUpdate,
     LLMConfigRead, LLMConfigCreate, LLMConfigUpdate,
     CountryModuleRead, CountryModuleUpdate,
     AuditLogRead
+)
+from app.schemas.legal import (
+    LegalSourceRead, LegalSourceCreate, LegalSourceUpdate,
 )
 from app.services.llm_client import get_llm_client
 import hashlib

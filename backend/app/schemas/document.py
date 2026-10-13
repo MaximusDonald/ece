@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
 from app.models.document import DocumentStatus
+from enum import Enum
 
 
 # Document Schemas

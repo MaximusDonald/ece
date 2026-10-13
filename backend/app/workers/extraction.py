@@ -17,13 +17,14 @@ from app.workers.celery_app import celery_app
 settings = get_settings()
 
 # Sync engine for Celery
-sync_engine = create_async_engine(
-    settings.database_url.replace("+asyncpg", ""),
+# Async engine for Celery tasks
+async_engine = create_async_engine(
+    settings.database_url,  # Ne supprimez pas +asyncpg ici
     echo=False,
     pool_pre_ping=True,
 )
 
-SyncSession = sessionmaker(sync_engine, class_=AsyncSession, expire_on_commit=False)
+SyncSession = sessionmaker(async_engine, class_=AsyncSession, expire_on_commit=False)
 
 
 def extract_pdf(content: bytes) -> tuple[str, int]:

@@ -13,13 +13,13 @@ from app.services.llm_client import get_llm_client
 
 settings = get_settings()
 
-sync_engine = create_async_engine(
-    settings.database_url.replace("+asyncpg", ""),
+async_engine = create_async_engine(
+    settings.database_url,  # Ne supprimez pas +asyncpg ici
     echo=False,
     pool_pre_ping=True,
 )
 
-SyncSession = sessionmaker(sync_engine, class_=AsyncSession, expire_on_commit=False)
+SyncSession = sessionmaker(async_engine, class_=AsyncSession, expire_on_commit=False)
 
 llm = get_llm_client()
 

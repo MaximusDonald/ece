@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+import types
 from typing import Optional
 from app.core.config import get_settings
 
@@ -108,76 +109,66 @@ class GroqClient(LLMClient):
         raise NotImplementedError("Groq doesn't provide embeddings. Set OPENAI_API_KEY for embeddings.")
 
 
+
+
 class GeminiClient(LLMClient):
-    """Google Gemini client for chat and embeddings."""
-    
+    """Client Google Gemini pour le chat et les embeddings (norme google-genai)."""
+
     def __init__(self):
-        import google.generativeai as genai
-        genai.configure(api_key=settings.gemini_api_key)
-        self.client = genai.GenerativeModel(
-            model_name=getattr(settings, 'gemini_model', "gemini-1.5-flash"),
-            system_instruction="Tu es un expert juridique spécialisé en droit CEDEAO/UEMOA/OHADA et droit béninois. Réponds de manière précise et structurée."
+        from google import genai
+        from google.genai import types
+        
+        # La nouvelle SDK s'instancie avec un objet Client
+        self.client = genai.Client(api_key=settings.gemini_api_key)
+        self.model_name = getattr(settings, "gemini_model", "gemini-3.5-flash")
+        self.embedding_model = "gemini-embedding-2"
+        self.system_instruction = (
+            "Tu es un expert juridique spécialisé en droit CEDEAO/UEMOA/OHADA "
+            "et droit béninois. Réponds de manière précise et structurée."
         )
-        self.embedding_model = "models/text-embedding-004"
-    
+
     async def chat_completion(self, prompt: str, response_format: Optional[str] = None) -> str:
-        # Configure generation
-        generation_config = {
-            "temperature": 0.1,
-            "max_output_tokens": 4000,
-        }
-        
+        # Configuration typée avec types.GenerateContentConfig
+        config = types.GenerateContentConfig(
+            system_instruction=self.system_instruction,
+            temperature=0.1,
+            max_output_tokens=4000,
+        )
+
         if response_format == "json":
-            generation_config["response_mime_type"] = "application/json"
+            config.response_mime_type = "application/json"
             prompt = f"{prompt}\n\nRéponds UNIQUEMENT en JSON valide."
-        
-        response = await self.client.generate_content_async(
-            prompt,
-            generation_config=generation_config,
+
+        # Utilisation de la méthode asynchrone sur client.aio
+        response = await self.client.aio.models.generate_content(
+            model=self.model_name,
+            contents=prompt,
+            config=config,
         )
         return response.text
-    
+
     async def get_embeddings(self, texts: list[str]) -> list[list[float]]:
-        import google.generativeai as genai
-        embeddings = []
-        for text in texts:
-            result = await genai.embed_content_async(
-                model=self.embedding_model,
-                content=text,
-                task_type="retrieval_document",
-            )
-            embeddings.append(result['embedding'])
-        return embeddings
+        # Utilisation de la méthode d'embedding asynchrone
+        response = await self.client.aio.models.embed_content(
+            model=self.embedding_model,
+            contents=texts,
+            config=types.EmbedContentConfig(
+                task_type="RETRIEVAL_DOCUMENT",
+            ),
+        )
+        # La SDK retourne directement une liste d'embeddings pour les entrées multiples
+        return [e.values for e in response.embeddings]
 
 
 def get_llm_client() -> LLMClient:
-    """Get LLM client based on available API keys.
-    
-    Priority order (configurable via env):
-    1. Groq (fast, free tier for open models)
-    2. Gemini (Google, generous free tier)
-    2. Anthropic (Claude)
-    3. OpenAI (GPT)
-    4. Mock (development without keys)
-    """
-    # Check for Groq first (fast inference on open models)
-    if settings.groq_api_key:
-        return GroqClient()
-    
-    # Check for Gemini (Google)
-    if settings.gemini_api_key:
-        return GeminiClient()
-    
-    # Check for Anthropic
+    """Get LLM client based on available API keys."""
     if settings.anthropic_api_key:
         return AnthropicClient()
-    
-    # Check for OpenAI
-    if settings.openai_api_key:
+    elif settings.openai_api_key:
         return OpenAIClient()
-    
-    # Return mock client for testing without API keys
-    return MockLLMClient()
+    else:
+        # Return mock client for testing without API keys
+        return MockLLMClient()
 
 
 class MockLLMClient(LLMClient):
@@ -187,7 +178,7 @@ class MockLLMClient(LLMClient):
         if "vague" in prompt.lower() or "classif" in prompt.lower():
             return '{"clauses": [{"ref": "section 1.1", "type": "data_protection", "content": "Données personnelles collectées", "is_vague": true, "missing_fields": ["localisation_hebergement"]}]}'
         elif "consensus" in prompt.lower() or "juridique" in prompt.lower():
-            return '{"findings": [{"clause_ref": "section 1.1", "risk_level": "modere", "confidence": "medium", "matched_sources": [], "recommendation": "Préciser la localisation d\\'hébergement"}]}'
+            return '{"findings": [{"clause_ref": "section 1.1", "risk_level": "modere", "confidence": "medium", "matched_sources": [], "recommendation": "Préciser la localisation d\'hébergement"}]}'
         return '{"result": "mock response"}'
     
     async def get_embeddings(self, texts: list[str]) -> list[list[float]]:
