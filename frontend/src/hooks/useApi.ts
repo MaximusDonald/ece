@@ -1,6 +1,7 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import Cookies from 'js-cookie';
 import { api, authApi, orgApi, projectApi, documentApi, reportApi, adminApi } from '@/lib/api';
 import type { Project, ProjectListItem, Document, JobResponse, ReportVersionListItem, RiskFinding, ReportVersion, ReportDiff, LegalSource } from '@/lib/api';
 
@@ -9,7 +10,11 @@ export function useLogin() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ email, password }: { email: string; password: string }) => authApi.login(email, password),
-    onSuccess: () => {
+    onSuccess: (response) => {
+      const { access_token } = response.data;
+      if (access_token) {
+        Cookies.set('access_token', access_token, { expires: 7, sameSite: 'lax' });
+      }
       queryClient.invalidateQueries({ queryKey: ['me'] });
     },
   });

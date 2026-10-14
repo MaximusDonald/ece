@@ -4,20 +4,19 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useProjects, useCreateProject } from '@/hooks/useApi';
-import { Plus, TrendingUp, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
+import { useProjects } from '@/hooks/useApi';
+import { Plus, TrendingUp, AlertTriangle, CheckCircle, FileText } from 'lucide-react';
 import Link from 'next/link';
 import { formatDateTime } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 
 export default function DashboardPage() {
   const { data: projects, isLoading } = useProjects();
-  const createProject = useCreateProject();
-
   const stats = [
     { label: 'Analyses effectuées', value: projects?.filter(p => p.risk_score !== null).length || 0, icon: CheckCircle, color: 'text-success-500' },
     { label: 'Risques ouverts', value: projects?.reduce((acc, p) => acc + (p.risk_score ? (p.risk_score > 50 ? 1 : 0) : 0), 0) || 0, icon: AlertTriangle, color: 'text-warning-500' },
-    { label: 'Score moyen', value: projects && projects.length > 0 
-      ? Math.round(projects.filter(p => p.risk_score !== null).reduce((acc, p) => acc + (p.risk_score || 0), 0) / projects.filter(p => p.risk_score !== null).length) 
+    { label: 'Score moyen', value: projects && projects.some(p => p.risk_score !== null)
+      ? Math.round(projects.filter(p => p.risk_score !== null).reduce((acc, p) => acc + (p.risk_score || 0), 0) / projects.filter(p => p.risk_score !== null).length)
       : 0, icon: TrendingUp, color: 'text-sovereign-500' },
   ];
 
@@ -30,7 +29,7 @@ export default function DashboardPage() {
           <p className="page-subtitle">Vue d'ensemble de vos projets de conformité</p>
         </div>
         <Button asChild>
-          <Link href="/dashboard/projects/new">
+          <Link href="/dashboard/projects">
             <Plus className="h-4 w-4 mr-2" />
             Nouveau projet
           </Link>
@@ -61,7 +60,7 @@ export default function DashboardPage() {
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Vos projets</CardTitle>
           <Button asChild variant="ghost" size="sm">
-            <Link href="/dashboard/projects/new">
+            <Link href="/dashboard/projects">
               <Plus className="h-4 w-4 mr-2" />
               Créer
             </Link>
@@ -131,7 +130,7 @@ export default function DashboardPage() {
               <h3 className="text-lg font-medium text-slate-900 mb-2">Aucun projet</h3>
               <p className="text-slate-500 mb-4">Commencez par créer votre premier projet d'audit de conformité.</p>
               <Button asChild>
-                <Link href="/dashboard/projects/new">
+                <Link href="/dashboard/projects">
                   <Plus className="h-4 w-4 mr-2" />
                   Créer un projet
                 </Link>

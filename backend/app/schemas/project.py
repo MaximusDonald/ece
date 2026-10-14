@@ -1,37 +1,25 @@
 from uuid import UUID
 from datetime import datetime
 from typing import Optional, List
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, Field
+from fastapi_users import schemas as fastapi_users_schemas
 from app.models.user import UserRole, PlanType, ProjectStatus
 
 
 # Auth Schemas
-class UserBase(BaseModel):
-    email: EmailStr
+class UserCreate(fastapi_users_schemas.BaseUserCreate):
+    pass
 
 
-class UserCreate(UserBase):
-    password: str = Field(min_length=8)
-    role: UserRole = UserRole.ANALYST
-
-
-class UserRead(UserBase):
-    id: UUID
-    is_active: bool
-    is_superuser: bool
-    is_verified: bool
+class UserRead(fastapi_users_schemas.BaseUser[UUID]):
     role: UserRole
-    org_id: Optional[UUID]
+    org_id: Optional[UUID] = None
     created_at: datetime
-    
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
-class UserUpdate(BaseModel):
-    email: Optional[EmailStr] = None
-    is_active: Optional[bool] = None
-    role: Optional[UserRole] = None
+class UserUpdate(fastapi_users_schemas.BaseUserUpdate):
+    pass
 
 
 # Organization Schemas

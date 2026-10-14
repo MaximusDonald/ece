@@ -6,10 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useProjects, useCreateProject } from '@/hooks/useApi';
-import { Plus, Search, Filter, ChevronDown } from 'lucide-react';
+import { useProjects } from '@/hooks/useApi';
+import { Plus, Search } from 'lucide-react';
 import Link from 'next/link';
 import { formatDateTime } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { useState } from 'react';
 
 const STATUS_OPTIONS = [
@@ -26,7 +27,6 @@ const SECTORS = [
 
 export default function ProjectsPage() {
   const { data: projects, isLoading } = useProjects();
-  const createProject = useCreateProject();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [showNewProject, setShowNewProject] = useState(false);

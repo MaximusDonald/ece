@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useLogin } from '@/hooks/useApi';
 import { Shield, Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 
 const loginSchema = z.object({
   email: z.string().email('Email invalide'),
@@ -27,25 +27,29 @@ export default function LoginPage() {
   const searchParams = useSearchParams();
   const loginMutation = useLogin();
   const [showPassword, setShowPassword] = useState(false);
+  const [loginError, setLoginError] = useState('');
   const callbackUrl = searchParams.get('callbackUrl') || '/dashboard';
 
-  const { register, handleSubmit, formState: { errors }, watch } = useForm<LoginForm>({
+  const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
     defaultValues: { remember: true },
   });
 
   const onSubmit = async (data: LoginForm) => {
+    setLoginError('');
     try {
       await loginMutation.mutateAsync({ email: data.email, password: data.password });
-      toast({ title: 'Connexion réussie', description: 'Bienvenue sur ECE' });
       router.push(callbackUrl);
       router.refresh();
     } catch (err: any) {
-      toast({ 
-        title: 'Erreur de connexion', 
-        description: err.response?.data?.detail || 'Email ou mot de passe incorrect',
-        variant: 'destructive' 
-      });
+      const detail = err.response?.data?.detail;
+      setLoginError(
+        detail === 'LOGIN_BAD_CREDENTIALS'
+          ? 'Adresse email ou mot de passe incorrect.'
+          : typeof detail === 'string'
+            ? detail
+            : 'Connexion impossible. Vérifiez votre adresse email et votre mot de passe, puis réessayez.'
+      );
     }
   };
 
@@ -70,7 +74,12 @@ export default function LoginPage() {
             <CardDescription>Accédez à votre espace de conformité</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            <form method="post" onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+              {loginError && (
+                <p role="alert" className="rounded-md border border-danger-300 bg-danger-50 p-3 text-sm text-danger-900">
+                  {loginError}
+                </p>
+              )}
               <div>
                 <Label htmlFor="email">Email</Label>
                 <div className="relative mt-1">
@@ -169,22 +178,20 @@ export default function LoginPage() {
                 GitHub
               </Button>
             </div>
-          </div>
 
-          <p className="text-center text-sm text-slate-600">
-            Pas de compte ?{' '}
-            <Link href="/register" className="text-sovereign-600 hover:underline font-medium">
-              S'inscrire
-            </Link>
-          </p>
-        </CardContent>
-      </Card>
+            <p className="text-center text-sm text-slate-600">
+              Pas de compte ?{' '}
+              <Link href="/auth/register" className="text-sovereign-600 hover:underline font-medium">
+                S'inscrire
+              </Link>
+            </p>
+          </CardContent>
+        </Card>
 
-      <p className="text-center text-xs text-slate-400 mt-6">
-        ECO-Compliance Engine v1.0 — Plateforme souveraine d'audit documentaire
-      </p>
+        <p className="text-center text-xs text-slate-400 mt-6">
+          ECO-Compliance Engine v1.0 — Plateforme souveraine d'audit documentaire
+        </p>
+      </div>
     </div>
   );
 }
-
-import { cn } from '@/lib/utils';

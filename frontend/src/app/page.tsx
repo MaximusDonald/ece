@@ -13,12 +13,12 @@ export default function HomePage() {
   useEffect(() => {
     if (!isLoading) {
       if (user) {
-        if (pathname === '/' || pathname === '/login' || pathname === '/register') {
+        if (pathname === '/' || pathname === '/auth/login' || pathname === '/auth/register') {
           router.push('/dashboard');
         }
       } else {
-        if (pathname !== '/login' && pathname !== '/register') {
-          router.push('/login');
+        if (pathname !== '/auth/login' && pathname !== '/auth/register') {
+          router.push('/auth/login');
         }
       }
     }

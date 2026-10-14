@@ -231,7 +231,13 @@ export interface ReportDiff {
 // Auth API
 export const authApi = {
   login: (email: string, password: string) =>
-    api.post('/auth/jwt/login', { username: email, password }),
+    // FastAPI Users exposes the JWT login as an OAuth2 password form endpoint,
+    // so JSON requests are rejected with 422 before credentials are checked.
+    api.post(
+      '/auth/jwt/login',
+      new URLSearchParams({ username: email, password }),
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
+    ),
   
   register: (email: string, password: string) =>
     api.post('/auth/register', { email, password }),

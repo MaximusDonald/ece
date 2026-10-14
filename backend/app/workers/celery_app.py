@@ -15,6 +15,7 @@ celery_app = Celery(
         "app.workers.report",
         "app.workers.incremental",
     ],
+    broker_connection_retry_on_startup = True
 )
 
 celery_app.conf.update(
