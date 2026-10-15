@@ -1,10 +1,11 @@
 # Devpost Learn - keep personal learning context out of commits
 /devpost/learner-profile.md
 .env
-.env.*
-!.env.example
 /agent/
 /.claude/
 /.agents/
 skills-lock.json
+/fix_fullstack_issue/*
+*.log
+
 
