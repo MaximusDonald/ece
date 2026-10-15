@@ -7,11 +7,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useProjects } from '@/hooks/useApi';
 import { Plus, TrendingUp, AlertTriangle, CheckCircle, FileText } from 'lucide-react';
 import Link from 'next/link';
-import { formatDateTime } from '@/lib/utils';
-import { cn } from '@/lib/utils';
+import { cn, formatDateTime, getApiErrorMessage } from '@/lib/utils';
+import { ErrorState, LoadingState } from '@/components/ui/feedback';
 
 export default function DashboardPage() {
-  const { data: projects, isLoading } = useProjects();
+  const { data: projects, isLoading, isError, error, refetch } = useProjects();
   const stats = [
     { label: 'Analyses effectuées', value: projects?.filter(p => p.risk_score !== null).length || 0, icon: CheckCircle, color: 'text-success-500' },
     { label: 'Risques ouverts', value: projects?.reduce((acc, p) => acc + (p.risk_score ? (p.risk_score > 50 ? 1 : 0) : 0), 0) || 0, icon: AlertTriangle, color: 'text-warning-500' },
@@ -68,9 +68,9 @@ export default function DashboardPage() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="flex justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sovereign-500" />
-            </div>
+            <LoadingState label="Chargement des projets…" />
+          ) : isError ? (
+            <ErrorState message={getApiErrorMessage(error, 'Impossible de charger les projets.')} onRetry={() => void refetch()} />
           ) : projects && projects.length > 0 ? (
             <Table>
               <TableHeader>

@@ -2,7 +2,13 @@ from uuid import UUID
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
+from pydantic import EmailStr
 from app.models.admin import LLMProvider
+
+
+class PlatformAdminCreate(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=128)
 
 
 # Scoring Rule Schemas

@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { ToastProvider, ToastViewport } from '@/components/ui/toast';
+import { ToastProvider, ToastViewport, Toaster } from '@/components/ui/toast';
 import { QueryProvider } from '@/lib/query-provider';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
@@ -11,6 +11,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <TooltipProvider>
         <ToastProvider>
           {children}
+          <Toaster />
           <ToastViewport />
         </ToastProvider>
       </TooltipProvider>

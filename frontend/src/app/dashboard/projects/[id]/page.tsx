@@ -7,23 +7,26 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Upload, Settings, FileText, BarChart2, Archive } from 'lucide-react';
 import { useProject, useDocuments, useUploadDocument } from '@/hooks/useApi';
-import { formatDateTime, formatDate } from '@/lib/utils';
+import { formatDateTime, formatDate, getApiErrorMessage } from '@/lib/utils';
 import { ProjectWorkspaceDocuments } from './components/DocumentsTab';
 import { ProjectWorkspaceAnalyses } from './components/AnalysesTab';
 import { ProjectWorkspaceReports } from './components/ReportsTab';
 import { ProjectWorkspaceSettings } from './components/SettingsTab';
+import { ErrorState, LoadingState } from '@/components/ui/feedback';
 
 export default function ProjectWorkspacePage() {
   const params = useParams();
   const projectId = params.id as string;
-  const { data: project, isLoading } = useProject(projectId);
+  const { data: project, isLoading, isError, error, refetch } = useProject(projectId);
 
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sovereign-500" />
-      </div>
+      <LoadingState label="Chargement du projet…" />
     );
+  }
+
+  if (isError) {
+    return <ErrorState message={getApiErrorMessage(error, 'Impossible de charger ce projet.')} onRetry={() => void refetch()} />;
   }
 
   if (!project) {

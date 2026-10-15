@@ -11,7 +11,7 @@ export function useLogin() {
   return useMutation({
     mutationFn: ({ email, password }: { email: string; password: string }) => authApi.login(email, password),
     onSuccess: (response) => {
-      const { access_token } = response.data;
+      const { access_token } = response;
       if (access_token) {
         Cookies.set('access_token', access_token, { expires: 7, sameSite: 'lax' });
       }
@@ -30,7 +30,9 @@ export function useLogout() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: authApi.logout,
-    onSuccess: () => {
+    onSettled: () => {
+      Cookies.remove('access_token');
+      Cookies.remove('refresh_token');
       queryClient.clear();
     },
   });
@@ -245,7 +247,7 @@ export function useVerifySource() {
 }
 
 export function useAdminRules() {
-  return useQuery({
+  return useQuery<any[]>({
     queryKey: ['adminRules'],
     queryFn: adminApi.listRules,
   });
@@ -272,7 +274,7 @@ export function useUpdateRule() {
 }
 
 export function useAdminModels() {
-  return useQuery({
+  return useQuery<any[]>({
     queryKey: ['adminModels'],
     queryFn: adminApi.listModels,
   });
@@ -299,7 +301,7 @@ export function useUpdateModel() {
 }
 
 export function useAdminCountries() {
-  return useQuery({
+  return useQuery<any[]>({
     queryKey: ['adminCountries'],
     queryFn: adminApi.listCountries,
   });
@@ -316,14 +318,22 @@ export function useUpdateCountry() {
 }
 
 export function useAdminUsers() {
-  return useQuery({
+  return useQuery<any[]>({
     queryKey: ['adminUsers'],
     queryFn: adminApi.listUsers,
   });
 }
 
+export function useCreatePlatformAdmin() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { email: string; password: string }) => adminApi.createPlatformAdmin(data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['adminUsers'] }),
+  });
+}
+
 export function useAdminAuditLogs(params?: { entity_type?: string; user_id?: string }) {
-  return useQuery({
+  return useQuery<any[]>({
     queryKey: ['adminAuditLogs', params],
     queryFn: () => adminApi.listAuditLogs(params),
   });

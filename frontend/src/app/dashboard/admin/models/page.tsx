@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useAdminModels, useCreateModel, useUpdateModel } from '@/hooks/useApi';
 import { Plus, Save, X, Edit2, CheckCircle, AlertTriangle } from 'lucide-react';
 import { useState } from 'react';
+import { toast } from '@/hooks/use-toast';
 
 const PROVIDER_OPTIONS = [
   { value: 'openai', label: 'OpenAI' },
@@ -52,7 +53,7 @@ export default function AdminModelsPage() {
       resetForm();
       refetch();
     } catch (err) {
-      alert('Erreur lors de l\'enregistrement');
+      toast({ title: 'Enregistrement impossible', description: 'Le modèle n’a pas pu être enregistré. Vérifiez les champs puis réessayez.', variant: 'destructive' });
     }
   };
 

@@ -76,6 +76,7 @@ docker-compose up --build
 
 - Email : `admin@ece.local`
 - Mot de passe : `admin123`
+- Role: `platform_admin` (governance administrator). This account can open global administration and create other platform administrators. Change the default password after the first login outside local development.
 
 ## 🔄 Parcours utilisateur (Core Journey)
 

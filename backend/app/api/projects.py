@@ -38,7 +38,8 @@ async def create_organization(
     
     # Assign user to org as admin
     current_user.org_id = org.id
-    current_user.role = UserRole.ORG_ADMIN
+    if current_user.role != UserRole.PLATFORM_ADMIN:
+        current_user.role = UserRole.ORG_ADMIN
     await session.commit()
     await session.refresh(org)
     

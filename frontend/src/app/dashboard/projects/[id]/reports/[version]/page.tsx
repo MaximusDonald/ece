@@ -10,7 +10,7 @@ import { formatDateTime, getRiskBadgeClass, getConfidenceBadgeClass, getRiskEmoj
 import { AlertTriangle, CheckCircle, FileText, Search, Plus, Download, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
-import { formatDateTime } from '@/lib/utils';
+import { toast } from '@/hooks/use-toast';
 
 export default function ReportDetailPage() {
   const params = useParams();
@@ -28,7 +28,7 @@ export default function ReportDetailPage() {
       await addContextMutation.mutateAsync({ versionId, contextData });
       setShowContextModal(false);
     } catch (err) {
-      alert('Erreur lors de l\'ajout du contexte');
+      toast({ title: 'Ajout impossible', description: 'Le contexte n’a pas pu être ajouté au rapport.', variant: 'destructive' });
     }
   };
 
@@ -112,7 +112,7 @@ export default function ReportDetailPage() {
       </Card>
 
       {/* Report Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as typeof activeTab)} className="w-full">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="findings">
             <FileText className="h-4 w-4 mr-2" />

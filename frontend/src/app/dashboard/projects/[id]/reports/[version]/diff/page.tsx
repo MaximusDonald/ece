@@ -6,11 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { formatDateTime, getRiskBadgeClass, getConfidenceBadgeClass } from '@/lib/utils';
+import { cn, formatDateTime, getRiskBadgeClass, getConfidenceBadgeClass } from '@/lib/utils';
 import { ChevronLeft, ChevronRight, Search, Download, FileText, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
-import Diff from 'diff';
+import * as Diff from 'diff';
 
 interface DiffLine {
   type: 'added' | 'removed' | 'unchanged' | 'modified';

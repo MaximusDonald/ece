@@ -9,6 +9,7 @@ import { formatDateTime, getRiskBadgeClass, getConfidenceBadgeClass, getRiskEmoj
 import { AlertTriangle, CheckCircle, FileText, ChevronDown, ChevronUp, Search, Plus, Download, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
+import { toast } from '@/hooks/use-toast';
 
 export function ProjectWorkspaceReports({ projectId }: { projectId: string }) {
   const { data: versions, isLoading } = useReportVersions(projectId);
@@ -30,7 +31,7 @@ export function ProjectWorkspaceReports({ projectId }: { projectId: string }) {
       await addContextMutation.mutateAsync({ versionId: selectedVersionId!, contextData });
       setShowContextModal(false);
     } catch (err) {
-      alert('Erreur lors de l\'ajout du contexte');
+      toast({ title: 'Ajout impossible', description: 'Le contexte n’a pas pu être ajouté au rapport.', variant: 'destructive' });
     }
   };
 
@@ -132,7 +133,7 @@ export function ProjectWorkspaceReports({ projectId }: { projectId: string }) {
               </div>
 
               {/* Report Tabs */}
-              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as typeof activeTab)} className="w-full">
                 <TabsList className="grid w-full grid-cols-3">
                   <TabsTrigger value="findings">
                     <FileText className="h-4 w-4 mr-2" />
@@ -189,7 +190,7 @@ export function ProjectWorkspaceReports({ projectId }: { projectId: string }) {
                     )}
                   </div>
                 </TabsContent>
-              </Tabs}
+              </Tabs>
 
               {/* Export Buttons */}
               <div className="flex justify-end gap-3 mt-6 pt-6 border-t border-slate-200">

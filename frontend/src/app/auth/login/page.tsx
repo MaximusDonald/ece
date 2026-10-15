@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useLogin } from '@/hooks/useApi';
 import { Shield, Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, getApiErrorMessage } from '@/lib/utils';
 
 const loginSchema = z.object({
   email: z.string().email('Email invalide'),
@@ -28,6 +28,7 @@ export default function LoginPage() {
   const loginMutation = useLogin();
   const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
+  const accountCreated = searchParams.get('registered') === '1';
   const callbackUrl = searchParams.get('callbackUrl') || '/dashboard';
 
   const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>({
@@ -46,9 +47,7 @@ export default function LoginPage() {
       setLoginError(
         detail === 'LOGIN_BAD_CREDENTIALS'
           ? 'Adresse email ou mot de passe incorrect.'
-          : typeof detail === 'string'
-            ? detail
-            : 'Connexion impossible. Vérifiez votre adresse email et votre mot de passe, puis réessayez.'
+          : getApiErrorMessage(err, 'Connexion impossible. Vérifiez votre adresse email et votre mot de passe, puis réessayez.')
       );
     }
   };
@@ -75,6 +74,11 @@ export default function LoginPage() {
           </CardHeader>
           <CardContent className="space-y-6">
             <form method="post" onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+              {accountCreated && (
+                <p role="status" className="rounded-md border border-success-300 bg-success-50 p-3 text-sm text-success-800">
+                  Votre compte est créé. Connectez-vous avec vos identifiants.
+                </p>
+              )}
               {loginError && (
                 <p role="alert" className="rounded-md border border-danger-300 bg-danger-50 p-3 text-sm text-danger-900">
                   {loginError}

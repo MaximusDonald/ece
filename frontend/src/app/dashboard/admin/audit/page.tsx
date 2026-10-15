@@ -6,7 +6,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { useAdminAuditLogs } from '@/hooks/useApi';
-import { formatDateTime, Search, Filter } from '@/lib/utils';
+import { formatDateTime } from '@/lib/utils';
+import { Search, Filter } from 'lucide-react';
 import { useState } from 'react';
 
 const ENTITY_TYPES = [

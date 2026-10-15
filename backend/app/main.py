@@ -42,7 +42,7 @@ app.include_router(projects.router, prefix="/api")
 app.include_router(documents.router, prefix="/api")
 # app.include_router(reports.router, prefix="/api")
 # app.include_router(jobs.router, prefix="/api")
-# app.include_router(admin.router, prefix="/api")
+app.include_router(admin.router, prefix="/api")
 
 
 @app.get("/health")

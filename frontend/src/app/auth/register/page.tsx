@@ -11,8 +11,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useRegister } from '@/hooks/useApi';
-import { Shield, Mail, Lock, User, Loader2, Eye, EyeOff } from 'lucide-react';
+import { Shield, Mail, Lock, Loader2, Eye, EyeOff } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { getApiErrorMessage } from '@/lib/utils';
 
 const registerSchema = z.object({
   email: z.string().email('Email invalide'),
@@ -30,7 +31,7 @@ export default function RegisterPage() {
   const registerMutation = useRegister();
   const [showPassword, setShowPassword] = useState(false);
 
-  const { register, handleSubmit, formState: { errors }, watch } = useForm<RegisterForm>({
+  const { register, handleSubmit, formState: { errors } } = useForm<RegisterForm>({
     resolver: zodResolver(registerSchema),
   });
 
@@ -38,12 +39,15 @@ export default function RegisterPage() {
     try {
       await registerMutation.mutateAsync({ email: data.email, password: data.password });
       toast({ title: 'Inscription réussie', description: 'Bienvenue sur ECE !' });
-      router.push('/dashboard');
+      router.push('/auth/login?registered=1');
       router.refresh();
     } catch (err: any) {
+      const detail = err.response?.data?.detail;
       toast({ 
         title: 'Erreur d\'inscription', 
-        description: err.response?.data?.detail || 'Cet email est peut-être déjà utilisé',
+        description: detail === 'REGISTER_USER_ALREADY_EXISTS'
+          ? 'Cette adresse email est déjà associée à un compte.'
+          : getApiErrorMessage(err, 'La création du compte a échoué. Vérifiez les informations puis réessayez.'),
         variant: 'destructive' 
       });
     }

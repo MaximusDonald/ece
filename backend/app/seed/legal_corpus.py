@@ -233,15 +233,30 @@ async def seed_legal_corpus() -> None:
 
 
 async def seed_admin_user() -> None:
-    """Create platform admin user."""
+    """Ensure the documented bootstrap platform admin exists."""
     from app.models.user import User, Organization, UserRole
     from app.core.security import get_password_hash
     
     async with SyncSession() as session:
-        # Check if admin exists
-        existing = await session.execute(select(User).where(User.role == UserRole.PLATFORM_ADMIN))
-        if existing.scalar_one_or_none():
-            print("Admin user already exists, skipping.")
+        existing = await session.execute(select(User).where(User.email == "admin@ece.local"))
+        admin = existing.scalar_one_or_none()
+        if admin:
+            admin.role = UserRole.PLATFORM_ADMIN
+            admin.is_superuser = True
+            admin.is_active = True
+            admin.is_verified = True
+            if admin.org_id is None:
+                org_result = await session.execute(
+                    select(Organization).where(Organization.name == "ECE Platform Administration")
+                )
+                admin_org = org_result.scalar_one_or_none()
+                if admin_org is None:
+                    admin_org = Organization(name="ECE Platform Administration", plan="enterprise")
+                    session.add(admin_org)
+                    await session.flush()
+                admin.org_id = admin_org.id
+            await session.commit()
+            print("Bootstrap platform admin already exists.")
             return
         
         # Create admin organization

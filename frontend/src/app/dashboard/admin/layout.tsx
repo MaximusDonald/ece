@@ -2,14 +2,15 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { useLogout, useMe } from '@/hooks/useApi';
+import { LoadingState } from '@/components/ui/feedback';
 import {
   LayoutDashboard,
   FileText,
   Users,
-  Settings,
   Shield,
   Database,
   Code,
@@ -31,7 +32,18 @@ const adminNavigation = [
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { data: currentUser, isLoading } = useMe();
+  const logout = useLogout();
   const [collapsed, setCollapsed] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!isLoading && currentUser?.role !== 'platform_admin') router.replace('/dashboard');
+  }, [currentUser, isLoading, router]);
+
+  if (isLoading || currentUser?.role !== 'platform_admin') {
+    return <LoadingState label="Vérification des droits d’administration…" />;
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -126,7 +138,9 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
             <LayoutDashboard className="h-5 w-5" />
             <span>Retour à l'application</span>
           </Link>
-          <Button variant="ghost" className="w-full justify-start mt-2" onClick={() => {}}>
+          <Button variant="ghost" className="w-full justify-start mt-2" onClick={() => {
+            logout.mutate(undefined, { onSettled: () => router.replace('/auth/login') });
+          }} disabled={logout.isPending}>
             <LogOut className="h-4 w-4 mr-2" />
             Déconnexion
           </Button>
@@ -163,3 +177,5 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+
+export default AdminLayout;

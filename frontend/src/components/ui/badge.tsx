@@ -12,6 +12,7 @@ const badgeVariants = cva(
         default: 'border-transparent bg-sovereign-100 text-sovereign-700 hover:bg-sovereign-200',
         secondary: 'border-transparent bg-slate-100 text-slate-700 hover:bg-slate-200',
         destructive: 'border-transparent bg-danger-100 text-danger-700 hover:bg-danger-200',
+        warning: 'border-transparent bg-warning-50 text-warning-700',
         outline: 'text-slate-700',
         critique: 'border-transparent bg-danger-50 text-danger-700',
         eleve: 'border-transparent bg-warning-50 text-warning-700',
@@ -29,12 +30,21 @@ const badgeVariants = cva(
   }
 );
 
-export interface BadgeProps
-  extends React.HTMLAttributes<HTMLDivElement>,
-    VariantProps<typeof badgeVariants> {}
+type KnownBadgeVariant = VariantProps<typeof badgeVariants>['variant'];
+const knownBadgeVariants = [
+  'default', 'secondary', 'destructive', 'outline', 'critique', 'eleve',
+  'modere', 'a_surveiller', 'conforme', 'high', 'medium', 'low', 'warning',
+];
+
+export interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
+  variant?: KnownBadgeVariant | (string & {});
+}
 
 function Badge({ className, variant, ...props }: BadgeProps) {
-  return <div className={cn(badgeVariants({ variant }), className)} {...props} />;
+  const knownVariant = variant && knownBadgeVariants.includes(variant)
+    ? variant as KnownBadgeVariant
+    : 'default';
+  return <div className={cn(badgeVariants({ variant: knownVariant }), className)} {...props} />;
 }
 
 export { Badge, badgeVariants };

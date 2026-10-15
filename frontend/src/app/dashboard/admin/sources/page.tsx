@@ -11,6 +11,7 @@ import { useAdminSources, useCreateSource, useUpdateSource, useVerifySource } fr
 import { Plus, Search, Filter, RefreshCw, CheckCircle, AlertTriangle, Clock, ExternalLink } from 'lucide-react';
 import { formatDateTime } from '@/lib/utils';
 import { useState } from 'react';
+import { toast } from '@/hooks/use-toast';
 
 const STATUS_OPTIONS = [
   { value: '', label: 'Tous les statuts' },
@@ -105,7 +106,7 @@ export default function AdminSourcesPage() {
       setEditData({});
       refetch();
     } catch (err) {
-      alert('Erreur lors de la création');
+      toast({ title: 'Création impossible', description: 'La source juridique n’a pas pu être créée.', variant: 'destructive' });
     }
   };
 
@@ -116,7 +117,7 @@ export default function AdminSourcesPage() {
       setEditData({});
       refetch();
     } catch (err) {
-      alert('Erreur lors de la mise à jour');
+      toast({ title: 'Mise à jour impossible', description: 'La source juridique n’a pas pu être modifiée.', variant: 'destructive' });
     }
   };
 
@@ -125,7 +126,7 @@ export default function AdminSourcesPage() {
       await verifySource.mutateAsync(id);
       refetch();
     } catch (err) {
-      alert('Erreur lors de la vérification');
+      toast({ title: 'Vérification impossible', description: 'La source juridique n’a pas pu être vérifiée.', variant: 'destructive' });
     }
   };
 

@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { useLogout, useMe } from '@/hooks/useApi';
+import { useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
   FileText,
@@ -37,7 +39,16 @@ const adminNavigation = [
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const logout = useLogout();
+  const { data: currentUser } = useMe();
+  const isPlatformAdmin = currentUser?.role === 'platform_admin';
   const [collapsed, setCollapsed] = React.useState(false);
+
+  const handleLogout = async () => {
+    await logout.mutateAsync().catch(() => undefined);
+    router.replace('/auth/login');
+  };
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -99,9 +110,9 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             </>
           )}
 
-          {!collapsed && <div className="my-4 border-t border-slate-200" />}
+          {isPlatformAdmin && !collapsed && <div className="my-4 border-t border-slate-200" />}
 
-          {!collapsed && (
+          {isPlatformAdmin && !collapsed && (
             <>
               <h3 className="px-3 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                 Administration
@@ -153,7 +164,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                 );
               })}
               <div className="my-4 border-t border-slate-200 mx-2" />
-              {adminNavigation.map((item) => {
+              {isPlatformAdmin && adminNavigation.map((item) => {
                 const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
                 const Icon = item.icon;
                 return (
@@ -189,9 +200,9 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
               <p className="text-xs text-slate-500 truncate">user@example.com</p>
             </div>
           </div>
-          <Button variant="ghost" className="w-full justify-start" onClick={() => {}}>
+          <Button variant="ghost" className="w-full justify-start" onClick={handleLogout} disabled={logout.isPending}>
             <LogOut className="h-4 w-4 mr-2" />
-            Déconnexion
+            {logout.isPending ? 'Déconnexion…' : 'Déconnexion'}
           </Button>
         </div>
       </aside>
@@ -231,3 +242,5 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+
+export default DashboardLayout;

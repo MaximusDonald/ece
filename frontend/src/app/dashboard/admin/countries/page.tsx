@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useAdminCountries, useUpdateCountry } from '@/hooks/useApi';
 import { Globe, CheckCircle, X, Edit2 } from 'lucide-react';
 import { useState } from 'react';
+import { toast } from '@/hooks/use-toast';
 
 const COUNTRIES = [
   { code: 'BJ', name: 'Bénin', flag: '🇧🇯' },
@@ -37,7 +38,7 @@ export default function AdminCountriesPage() {
       await updateCountry.mutateAsync({ code, data: { is_active: active } });
       refetch();
     } catch (err) {
-      alert('Erreur lors de la mise à jour');
+      toast({ title: 'Mise à jour impossible', description: 'Le statut du pays n’a pas pu être modifié.', variant: 'destructive' });
     }
   };
 

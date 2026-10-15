@@ -8,6 +8,7 @@ import { useDocuments, useUploadDocument } from '@/hooks/useApi';
 import { Upload, FileText, Download, Trash2, Eye, Clock, CheckCircle } from 'lucide-react';
 import { formatDateTime, formatDate } from '@/lib/utils';
 import { useState } from 'react';
+import { toast } from '@/hooks/use-toast';
 
 export function ProjectWorkspaceDocuments({ projectId }: { projectId: string }) {
   const { data: documents, isLoading, refetch } = useDocuments(projectId);
@@ -27,12 +28,12 @@ export function ProjectWorkspaceDocuments({ projectId }: { projectId: string }) 
         'text/plain',
       ];
       if (!allowedTypes.includes(file.type)) {
-        alert('Type de fichier non autorisé. Formats acceptés : PDF, DOCX, Markdown, Texte');
+        toast({ title: 'Format non pris en charge', description: 'Choisissez un fichier PDF, DOCX, Markdown ou texte.', variant: 'destructive' });
         return;
       }
       // Validate size (50 MB)
       if (file.size > 50 * 1024 * 1024) {
-        alert('Fichier trop volumineux. Taille maximale : 50 Mo');
+        toast({ title: 'Fichier trop volumineux', description: 'La taille maximale autorisée est de 50 Mo.', variant: 'destructive' });
         return;
       }
       setUploadFile(file);
@@ -52,7 +53,7 @@ export function ProjectWorkspaceDocuments({ projectId }: { projectId: string }) 
       setDocumentType('');
       refetch();
     } catch (err) {
-      alert('Erreur lors du téléversement');
+      toast({ title: 'Téléversement impossible', description: 'Le document n’a pas pu être envoyé. Réessayez dans un instant.', variant: 'destructive' });
     }
   };
 

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlmodel import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 from uuid import UUID
 from typing import List, Optional
@@ -8,6 +9,7 @@ from datetime import datetime
 
 from app.core.database import get_async_session
 from app.core.security import get_current_active_user, require_role
+from app.core.security import get_password_hash
 from app.models.user import User, UserRole
 from app.models.legal import LegalSource, SourceStatus, LegalLevel, AuditLog
 from app.models.admin import ScoringRule, LLMConfig, LLMProvider, CountryModule
@@ -17,6 +19,7 @@ from app.schemas.admin import (
     CountryModuleRead, CountryModuleUpdate,
     AuditLogRead
 )
+from app.schemas.admin import PlatformAdminCreate
 from app.schemas.legal import (
     LegalSourceRead, LegalSourceCreate, LegalSourceUpdate,
 )
@@ -348,6 +351,45 @@ async def list_all_users(
         "created_at": u.created_at,
         "last_login": getattr(u, 'last_login', None),
     } for u in users]
+
+
+@router.post("/users/admins", status_code=status.HTTP_201_CREATED)
+async def create_platform_admin(
+    admin_data: PlatformAdminCreate,
+    current_user: User = Depends(get_current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Create another platform administrator. The router enforces admin-only access."""
+    normalized_email = str(admin_data.email).strip().lower()
+    existing = await session.execute(select(User).where(User.email == normalized_email))
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Cette adresse e-mail est déjà utilisée.")
+
+    new_admin = User(
+        email=normalized_email,
+        hashed_password=get_password_hash(admin_data.password),
+        is_active=True,
+        is_superuser=True,
+        is_verified=True,
+        role=UserRole.PLATFORM_ADMIN,
+        org_id=current_user.org_id,
+    )
+    session.add(new_admin)
+    try:
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Cette adresse e-mail est déjà utilisée.")
+    await session.refresh(new_admin)
+    return {
+        "id": new_admin.id,
+        "email": new_admin.email,
+        "role": new_admin.role,
+        "is_active": new_admin.is_active,
+        "org_id": new_admin.org_id,
+        "created_at": new_admin.created_at,
+        "last_login": None,
+    }
 
 
 # Audit Logs

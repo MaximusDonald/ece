@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useAdminRules, useCreateRule, useUpdateRule } from '@/hooks/useApi';
 import { Plus, Save, X, Edit2 } from 'lucide-react';
 import { useState } from 'react';
+import { toast } from '@/hooks/use-toast';
 
 const DOMAIN_OPTIONS = [
   { value: 'data_protection', label: 'Protection des données' },
@@ -57,7 +58,7 @@ export default function AdminRulesPage() {
       resetForm();
       refetch();
     } catch (err) {
-      alert('Erreur lors de l\'enregistrement');
+      toast({ title: 'Enregistrement impossible', description: 'La règle n’a pas pu être enregistrée. Vérifiez les champs puis réessayez.', variant: 'destructive' });
     }
   };
 

@@ -6,11 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useProjects } from '@/hooks/useApi';
+import { useProjects, useCreateProject } from '@/hooks/useApi';
 import { Plus, Search } from 'lucide-react';
 import Link from 'next/link';
-import { formatDateTime } from '@/lib/utils';
-import { cn } from '@/lib/utils';
+import { cn, formatDateTime, getApiErrorMessage } from '@/lib/utils';
+import { ErrorState, LoadingState } from '@/components/ui/feedback';
 import { useState } from 'react';
 
 const STATUS_OPTIONS = [
@@ -26,7 +26,7 @@ const SECTORS = [
 ];
 
 export default function ProjectsPage() {
-  const { data: projects, isLoading } = useProjects();
+  const { data: projects, isLoading, isError, error, refetch } = useProjects();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [showNewProject, setShowNewProject] = useState(false);
@@ -85,9 +85,9 @@ export default function ProjectsPage() {
       <Card>
         <CardContent>
           {isLoading ? (
-            <div className="flex justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sovereign-500" />
-            </div>
+            <LoadingState label="Chargement des projets…" />
+          ) : isError ? (
+            <ErrorState message={getApiErrorMessage(error, 'Impossible de charger les projets.')} onRetry={() => void refetch()} />
           ) : filteredProjects.length > 0 ? (
             <Table>
               <TableHeader>
@@ -212,7 +212,7 @@ function NewProjectModal({ onClose, onSuccess }: { onClose: () => void; onSucces
       });
       onSuccess();
     } catch (err: any) {
-      setErrors({ submit: err.response?.data?.detail || 'Erreur lors de la création' });
+      setErrors({ submit: getApiErrorMessage(err, 'La création du projet a échoué. Vérifiez les champs puis réessayez.') });
     }
   };
 

@@ -1,9 +1,9 @@
-import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
+import axios, { AxiosError, AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios';
 import Cookies from 'js-cookie';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-export const api = axios.create({
+const http = axios.create({
   baseURL: `${API_URL}/api`,
   headers: {
     'Content-Type': 'application/json',
@@ -12,7 +12,7 @@ export const api = axios.create({
 });
 
 // Request interceptor to add auth token
-api.interceptors.request.use(
+http.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = Cookies.get('access_token');
     if (token && config.headers) {
@@ -24,7 +24,7 @@ api.interceptors.request.use(
 );
 
 // Response interceptor for token refresh
-api.interceptors.response.use(
+http.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
@@ -48,19 +48,32 @@ api.interceptors.response.use(
             originalRequest.headers.Authorization = `Bearer ${access_token}`;
           }
           
-          return api(originalRequest);
+          return http(originalRequest);
         }
       } catch {
         // Refresh failed, redirect to login
         Cookies.remove('access_token');
         Cookies.remove('refresh_token');
-        window.location.href = '/login';
+        window.location.href = '/auth/login';
       }
     }
     
     return Promise.reject(error);
   }
 );
+
+// Keep the public API client focused on response bodies. TanStack Query pages
+// consume domain data, not Axios transport envelopes.
+export const api = {
+  get: <T = any>(url: string, config?: AxiosRequestConfig) =>
+    http.get<T>(url, config).then((response) => response.data),
+  post: <T = any>(url: string, data?: unknown, config?: AxiosRequestConfig) =>
+    http.post<T>(url, data, config).then((response) => response.data),
+  patch: <T = any>(url: string, data?: unknown, config?: AxiosRequestConfig) =>
+    http.patch<T>(url, data, config).then((response) => response.data),
+  delete: <T = any>(url: string, config?: AxiosRequestConfig) =>
+    http.delete<T>(url, config).then((response) => response.data),
+};
 
 // Types
 export interface User {
@@ -176,6 +189,7 @@ export interface ReportVersionListItem {
   confidence_global: string;
   severity_counts: Record<string, number>;
   created_at: string;
+  parent_version_id?: string | null;
 }
 
 export interface JobResponse {
@@ -231,9 +245,8 @@ export interface ReportDiff {
 // Auth API
 export const authApi = {
   login: (email: string, password: string) =>
-    // FastAPI Users exposes the JWT login as an OAuth2 password form endpoint,
-    // so JSON requests are rejected with 422 before credentials are checked.
-    api.post(
+    // FastAPI Users exposes the JWT login as an OAuth2 password form endpoint.
+    api.post<{ access_token: string; token_type: string }>(
       '/auth/jwt/login',
       new URLSearchParams({ username: email, password }),
       { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
@@ -371,6 +384,9 @@ export const adminApi = {
   // Users
   listUsers: () =>
     api.get('/admin/users'),
+
+  createPlatformAdmin: (data: { email: string; password: string }) =>
+    api.post('/admin/users/admins', data),
   
   // Audit Logs
   listAuditLogs: (params?: { entity_type?: string; user_id?: string }) =>
