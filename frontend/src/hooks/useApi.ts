@@ -1,9 +1,10 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useRef } from 'react';
 import Cookies from 'js-cookie';
 import { api, authApi, orgApi, projectApi, documentApi, reportApi, adminApi } from '@/lib/api';
-import type { Project, ProjectListItem, Document, JobResponse, ReportVersionListItem, RiskFinding, ReportVersion, ReportDiff, LegalSource } from '@/lib/api';
+import type { Project, ProjectListItem, Document, DocumentPipeline, JobResponse, ReportVersionListItem, RiskFinding, ReportVersion, ReportDiff, LegalSource, SourceCollectionRun, LLMModelConfig, LLMProviderAvailability } from '@/lib/api';
 
 // Auth hooks
 export function useLogin() {
@@ -15,7 +16,8 @@ export function useLogin() {
       if (access_token) {
         Cookies.set('access_token', access_token, { expires: 7, sameSite: 'lax' });
       }
-      queryClient.invalidateQueries({ queryKey: ['me'] });
+      // Do not reuse the previous account's cached role while a login switches identities.
+      queryClient.removeQueries({ queryKey: ['me'] });
     },
   });
 }
@@ -38,10 +40,11 @@ export function useLogout() {
   });
 }
 
-export function useMe() {
+export function useMe(options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: ['me'],
     queryFn: authApi.getMe,
+    enabled: options.enabled ?? true,
     retry: false,
   });
 }
@@ -53,6 +56,7 @@ export function useCreateOrganization() {
     mutationFn: (name: string) => orgApi.create(name),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['organization'] });
+      queryClient.invalidateQueries({ queryKey: ['me'] });
     },
   });
 }
@@ -62,6 +66,38 @@ export function useOrganization() {
     queryKey: ['organization'],
     queryFn: orgApi.getMe,
     retry: false,
+  });
+}
+
+export function useUpdateOrganization() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) => orgApi.updateMe(name),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['organization'] }),
+  });
+}
+
+export function useUpdateMe() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { email?: string; password?: string }) => authApi.updateMe(data),
+    onSuccess: (user) => queryClient.setQueryData(['me'], user),
+  });
+}
+
+export function useOrganizationMembers(enabled = true) {
+  return useQuery({
+    queryKey: ['organizationMembers'],
+    queryFn: orgApi.listMembers,
+    enabled,
+  });
+}
+
+export function useCreateOrganizationMember() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { email: string; password: string; role: string }) => orgApi.createMember(data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['organizationMembers'] }),
   });
 }
 
@@ -118,6 +154,10 @@ export function useDocuments(projectId: string) {
     queryKey: ['documents', projectId],
     queryFn: () => documentApi.list(projectId),
     enabled: !!projectId,
+    refetchInterval: (query) =>
+      query.state.data?.some((document) => document.status === 'uploaded' || document.status === 'extracting')
+        ? 2000
+        : false,
   });
 }
 
@@ -132,6 +172,65 @@ export function useUploadDocument() {
   });
 }
 
+export function useResumeDocumentPipeline() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ projectId, documentId }: { projectId: string; documentId: string }) =>
+      documentApi.resumeAnalysis(projectId, documentId),
+    onSuccess: (_, { projectId, documentId }) => {
+      queryClient.invalidateQueries({ queryKey: ['documentPipeline', projectId, documentId] });
+      queryClient.invalidateQueries({ queryKey: ['documents', projectId] });
+    },
+  });
+}
+
+export function useDocumentPipeline(projectId: string, documentId: string) {
+  const resume = useResumeDocumentPipeline();
+  const { mutate: resumePipeline, isPending: isResuming } = resume;
+  const query = useQuery({
+    queryKey: ['documentPipeline', projectId, documentId],
+    queryFn: () => documentApi.getPipeline(projectId, documentId),
+    enabled: !!projectId && !!documentId,
+    retry: false,
+    refetchInterval: (current) =>
+      current.state.data?.status === 'completed' || current.state.data?.status === 'failed'
+        ? false
+        : 2000,
+  });
+  const lastResumeAt = useRef(0);
+  const status = query.data?.status;
+  const updatedAt = query.data?.updated_at;
+  useEffect(() => {
+    if (!status || status === 'completed' || status === 'failed' || isResuming) return;
+    const stale = updatedAt ? Date.now() - new Date(updatedAt).getTime() > 120_000 : false;
+    if (status !== 'not_started' && !(status === 'running' && stale)) return;
+    if (Date.now() - lastResumeAt.current < 120_000) return;
+    lastResumeAt.current = Date.now();
+    resumePipeline({ projectId, documentId });
+  }, [documentId, projectId, isResuming, resumePipeline, status, updatedAt]);
+
+  return { ...query, resume };
+}
+
+export function useDownloadReport() {
+  return useMutation({
+    mutationFn: ({ versionId, reportType, format }: { versionId: string; reportType: 'report1' | 'report2'; format: 'pdf' | 'markdown' }) =>
+      format === 'pdf'
+        ? reportApi.downloadPdf(versionId, reportType)
+        : reportApi.downloadMarkdown(versionId, reportType),
+    onSuccess: ({ blob, filename }) => {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    },
+  });
+}
+
 export function useDocumentExtraction(projectId: string, documentId: string) {
   return useQuery({
     queryKey: ['extraction', projectId, documentId],
@@ -140,11 +239,45 @@ export function useDocumentExtraction(projectId: string, documentId: string) {
   });
 }
 
-export function useDocumentAnalysis(projectId: string, documentId: string) {
-  return useQuery({
+export function useDocumentAnalysis(projectId: string, documentId: string, enabled = true) {
+  const query = useQuery({
     queryKey: ['analysis', projectId, documentId],
     queryFn: () => documentApi.getAnalysis(projectId, documentId),
-    enabled: !!projectId && !!documentId,
+    enabled: enabled && !!projectId && !!documentId,
+    retry: false,
+    refetchInterval: (query) => {
+      if (query.state.data) return false;
+      const status = (query.state.error as { response?: { status?: number } } | null)?.response?.status;
+      return !status || status === 404 ? 2000 : false;
+    },
+  });
+  const resumeRequested = useRef<string | null>(null);
+  const errorStatus = (query.error as { response?: { status?: number } } | null)?.response?.status;
+  useEffect(() => {
+    const key = `${projectId}:${documentId}`;
+    if (!enabled || !projectId || !documentId || errorStatus !== 404 || resumeRequested.current === key) return;
+    resumeRequested.current = key;
+    documentApi.resumeAnalysis(projectId, documentId)
+      .then(() => query.refetch())
+      .catch(() => undefined);
+  }, [documentId, enabled, errorStatus, projectId, query.refetch]);
+  return query;
+}
+
+export function useDownloadDocument() {
+  return useMutation({
+    mutationFn: ({ projectId, documentId }: { projectId: string; documentId: string }) =>
+      documentApi.download(projectId, documentId),
+    onSuccess: ({ blob, filename }) => {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    },
   });
 }
 
@@ -246,6 +379,27 @@ export function useVerifySource() {
   });
 }
 
+export function useCollectSource() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => adminApi.collectSource(id),
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: ['adminSources'] });
+      queryClient.invalidateQueries({ queryKey: ['adminSourceCollections', id] });
+    },
+  });
+}
+
+export function useAdminSourceCollections(sourceId?: string) {
+  return useQuery<SourceCollectionRun[]>({
+    queryKey: ['adminSourceCollections', sourceId],
+    queryFn: () => adminApi.listSourceCollections(sourceId!),
+    enabled: Boolean(sourceId),
+    refetchInterval: (query) =>
+      query.state.data?.some((run) => run.status === 'queued' || run.status === 'running') ? 2000 : false,
+  });
+}
+
 export function useAdminRules() {
   return useQuery<any[]>({
     queryKey: ['adminRules'],
@@ -274,9 +428,16 @@ export function useUpdateRule() {
 }
 
 export function useAdminModels() {
-  return useQuery<any[]>({
+  return useQuery<LLMModelConfig[]>({
     queryKey: ['adminModels'],
     queryFn: adminApi.listModels,
+  });
+}
+
+export function useAdminModelProviders() {
+  return useQuery<LLMProviderAvailability[]>({
+    queryKey: ['adminModelProviders'],
+    queryFn: adminApi.listModelProviders,
   });
 }
 

@@ -1,4 +1,5 @@
 from celery import Celery
+from celery.schedules import crontab
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -14,6 +15,7 @@ celery_app = Celery(
         "app.workers.scoring",
         "app.workers.report",
         "app.workers.incremental",
+        "app.workers.source_collection",
     ],
     broker_connection_retry_on_startup = True
 )
@@ -29,6 +31,12 @@ celery_app.conf.update(
     task_soft_time_limit=25 * 60,
     worker_prefetch_multiplier=1,
     worker_max_tasks_per_child=100,
+    beat_schedule={
+        "weekly-official-source-collection": {
+            "task": "app.workers.source_collection.collect_enabled_sources",
+            "schedule": crontab(day_of_week="mon", hour=2, minute=0),
+        },
+    },
 )
 
 

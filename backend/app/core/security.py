@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.database import get_async_session
-from app.models.user import User
+from app.models.user import User, UserRole
 
 settings = get_settings()
 
@@ -50,7 +50,14 @@ async def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        # fastapi-users JWTStrategy issues auth tokens for this audience by default.
+        # Validate the same audience here so custom project routes accept login tokens.
+        payload = jwt.decode(
+            token,
+            SECRET_KEY,
+            algorithms=[ALGORITHM],
+            audience="fastapi-users:auth",
+        )
         user_id: str = payload.get("sub")
         if user_id is None:
             raise credentials_exception
@@ -75,7 +82,8 @@ def require_role(*allowed_roles: str):
     async def role_checker(
         current_user: User = Depends(get_current_active_user),
     ) -> User:
-        if current_user.role not in allowed_roles:
+        is_platform_admin = UserRole.PLATFORM_ADMIN in allowed_roles and current_user.is_superuser
+        if current_user.role not in allowed_roles and not is_platform_admin:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not enough permissions",

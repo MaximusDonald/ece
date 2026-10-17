@@ -1,20 +1,30 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlmodel import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 from uuid import UUID
 from typing import List, Optional
 from datetime import datetime
 
 from app.core.database import get_async_session
-from app.core.security import get_current_active_user, require_role
+from app.core.security import get_current_active_user, get_password_hash, require_role
 from app.models.user import User, Organization, Project, ProjectStatus, UserRole
 from app.schemas.project import (
     ProjectCreate, ProjectUpdate, ProjectRead, ProjectListItem,
-    OrganizationCreate, OrganizationRead
+    OrganizationCreate, OrganizationRead, OrganizationUpdate,
+    OrganizationMemberCreate, OrganizationMemberRead,
 )
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+
+
+async def get_organization_admin(
+    current_user: User = Depends(get_current_active_user),
+) -> User:
+    if current_user.role not in (UserRole.ORG_ADMIN, UserRole.PLATFORM_ADMIN) and not current_user.is_superuser:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Seul un administrateur peut gérer l’organisation.")
+    return current_user
 
 
 # Organization endpoints
@@ -38,7 +48,7 @@ async def create_organization(
     
     # Assign user to org as admin
     current_user.org_id = org.id
-    if current_user.role != UserRole.PLATFORM_ADMIN:
+    if current_user.role != UserRole.PLATFORM_ADMIN and not current_user.is_superuser:
         current_user.role = UserRole.ORG_ADMIN
     await session.commit()
     await session.refresh(org)
@@ -63,6 +73,72 @@ async def get_my_organization(
         raise HTTPException(status_code=404, detail="Organization not found")
     
     return org
+
+
+@router.patch("/organization/me", response_model=OrganizationRead)
+async def update_my_organization(
+    organization_data: OrganizationUpdate,
+    current_user: User = Depends(get_organization_admin),
+    session: AsyncSession = Depends(get_async_session),
+):
+    if not current_user.org_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Aucune organisation n’est associée à ce compte.")
+    org = await session.get(Organization, current_user.org_id)
+    if not org:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organisation introuvable.")
+    org.name = organization_data.name.strip()
+    org.updated_at = datetime.utcnow()
+    await session.commit()
+    await session.refresh(org)
+    return org
+
+
+@router.get("/organization/members", response_model=List[OrganizationMemberRead])
+async def list_organization_members(
+    current_user: User = Depends(get_organization_admin),
+    session: AsyncSession = Depends(get_async_session),
+):
+    if not current_user.org_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Aucune organisation n’est associée à ce compte.")
+    result = await session.execute(
+        select(User).where(User.org_id == current_user.org_id).order_by(User.created_at.asc())
+    )
+    return result.scalars().all()
+
+
+@router.post("/organization/members", response_model=OrganizationMemberRead, status_code=status.HTTP_201_CREATED)
+async def create_organization_member(
+    member_data: OrganizationMemberCreate,
+    current_user: User = Depends(get_organization_admin),
+    session: AsyncSession = Depends(get_async_session),
+):
+    if not current_user.org_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Aucune organisation n’est associée à ce compte.")
+    if member_data.role == UserRole.PLATFORM_ADMIN:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Le rôle administrateur plateforme ne peut pas être attribué depuis une organisation.")
+
+    email = str(member_data.email).strip().lower()
+    existing = await session.execute(select(User.id).where(User.email == email))
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Cette adresse e-mail est déjà utilisée.")
+
+    member = User(
+        email=email,
+        hashed_password=get_password_hash(member_data.password),
+        role=member_data.role,
+        org_id=current_user.org_id,
+        is_active=True,
+        is_verified=True,
+        is_superuser=False,
+    )
+    session.add(member)
+    try:
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Cette adresse e-mail est déjà utilisée.")
+    await session.refresh(member)
+    return member
 
 
 # Project endpoints

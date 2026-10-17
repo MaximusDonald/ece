@@ -1,19 +1,21 @@
 from celery import Celery
 from sqlmodel import select, func
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import selectinload, sessionmaker
 from sqlalchemy import text
 from uuid import UUID
 from datetime import datetime
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 import json
 import asyncio
 
 from app.core.config import get_settings
-from app.models.document import DocumentExtraction, DocumentAnalysis
+from app.models.document import Document, DocumentExtraction, DocumentAnalysis
 from app.models.legal import LegalSource, RiskFinding, ReportVersion, RiskLevel, ConfidenceLevel
 from app.services.llm_client import get_llm_client
 from app.workers.celery_app import celery_app
+from app.workers.task_dispatch import enqueue_document_task
+from app.workers.pipeline_tracker import add_warning, bind_report, complete_step, fail_step, start_step
 
 settings = get_settings()
 
@@ -30,72 +32,64 @@ llm = get_llm_client()
 
 async def run_legal_research(document_id: UUID) -> None:
     """Run legal research (RAG) on analyzed document."""
+    start_step(document_id, 3, "Recherche des sources applicables")
     async with SyncSession() as session:
-        # Get extraction and analysis
-        extraction = await session.get(DocumentExtraction, document_id)
+        result = await session.execute(
+            select(DocumentExtraction)
+            .options(
+                selectinload(DocumentExtraction.document).selectinload(Document.project),
+                selectinload(DocumentExtraction.analysis),
+            )
+            .where(DocumentExtraction.document_id == document_id)
+        )
+        extraction = result.scalar_one_or_none()
         if not extraction:
-            return
-        
-        analysis = await session.get(DocumentAnalysis, document_id)
+            raise RuntimeError("Extraction introuvable pour la recherche juridique")
+        analysis = extraction.analysis
         if not analysis:
-            return
-        
+            raise RuntimeError("Analyse semantique introuvable pour la recherche juridique")
+
         project_id = extraction.document.project_id
         country_code = extraction.document.project.country_code
-        
+        queries = build_search_queries(analysis, extraction)
+        all_matches = []
+        for query in queries:
+            all_matches.extend(await hybrid_search(session, query, country_code))
+        unique_matches = deduplicate_matches(all_matches)
+        findings, global_confidence = await run_consensus(
+            document_id, extraction, analysis, unique_matches, country_code
+        )
+        report_version = await create_report_version(
+            session, project_id, findings, extraction, analysis, global_confidence
+        )
+        bind_report(document_id, report_version.id)
+        complete_step(
+            document_id,
+            3,
+            "Les constats et les deux rapports Markdown sont enregistres",
+            report_version.id,
+        )
+        start_step(document_id, 4, "Calcul du score et du niveau de confiance")
+        from app.workers.scoring import scoring_task
         try:
-            # Build search queries from vague zones and entities
-            queries = build_search_queries(analysis, extraction)
-            
-            # Search legal corpus for each query
-            all_matches = []
-            for query in queries:
-                matches = await hybrid_search(session, query, country_code)
-                all_matches.extend(matches)
-            
-            # Deduplicate by source ID
-            unique_matches = deduplicate_matches(all_matches)
-            
-            # Run LLM consensus for each finding
-            findings = await run_consensus(extraction, analysis, unique_matches, country_code)
-            
-            # Create report version
-            report_version = await create_report_version(session, project_id, findings, extraction, analysis)
-            
-            # Chain to scoring
-            from app.workers.scoring import scoring_task
-            scoring_task.delay(str(report_version.id))
-            
-        except Exception as e:
-            print(f"Legal research error: {e}")
-            # Create minimal report version to not block pipeline
-            report_version = ReportVersion(
-                project_id=project_id,
-                version="1.0",
-                global_score=0,
-                confidence_global=ConfidenceLevel.LOW,
-                severity_counts={},
-                report1_markdown="# Erreur\n\nImpossible de compléter l'analyse juridique.",
-                report2_markdown="# Erreur\n\nImpossible de compléter la synthèse juridique.",
-            )
-            session.add(report_version)
-            await session.commit()
-            
-            from app.workers.scoring import scoring_task
-            scoring_task.delay(str(report_version.id))
+            enqueue_document_task(scoring_task, report_version.id, "scoring")
+        except Exception as exc:
+            print(f"Unable to queue scoring for report {report_version.id}: {exc}")
+            fail_step(document_id, 4)
 
 
 def build_search_queries(analysis: DocumentAnalysis, extraction: DocumentExtraction) -> List[str]:
     """Build search queries from analysis."""
     queries = []
+    doc_type = extraction.document.document_type or "document non precise"
     
     # From vague zones
     for zone in analysis.vague_zones:
-        queries.append(f"{zone.get('description', '')} {zone.get('clause_ref', '')}")
+        queries.append(f"{doc_type} {zone.get('description', '')} {zone.get('clause_ref', '')}")
     
     # From entities
     for data_type in analysis.entities.get("data_types", []):
-        queries.append(f"protection {data_type} {extraction.document.project.country_code}")
+        queries.append(f"{doc_type} protection {data_type} {extraction.document.project.country_code}")
     
     for treatment in analysis.entities.get("treatments", []):
         queries.append(f"{treatment} conformité {extraction.document.project.country_code}")
@@ -128,6 +122,7 @@ async def hybrid_search(session: AsyncSession, query: str, country_code: str) ->
         FROM legal_source
         WHERE (country_code = :country OR country_code IS NULL)
           AND status IN ('verified', 'to_verify')
+          AND vector_norm(embedding) > 0
         ORDER BY embedding <=> :vec
         LIMIT 10
     """)
@@ -168,11 +163,12 @@ def deduplicate_matches(matches: List[Dict]) -> List[Dict]:
 
 
 async def run_consensus(
+    document_id: UUID,
     extraction: DocumentExtraction,
     analysis: DocumentAnalysis,
     sources: List[Dict],
     country_code: str
-) -> List[Dict]:
+) -> Tuple[List[Dict], str]:
     """Run LLM consensus to match document clauses to legal sources."""
     
     # Prepare context for LLM
@@ -199,6 +195,8 @@ async def run_consensus(
     
     prompt = f"""Tu es un auditeur juridique expert CEDEAO/UEMOA/OHADA/Bénin.
 Analyse le document ci-dessous et les sources juridiques fournies pour produire des constats de conformité.
+
+NATURE DU DOCUMENT : {extraction.document.document_type or "Non precise"}
 
 DOCUMENT ANALYSÉ :
 {extraction.markdown[:10000]}
@@ -256,6 +254,7 @@ RÉPONDS EN JSON STRICT :
         return result.get("findings", []), result.get("global_confidence", "medium")
     except Exception as e:
         print(f"Consensus error: {e}")
+        add_warning(document_id, "L'analyse de consensus a échoué; les rapports présenteront des constats limités.")
         return [], "low"
 
 
@@ -264,7 +263,8 @@ async def create_report_version(
     project_id: UUID,
     findings: List[Dict],
     extraction: DocumentExtraction,
-    analysis: DocumentAnalysis
+    analysis: DocumentAnalysis,
+    global_confidence: str = "medium",
 ) -> ReportVersion:
     """Create initial report version."""
     # Calculate global score
@@ -285,7 +285,7 @@ async def create_report_version(
         project_id=project_id,
         version="1.0",
         global_score=global_score,
-        confidence_global=ConfidenceLevel.MEDIUM,  # Will be updated by scoring
+        confidence_global=ConfidenceLevel(global_confidence),
         severity_counts=severity_counts,
         report1_markdown=report1_md,
         report2_markdown=report2_md,
@@ -394,4 +394,5 @@ def legal_research_task(self, document_id: str):
     try:
         asyncio.run(run_legal_research(UUID(document_id)))
     except Exception as exc:
+        fail_step(document_id, 3, retrying=self.request.retries < self.max_retries)
         self.retry(exc=exc, countdown=60)

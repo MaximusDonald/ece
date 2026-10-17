@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams, useSearchParams } from 'next/navigation';
-import { useReportVersion, useReportFindings, useAddContext } from '@/hooks/useApi';
+import { useReportVersion, useReportFindings, useAddContext, useDownloadReport } from '@/hooks/useApi';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -20,8 +20,16 @@ export default function ReportDetailPage() {
   const { data: reportVersion } = useReportVersion(versionId);
   const { data: findings } = useReportFindings(versionId);
   const addContextMutation = useAddContext();
+  const downloadMutation = useDownloadReport();
   const [activeTab, setActiveTab] = useState<'findings' | 'sources' | 'recommendations'>('findings');
   const [showContextModal, setShowContextModal] = useState(false);
+
+  const downloadReport = (reportType: 'report1' | 'report2', format: 'pdf' | 'markdown') => {
+    downloadMutation.mutate(
+      { versionId, reportType, format },
+      { onError: () => toast({ title: 'Export impossible', description: 'Le fichier du rapport n’a pas pu être téléchargé. Réessayez après la fin de sa génération.', variant: 'destructive' }) },
+    );
+  };
 
   const handleAddContext = async (contextData: Record<string, any>) => {
     try {
@@ -185,30 +193,10 @@ export default function ReportDetailPage() {
 
       {/* Export Buttons */}
       <div className="flex justify-end gap-3">
-        <Button variant="outline" asChild>
-          <Link href={`/api/reports/${versionId}/export?format=pdf&type=report1`} target="_blank">
-            <Download className="h-4 w-4 mr-2" />
-            Exporter Rapport 1 (PDF)
-          </Link>
-        </Button>
-        <Button variant="outline" asChild>
-          <Link href={`/api/reports/${versionId}/export?format=pdf&type=report2`} target="_blank">
-            <Download className="h-4 w-4 mr-2" />
-            Exporter Rapport 2 (PDF)
-          </Link>
-        </Button>
-        <Button variant="outline" asChild>
-          <Link href={`/api/reports/${versionId}/export?format=markdown&type=report1`} target="_blank">
-            <FileText className="h-4 w-4 mr-2" />
-            Exporter Rapport 1 (MD)
-          </Link>
-        </Button>
-        <Button variant="outline" asChild>
-          <Link href={`/api/reports/${versionId}/export?format=markdown&type=report2`} target="_blank">
-            <FileText className="h-4 w-4 mr-2" />
-            Exporter Rapport 2 (MD)
-          </Link>
-        </Button>
+        <Button variant="outline" onClick={() => downloadReport('report1', 'pdf')} disabled={downloadMutation.isPending}><Download className="mr-2 h-4 w-4" />Exporter Rapport 1 (PDF)</Button>
+        <Button variant="outline" onClick={() => downloadReport('report2', 'pdf')} disabled={downloadMutation.isPending}><Download className="mr-2 h-4 w-4" />Exporter Rapport 2 (PDF)</Button>
+        <Button variant="outline" onClick={() => downloadReport('report1', 'markdown')} disabled={downloadMutation.isPending}><FileText className="mr-2 h-4 w-4" />Exporter Rapport 1 (MD)</Button>
+        <Button variant="outline" onClick={() => downloadReport('report2', 'markdown')} disabled={downloadMutation.isPending}><FileText className="mr-2 h-4 w-4" />Exporter Rapport 2 (MD)</Button>
         <Button variant="outline" asChild>
           <Link href={`/dashboard/projects/${projectId}/reports/${versionId}/diff?compare=${reportVersion.parent_version_id || ''}`}>
             <Search className="h-4 w-4 mr-2" />

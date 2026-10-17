@@ -34,6 +34,24 @@ async def init_db() -> None:
         await conn.exec_driver_sql("CREATE EXTENSION IF NOT EXISTS vector;")
         # Create all tables
         await conn.run_sync(SQLModel.metadata.create_all)
+        # create_all does not add columns to existing tables; this additive
+        # migration keeps existing local databases compatible.
+        await conn.exec_driver_sql(
+            "ALTER TABLE document ADD COLUMN IF NOT EXISTS document_type VARCHAR(50);"
+        )
+        # Additive fields for scheduled collection of registered legal URLs.
+        for column, definition in {
+            "collection_enabled": "BOOLEAN NOT NULL DEFAULT FALSE",
+            "last_collection_at": "TIMESTAMP NULL",
+            "last_successful_collection_at": "TIMESTAMP NULL",
+            "last_collection_status": "VARCHAR(20) NULL",
+            "last_collection_run_id": "UUID NULL",
+            "source_etag": "VARCHAR(500) NULL",
+            "source_last_modified": "VARCHAR(200) NULL",
+        }.items():
+            await conn.exec_driver_sql(
+                f"ALTER TABLE legal_source ADD COLUMN IF NOT EXISTS {column} {definition};"
+            )
 
 
 async def get_async_session() -> AsyncGenerator[AsyncSession, None]:

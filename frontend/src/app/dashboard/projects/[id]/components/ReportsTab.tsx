@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { useReportVersions, useReportVersion, useReportFindings, useAddContext, useReportDiff } from '@/hooks/useApi';
+import { useReportVersions, useReportVersion, useReportFindings, useAddContext, useReportDiff, useDownloadReport } from '@/hooks/useApi';
 import { formatDateTime, getRiskBadgeClass, getConfidenceBadgeClass, getRiskEmoji, getConfidenceEmoji } from '@/lib/utils';
 import { AlertTriangle, CheckCircle, FileText, ChevronDown, ChevronUp, Search, Plus, Download, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
@@ -25,6 +25,15 @@ export function ProjectWorkspaceReports({ projectId }: { projectId: string }) {
   const { data: reportVersion } = useReportVersion(selectedVersionId || '');
   const { data: findings } = useReportFindings(selectedVersionId || '');
   const addContextMutation = useAddContext();
+  const downloadMutation = useDownloadReport();
+
+  const downloadReport = (reportType: 'report1' | 'report2', format: 'pdf' | 'markdown') => {
+    if (!reportVersion) return;
+    downloadMutation.mutate(
+      { versionId: reportVersion.id, reportType, format },
+      { onError: () => toast({ title: 'Export impossible', description: 'Le fichier du rapport n’a pas pu être téléchargé. Réessayez après la fin de sa génération.', variant: 'destructive' }) },
+    );
+  };
 
   const handleAddContext = async (contextData: Record<string, any>) => {
     try {
@@ -194,30 +203,10 @@ export function ProjectWorkspaceReports({ projectId }: { projectId: string }) {
 
               {/* Export Buttons */}
               <div className="flex justify-end gap-3 mt-6 pt-6 border-t border-slate-200">
-                <Button variant="outline" asChild>
-                  <Link href={`/api/reports/${reportVersion.id}/export?format=pdf&type=report1`} target="_blank">
-                    <Download className="h-4 w-4 mr-2" />
-                    Exporter Rapport 1 (PDF)
-                  </Link>
-                </Button>
-                <Button variant="outline" asChild>
-                  <Link href={`/api/reports/${reportVersion.id}/export?format=pdf&type=report2`} target="_blank">
-                    <Download className="h-4 w-4 mr-2" />
-                    Exporter Rapport 2 (PDF)
-                  </Link>
-                </Button>
-                <Button variant="outline" asChild>
-                  <Link href={`/api/reports/${reportVersion.id}/export?format=markdown&type=report1`} target="_blank">
-                    <FileText className="h-4 w-4 mr-2" />
-                    Exporter Rapport 1 (MD)
-                  </Link>
-                </Button>
-                <Button variant="outline" asChild>
-                  <Link href={`/api/reports/${reportVersion.id}/export?format=markdown&type=report2`} target="_blank">
-                    <FileText className="h-4 w-4 mr-2" />
-                    Exporter Rapport 2 (MD)
-                  </Link>
-                </Button>
+                <Button variant="outline" onClick={() => downloadReport('report1', 'pdf')} disabled={downloadMutation.isPending}><Download className="mr-2 h-4 w-4" />Exporter Rapport 1 (PDF)</Button>
+                <Button variant="outline" onClick={() => downloadReport('report2', 'pdf')} disabled={downloadMutation.isPending}><Download className="mr-2 h-4 w-4" />Exporter Rapport 2 (PDF)</Button>
+                <Button variant="outline" onClick={() => downloadReport('report1', 'markdown')} disabled={downloadMutation.isPending}><FileText className="mr-2 h-4 w-4" />Exporter Rapport 1 (MD)</Button>
+                <Button variant="outline" onClick={() => downloadReport('report2', 'markdown')} disabled={downloadMutation.isPending}><FileText className="mr-2 h-4 w-4" />Exporter Rapport 2 (MD)</Button>
               </div>
             </>
           )}

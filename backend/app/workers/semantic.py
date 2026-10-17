@@ -11,6 +11,8 @@ from app.core.config import get_settings
 from app.models.document import DocumentExtraction, DocumentAnalysis
 from app.services.llm_client import get_llm_client
 from app.workers.celery_app import celery_app
+from app.workers.task_dispatch import enqueue_document_task
+from app.workers.pipeline_tracker import add_warning, complete_step, fail_step, start_step
 
 settings = get_settings()
 
@@ -32,46 +34,42 @@ except OSError:
 
 async def run_semantic_analysis(document_id: UUID) -> None:
     """Run semantic analysis on extracted document."""
+    start_step(document_id, 2, "Repérage des entités et zones à clarifier")
     async with SyncSession() as session:
-        # Get extraction
-        extraction = await session.get(DocumentExtraction, document_id)
+        # The task receives a document ID; DocumentExtraction has a separate primary key.
+        extraction_result = await session.execute(
+            select(DocumentExtraction).where(DocumentExtraction.document_id == document_id)
+        )
+        extraction = extraction_result.scalar_one_or_none()
         if not extraction:
-            return
-        
-        try:
-            # NER with spaCy
-            doc = nlp(extraction.markdown[:100000])  # Limit for performance
-            
+            raise RuntimeError("Extraction introuvable pour l’analyse sémantique")
+
+        existing_analysis = await session.execute(
+            select(DocumentAnalysis.id).where(DocumentAnalysis.extraction_id == extraction.id)
+        )
+        if existing_analysis.scalar_one_or_none():
+            complete_step(document_id, 2, "L’analyse du contenu est déjà disponible")
+        else:
+            doc = nlp(extraction.markdown[:100000])
             entities = {
-                "persons": [],
-                "organizations": [],
-                "locations": [],
-                "dates": [],
-                "money": [],
-                "data_types": [],
-                "treatments": [],
+                "persons": [], "organizations": [], "locations": [], "dates": [],
+                "money": [], "data_types": [], "treatments": [],
             }
-            
             for ent in doc.ents:
                 if ent.label_ in ["PER", "PERSON"]:
                     entities["persons"].append(ent.text)
-                elif ent.label_ in ["ORG"]:
+                elif ent.label_ == "ORG":
                     entities["organizations"].append(ent.text)
                 elif ent.label_ in ["LOC", "GPE"]:
                     entities["locations"].append(ent.text)
-                elif ent.label_ in ["DATE"]:
+                elif ent.label_ == "DATE":
                     entities["dates"].append(ent.text)
-                elif ent.label_ in ["MONEY"]:
+                elif ent.label_ == "MONEY":
                     entities["money"].append(ent.text)
-            
-            # Deduplicate
             for key in entities:
                 entities[key] = list(set(entities[key]))
-            
-            # LLM-based clause classification for vague zones
+
             vague_zones = await classify_clauses_with_llm(extraction.markdown)
-            
-            # Save analysis
             analysis = DocumentAnalysis(
                 extraction_id=extraction.id,
                 entities=entities,
@@ -79,25 +77,15 @@ async def run_semantic_analysis(document_id: UUID) -> None:
             )
             session.add(analysis)
             await session.commit()
-            
-            # Chain to legal research
-            from app.workers.legal_research import legal_research_task
-            legal_research_task.delay(str(document_id))
-            
-        except Exception as e:
-            # Log error but don't fail - continue pipeline
-            print(f"Semantic analysis error: {e}")
-            # Create empty analysis to not block pipeline
-            analysis = DocumentAnalysis(
-                extraction_id=extraction.id,
-                entities={},
-                vague_zones=[],
-            )
-            session.add(analysis)
-            await session.commit()
-            
-            from app.workers.legal_research import legal_research_task
-            legal_research_task.delay(str(document_id))
+            complete_step(document_id, 2, "Entités et zones à clarifier enregistrées")
+
+        start_step(document_id, 3, "Recherche des textes applicables au pays et au secteur")
+        from app.workers.legal_research import legal_research_task
+        try:
+            enqueue_document_task(legal_research_task, document_id, "legal_research")
+        except Exception as exc:
+            print(f"Unable to queue legal research for {document_id}: {exc}")
+            fail_step(document_id, 3)
 
 
 async def classify_clauses_with_llm(markdown: str) -> list[dict]:
@@ -134,6 +122,7 @@ Réponds en JSON strict :
         return vague_zones
     except Exception as e:
         print(f"LLM clause classification error: {e}")
+        add_warning(document_id, "La détection automatique des zones floues est indisponible; le reste de l’analyse continue.")
         return []
 
 
@@ -143,6 +132,7 @@ def semantic_analysis_task(self, document_id: str):
     try:
         asyncio.run(run_semantic_analysis(UUID(document_id)))
     except Exception as exc:
+        fail_step(document_id, 2, retrying=self.request.retries < self.max_retries)
         self.retry(exc=exc, countdown=60)
 
 

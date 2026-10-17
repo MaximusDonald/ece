@@ -2,15 +2,23 @@
 
 import { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import Cookies from 'js-cookie';
 import { useMe } from '@/hooks/useApi';
 import { Shield, Loader2 } from 'lucide-react';
 
 export default function HomePage() {
   const router = useRouter();
   const pathname = usePathname();
-  const { data: user, isLoading, error } = useMe();
+  const hasSessionToken = Boolean(Cookies.get('access_token') || Cookies.get('refresh_token'));
+  const { data: user, isLoading } = useMe({ enabled: hasSessionToken });
 
   useEffect(() => {
+    if (!hasSessionToken) {
+      if (pathname !== '/auth/login' && pathname !== '/auth/register') {
+        router.replace('/auth/login');
+      }
+      return;
+    }
     if (!isLoading) {
       if (user) {
         if (pathname === '/' || pathname === '/auth/login' || pathname === '/auth/register') {
@@ -22,7 +30,7 @@ export default function HomePage() {
         }
       }
     }
-  }, [user, isLoading, router, pathname]);
+  }, [user, isLoading, hasSessionToken, router, pathname]);
 
   if (isLoading) {
     return (

@@ -7,8 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useAdminSources, useCreateSource, useUpdateSource, useVerifySource } from '@/hooks/useApi';
-import { Plus, Search, Filter, RefreshCw, CheckCircle, AlertTriangle, Clock, ExternalLink } from 'lucide-react';
+import { useAdminSources, useAdminSourceCollections, useCollectSource, useCreateSource, useUpdateSource } from '@/hooks/useApi';
+import { Plus, Search, CheckCircle, AlertTriangle, Clock, ExternalLink, History, Loader2, Play } from 'lucide-react';
 import { formatDateTime } from '@/lib/utils';
 import { useState } from 'react';
 import { toast } from '@/hooks/use-toast';
@@ -60,9 +60,10 @@ export default function AdminSourcesPage() {
   const { data: sources, isLoading, refetch } = useAdminSources();
   const createSource = useCreateSource();
   const updateSource = useUpdateSource();
-  const verifySource = useVerifySource();
+  const collectSource = useCollectSource();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [historySourceId, setHistorySourceId] = useState<string | undefined>();
   const [editData, setEditData] = useState<Record<string, any>>({});
   const [filters, setFilters] = useState({
     status: '',
@@ -70,6 +71,7 @@ export default function AdminSourcesPage() {
     level: '',
     search: '',
   });
+  const { data: collectionRuns, isLoading: isHistoryLoading } = useAdminSourceCollections(historySourceId);
 
   const filteredSources = sources?.filter(s => {
     const matchesStatus = !filters.status || s.status === filters.status;
@@ -100,6 +102,10 @@ export default function AdminSourcesPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!String(editData.content_text || '').trim() && !editData.collection_enabled) {
+      toast({ title: 'Contenu manquant', description: 'Collez un texte initial ou activez la collecte depuis l’URL officielle.', variant: 'destructive' });
+      return;
+    }
     try {
       await createSource.mutateAsync(editData);
       setIsCreateOpen(false);
@@ -121,13 +127,23 @@ export default function AdminSourcesPage() {
     }
   };
 
-  const handleVerify = async (id: string) => {
+  const handleCollect = async (id: string) => {
     try {
-      await verifySource.mutateAsync(id);
+      await collectSource.mutateAsync(id);
+      setHistorySourceId(id);
+      toast({ title: 'Collecte démarrée', description: 'Consultez l’historique pour son résultat.' });
       refetch();
     } catch (err) {
-      toast({ title: 'Vérification impossible', description: 'La source juridique n’a pas pu être vérifiée.', variant: 'destructive' });
+      toast({ title: 'Collecte impossible', description: 'Vérifiez que l’URL pointe vers un document HTML ou PDF public en HTTPS.', variant: 'destructive' });
     }
+  };
+
+  const collectionBadge = (status?: string | null) => {
+    if (status === 'running' || status === 'queued') return <Badge variant="a_surveiller">{status === 'queued' ? 'En attente' : 'En cours'}</Badge>;
+    if (status === 'succeeded') return <Badge variant="conforme">Mis à jour</Badge>;
+    if (status === 'unchanged') return <Badge variant="secondary">Inchangée</Badge>;
+    if (status === 'failed') return <Badge variant="critique">Échec</Badge>;
+    return <span className="text-slate-400">Jamais collectée</span>;
   };
 
   return (
@@ -208,7 +224,7 @@ export default function AdminSourcesPage() {
                   <TableHead>Niveau</TableHead>
                   <TableHead>Article</TableHead>
                   <TableHead>Statut</TableHead>
-                  <TableHead>Date collecte</TableHead>
+                  <TableHead>Dernière collecte</TableHead>
                   <TableHead>Hash</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -258,7 +274,11 @@ export default function AdminSourcesPage() {
                       )}
                     </TableCell>
                     <TableCell>{getStatusBadge(source.status)}</TableCell>
-                    <TableCell className="text-sm text-slate-500">{formatDateTime(source.created_at)}</TableCell>
+                    <TableCell className="text-sm text-slate-500">
+                      <div>{source.last_collection_at ? formatDateTime(source.last_collection_at) : 'Jamais'}</div>
+                      <div className="mt-1">{collectionBadge(source.last_collection_status)}</div>
+                      {source.collection_enabled && <div className="mt-1 text-xs text-slate-400">Hebdomadaire activée</div>}
+                    </TableCell>
                     <TableCell className="font-mono text-xs text-slate-500 max-w-[100px] truncate">
                       {source.content_hash.slice(0, 16)}...
                     </TableCell>
@@ -278,11 +298,12 @@ export default function AdminSourcesPage() {
                             <Button variant="ghost" size="icon" onClick={() => { setEditingId(source.id); setEditData({ ...source }); }}>
                               <ExternalLink className="h-4 w-4" />
                             </Button>
-                            {source.status !== 'verified' && (
-                              <Button variant="ghost" size="icon" onClick={() => handleVerify(source.id)} disabled={verifySource.isPending}>
-                                <RefreshCw className="h-4 w-4" />
-                              </Button>
-                            )}
+                            <Button variant="ghost" size="icon" title="Collecter maintenant" onClick={() => handleCollect(source.id)} disabled={collectSource.isPending}>
+                              {collectSource.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                            </Button>
+                            <Button variant="ghost" size="icon" title="Historique des collectes" onClick={() => setHistorySourceId(source.id)}>
+                              <History className="h-4 w-4" />
+                            </Button>
                           </>
                         )}
                       </div>
@@ -308,6 +329,36 @@ export default function AdminSourcesPage() {
           )}
         </CardContent>
       </Card>
+
+      {historySourceId && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-lg">Historique des collectes — {sources?.find((item) => item.id === historySourceId)?.title}</CardTitle>
+            <Button variant="ghost" size="sm" onClick={() => setHistorySourceId(undefined)}>Fermer</Button>
+          </CardHeader>
+          <CardContent>
+            {isHistoryLoading ? <div className="py-4 text-sm text-slate-500">Chargement de l’historique…</div> : !collectionRuns?.length ? (
+              <p className="py-4 text-sm text-slate-500">Aucune collecte enregistrée.</p>
+            ) : (
+              <div className="space-y-3">
+                {collectionRuns.map((run) => (
+                  <div key={run.id} className="rounded-lg border border-slate-200 p-4 text-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">{collectionBadge(run.status)}<span>{run.trigger_type === 'scheduled' ? 'Automatique' : 'Manuelle'}</span></div>
+                      <span className="text-slate-500">Demandée le {formatDateTime(run.requested_at)}</span>
+                    </div>
+                    {run.started_at && <p className="mt-1 text-xs text-slate-500">Démarrée le {formatDateTime(run.started_at)}{run.finished_at ? ` · terminée le ${formatDateTime(run.finished_at)}` : ''}</p>}
+                    <p className="mt-2 text-slate-600">{run.changed === true ? 'Le texte a changé; l’embedding a été recalculé.' : run.changed === false ? 'Le texte est inchangé; aucun embedding recalculé.' : 'Résultat non disponible.'}</p>
+                    {(run.previous_hash || run.collected_hash) && <p className="mt-1 break-all font-mono text-xs text-slate-500">Hash : {run.previous_hash?.slice(0, 12) || '—'} → {run.collected_hash?.slice(0, 12) || '—'}</p>}
+                    {run.http_status_code && <p className="mt-1 text-xs text-slate-500">Réponse HTTP {run.http_status_code}</p>}
+                    {run.error_message && <p role="alert" className="mt-2 rounded bg-rose-50 p-2 text-rose-800">{run.error_message}</p>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Create/Edit Modal */}
       {(isCreateOpen || editingId) && (
@@ -390,15 +441,22 @@ export default function AdminSourcesPage() {
                   />
                 </div>
                 <div className="md:col-span-2">
-                  <Label htmlFor="content_text">Contenu du texte (pour embedding) *</Label>
+                  <Label htmlFor="content_text">Texte de référence initial (facultatif si la collecte est activée)</Label>
                   <textarea
                     id="content_text"
                     value={editData.content_text || ''}
                     onChange={(e) => setEditData({ ...editData, content_text: e.target.value })}
-                    placeholder="Collez ici le texte complet de la source juridique..."
+                    placeholder="Collez le texte ou laissez vide pour le récupérer depuis l’URL officielle..."
                     className="input min-h-[200px] font-mono text-sm"
-                    required
                   />
+                  <p className="mt-1 text-xs text-slate-500">L’URL doit pointer directement vers une page HTML ou un PDF public en HTTPS; les autres pages du site ne sont pas explorées.</p>
+                </div>
+                <div className="md:col-span-2 rounded-lg border border-slate-200 p-4">
+                  <label className="flex items-start gap-3 text-sm font-medium text-slate-800">
+                    <input type="checkbox" checked={Boolean(editData.collection_enabled)} onChange={(e) => setEditData({ ...editData, collection_enabled: e.target.checked })} className="mt-1" />
+                    Activer la collecte automatique hebdomadaire
+                  </label>
+                  <p className="ml-6 mt-1 text-xs text-slate-500">Les URL activées sont vérifiées chaque lundi à 03 h, heure du Bénin. Vous pouvez aussi lancer une collecte manuelle depuis la liste.</p>
                 </div>
                 <div>
                   <Label htmlFor="status">Statut</Label>

@@ -30,18 +30,19 @@ const adminNavigation = [
   { name: 'Journaux d\'audit', href: '/dashboard/admin/audit', icon: FileText },
 ];
 
-export function AdminLayout({ children }: { children: React.ReactNode }) {
+function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { data: currentUser, isLoading } = useMe();
+  const isPlatformAdmin = currentUser?.is_superuser || currentUser?.role === 'platform_admin';
   const logout = useLogout();
   const [collapsed, setCollapsed] = React.useState(false);
 
   React.useEffect(() => {
-    if (!isLoading && currentUser?.role !== 'platform_admin') router.replace('/dashboard');
-  }, [currentUser, isLoading, router]);
+    if (!isLoading && !isPlatformAdmin) router.replace('/dashboard');
+  }, [currentUser, isLoading, isPlatformAdmin, router]);
 
-  if (isLoading || currentUser?.role !== 'platform_admin') {
+  if (isLoading || !isPlatformAdmin) {
     return <LoadingState label="Vérification des droits d’administration…" />;
   }
 

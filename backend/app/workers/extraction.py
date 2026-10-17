@@ -13,6 +13,8 @@ from app.core.config import get_settings
 from app.models.document import Document, DocumentExtraction, DocumentStatus
 from app.services.minio_client import get_minio_client, download_file
 from app.workers.celery_app import celery_app
+from app.workers.task_dispatch import enqueue_document_task
+from app.workers.pipeline_tracker import complete_step, fail_step, start_step
 
 settings = get_settings()
 
@@ -113,11 +115,12 @@ def detect_language(text: str) -> str:
 
 async def run_extraction(document_id: UUID) -> None:
     """Run document extraction asynchronously."""
+    start_step(document_id, 1, "Lecture du fichier et extraction du texte")
     async with SyncSession() as session:
         # Get document
         document = await session.get(Document, document_id)
         if not document:
-            return
+            raise RuntimeError("Document introuvable pendant l’extraction")
         
         # Update status
         document.status = DocumentStatus.EXTRACTING
@@ -154,14 +157,19 @@ async def run_extraction(document_id: UUID) -> None:
             document.status = DocumentStatus.EXTRACTED
             await session.commit()
             
-            # Chain to next task (semantic analysis)
-            from app.workers.semantic import semantic_analysis_task
-            semantic_analysis_task.delay(str(document.id))
-            
         except Exception as e:
             document.status = DocumentStatus.FAILED
             await session.commit()
             raise
+
+        complete_step(document.id, 1, "Le texte a été extrait et enregistré")
+        start_step(document.id, 2, "Préparation de l’analyse du contenu")
+        from app.workers.semantic import semantic_analysis_task
+        try:
+            enqueue_document_task(semantic_analysis_task, document.id, "semantic")
+        except Exception as exc:
+            print(f"Unable to queue semantic analysis for {document.id}: {exc}")
+            fail_step(document.id, 2)
 
 
 @celery_app.task(bind=True, max_retries=3)
@@ -170,4 +178,5 @@ def extract_document_task(self, document_id: str):
     try:
         asyncio.run(run_extraction(UUID(document_id)))
     except Exception as exc:
+        fail_step(document_id, 1, retrying=self.request.retries < self.max_retries)
         self.retry(exc=exc, countdown=60)

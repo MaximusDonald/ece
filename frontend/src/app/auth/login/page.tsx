@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -11,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useLogin } from '@/hooks/useApi';
+import { authApi } from '@/lib/api';
 import { Shield, Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { cn, getApiErrorMessage } from '@/lib/utils';
 
@@ -22,10 +24,11 @@ const loginSchema = z.object({
 
 type LoginForm = z.infer<typeof loginSchema>;
 
-export default function LoginPage() {
+function LoginFormPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const loginMutation = useLogin();
+  const queryClient = useQueryClient();
   const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
   const accountCreated = searchParams.get('registered') === '1';
@@ -40,7 +43,13 @@ export default function LoginPage() {
     setLoginError('');
     try {
       await loginMutation.mutateAsync({ email: data.email, password: data.password });
-      router.push(callbackUrl);
+      const currentUser = await authApi.getMe();
+      queryClient.setQueryData(['me'], currentUser);
+      const isPlatformAdmin = currentUser.is_superuser || currentUser.role === 'platform_admin';
+      const destination = callbackUrl === '/dashboard' && isPlatformAdmin
+        ? '/dashboard/admin/users'
+        : callbackUrl;
+      router.replace(destination);
       router.refresh();
     } catch (err: any) {
       const detail = err.response?.data?.detail;
@@ -197,5 +206,13 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-slate-50" />}>
+      <LoginFormPage />
+    </Suspense>
   );
 }

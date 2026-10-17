@@ -4,15 +4,17 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { useDocuments, useUploadDocument } from '@/hooks/useApi';
-import { Upload, FileText, Download, Trash2, Eye, Clock, CheckCircle } from 'lucide-react';
+import { useDocuments, useDocumentAnalysis, useUploadDocument, useDownloadDocument } from '@/hooks/useApi';
+import { Upload, FileText, Download, Trash2, Eye, CheckCircle, Loader2, AlertCircle } from 'lucide-react';
 import { formatDateTime, formatDate } from '@/lib/utils';
 import { useState } from 'react';
 import { toast } from '@/hooks/use-toast';
+import Link from 'next/link';
 
 export function ProjectWorkspaceDocuments({ projectId }: { projectId: string }) {
   const { data: documents, isLoading, refetch } = useDocuments(projectId);
   const uploadMutation = useUploadDocument();
+  const downloadMutation = useDownloadDocument();
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [documentType, setDocumentType] = useState('');
@@ -54,16 +56,6 @@ export function ProjectWorkspaceDocuments({ projectId }: { projectId: string }) 
       refetch();
     } catch (err) {
       toast({ title: 'Téléversement impossible', description: 'Le document n’a pas pu être envoyé. Réessayez dans un instant.', variant: 'destructive' });
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'completed': return <Badge variant="conforme"><CheckCircle className="h-3 w-3 mr-1" />Terminé</Badge>;
-      case 'processing': return <Badge variant="modere"><Clock className="h-3 w-3 mr-1" />En cours</Badge>;
-      case 'extracting': return <Badge variant="a_surveiller"><Clock className="h-3 w-3 mr-1" />Extraction</Badge>;
-      case 'failed': return <Badge variant="critique">Échoué</Badge>;
-      default: return <Badge variant="secondary">{status}</Badge>;
     }
   };
 
@@ -119,19 +111,21 @@ export function ProjectWorkspaceDocuments({ projectId }: { projectId: string }) 
                       </Badge>
                     </TableCell>
                     <TableCell>{formatSize(doc.size_bytes)}</TableCell>
-                    <TableCell>{getStatusBadge(doc.status)}</TableCell>
+                    <TableCell><DocumentStatusBadge projectId={projectId} document={doc} /></TableCell>
                     <TableCell>{formatDateTime(doc.created_at)}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
-                        {doc.status === 'completed' && (
+                        {doc.status === 'extracted' && (
                           <>
                             <Button variant="ghost" size="icon" asChild>
                               <Link href={`/dashboard/projects/${projectId}/documents/${doc.id}/extraction`}>
                                 <Eye className="h-4 w-4" />
                               </Link>
                             </Button>
-                            <Button variant="ghost" size="icon">
-                              <Download className="h-4 w-4" />
+                            <Button variant="ghost" size="icon" aria-label="Télécharger le document" disabled={downloadMutation.isPending} onClick={() => downloadMutation.mutate({ projectId, documentId: doc.id }, { onError: () => toast({ title: 'Téléchargement impossible', description: 'Le document n’a pas pu être téléchargé. Réessayez dans un instant.', variant: 'destructive' }) })}>
+                              {downloadMutation.isPending && downloadMutation.variables?.documentId === doc.id
+                                ? <Loader2 className="h-4 w-4 animate-spin" />
+                                : <Download className="h-4 w-4" />}
                             </Button>
                           </>
                         )}
@@ -226,4 +220,26 @@ export function ProjectWorkspaceDocuments({ projectId }: { projectId: string }) 
   );
 }
 
-import Link from 'next/link';
+function DocumentStatusBadge({ projectId, document }: { projectId: string; document: { id: string; status: string } }) {
+  const analysisQuery = useDocumentAnalysis(projectId, document.id, document.status === 'extracted');
+
+  if (document.status === 'uploaded') {
+    return <span className="inline-flex items-center gap-2"><Badge variant="secondary">Téléversé</Badge><Loader2 className="h-4 w-4 animate-spin text-sovereign-600" aria-label="Extraction en cours" /></span>;
+  }
+  if (document.status === 'extracting') {
+    return <Badge variant="a_surveiller"><Loader2 className="mr-1 h-3 w-3 animate-spin" />Extraction en cours</Badge>;
+  }
+  if (document.status === 'extracted') {
+    const errorStatus = (analysisQuery.error as { response?: { status?: number } } | null)?.response?.status;
+    if (analysisQuery.isError && errorStatus !== 404) {
+      return <Badge variant="critique"><AlertCircle className="mr-1 h-3 w-3" />Analyse indisponible</Badge>;
+    }
+    return analysisQuery.data
+      ? <Badge variant="conforme"><CheckCircle className="mr-1 h-3 w-3" />Analyse terminée</Badge>
+      : <Badge variant="modere"><Loader2 className="mr-1 h-3 w-3 animate-spin" />Analyses en cours</Badge>;
+  }
+  if (document.status === 'failed') {
+    return <Badge variant="critique"><AlertCircle className="mr-1 h-3 w-3" />Échec</Badge>;
+  }
+  return <Badge variant="secondary">{document.status}</Badge>;
+}

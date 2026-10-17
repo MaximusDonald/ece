@@ -45,6 +45,13 @@ class LegalSource(SQLModel, table=True):
     effective_date: Optional[date] = Field(default=None, sa_column=Column(Date))
     abrogated_date: Optional[date] = Field(default=None, sa_column=Column(Date))
     embedding: List[float] = Field(default=[], sa_column=Column(Vector(1536)))  # OpenAI text-embedding-3-small
+    collection_enabled: bool = Field(default=False)
+    last_collection_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime))
+    last_successful_collection_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime))
+    last_collection_status: Optional[str] = Field(default=None, max_length=20)
+    last_collection_run_id: Optional[UUID] = Field(default=None)
+    source_etag: Optional[str] = Field(default=None, max_length=500)
+    source_last_modified: Optional[str] = Field(default=None, max_length=200)
     created_at: datetime = Field(default_factory=datetime.utcnow, sa_column=Column(DateTime, nullable=False))
     updated_at: datetime = Field(default_factory=datetime.utcnow, sa_column=Column(DateTime, nullable=False))
     
@@ -52,6 +59,35 @@ class LegalSource(SQLModel, table=True):
     __table_args__ = (
         Index("ix_legal_source_embedding_cosine", "embedding", postgresql_using="ivfflat", postgresql_with={"lists": 100}, postgresql_ops={"embedding": "vector_cosine_ops"}),
     )
+
+
+class SourceCollectionRunStatus(str, enum.Enum):
+    QUEUED = "queued"
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    UNCHANGED = "unchanged"
+    FAILED = "failed"
+
+
+class SourceCollectionRun(SQLModel, table=True):
+    __tablename__ = "source_collection_run"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    source_id: UUID = Field(foreign_key="legal_source.id", index=True)
+    trigger_type: str = Field(default="manual", max_length=20)
+    triggered_by: Optional[UUID] = Field(default=None, foreign_key="user.id")
+    status: str = Field(
+        default=SourceCollectionRunStatus.QUEUED.value,
+        sa_column=Column(String(20), nullable=False, index=True),
+    )
+    requested_at: datetime = Field(default_factory=datetime.utcnow, sa_column=Column(DateTime, nullable=False))
+    started_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime))
+    finished_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime))
+    http_status_code: Optional[int] = Field(default=None)
+    previous_hash: Optional[str] = Field(default=None, max_length=64)
+    collected_hash: Optional[str] = Field(default=None, max_length=64)
+    changed: Optional[bool] = Field(default=None)
+    error_message: Optional[str] = Field(default=None, sa_column=Column(Text))
 
 
 class RiskLevel(str, enum.Enum):

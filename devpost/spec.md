@@ -13,7 +13,7 @@ status: approved
 
 The system is a **FastAPI backend + Next.js frontend** running locally via **docker-compose** (PostgreSQL, Redis, MinIO). 
 
-**User flow**: You sign in → create a project (pick country, sector, treatments) → upload a PDF/DOCX/Markdown → the backend spins up an async job (Celery) that: extracts text → finds legal entities & vague clauses → searches a curated legal corpus (PostgreSQL + PGVector) filtered by your project's country → runs a RAG pipeline with an LLM to match clauses to laws, compute a confidence badge (High/Medium/Low), detect obsolete texts or conflicts between CEDEAO and national law → scores each finding (5 levels) → generates two Markdown/PDF reports (document analysis + legal synthesis). You view the report in the dashboard with tabs (Findings, Legal Sources, Recommendations). If something's vague (e.g., "hosting location not specified"), you add the missing info → the system re-runs **only the affected chunks** and shows a diff between report versions. Admins manage the legal corpus, scoring rules, LLM config, and country modules via a dedicated console.
+**User flow**: You sign in → create a project (pick country, sector, treatments) → upload a PDF/DOCX/Markdown → the backend spins up an async job (Celery) that: extracts text → finds legal entities & vague clauses → searches a curated legal corpus (PostgreSQL + PGVector) filtered by your project's country → runs a RAG pipeline with an LLM to match clauses to laws, compute a confidence badge (High/Medium/Low), detect obsolete texts or conflicts between CEDEAO and national law → scores each finding (5 levels) → generates two Markdown/PDF reports (document analysis + legal synthesis). You view the report in the dashboard with tabs (Findings, Legal Sources, Recommendations). If something's vague (e.g., "hosting location not specified"), you add the missing info → the system re-runs **only the affected chunks** and shows a diff between report versions. Admins manage the legal corpus, trigger or schedule weekly collection from registered official HTML/PDF URLs, inspect durable collection history, and manage scoring rules, LLM config, and country modules via a dedicated console.
 
 **Why this shape**: 
 - Single PostgreSQL for relational data + vector search (no separate vector DB to operate)
@@ -171,8 +171,15 @@ PRD ref: `prd.md > Look and Feel` + `scope.md > Inspiration & Identity`
 - Implements: `prd.md > Features and Behavior > 5 + 6`
 
 ### 9. Admin Governance API (`backend/app/api/admin.py`)
-- Role-checked (`platform_admin`) CRUD: `LegalSource`, `ScoringRule`, `LLMConfig`, `CountryModule`, `User`, `AuditLog`.
+- Role-checked (`platform_admin`) CRUD: `LegalSource`, `ScoringRule`, `LLMConfig`, `CountryModule`, `User`, `AuditLog`. Source collection endpoints: `POST /api/admin/sources/{source_id}/collect` queues one-off runs (202); `GET /api/admin/sources/{source_id}/collections` lists the latest 20 runs; `PATCH /api/admin/sources/{source_id}` updates `collection_enabled`. All require `platform_admin`.
 - Implements: `prd.md > Features and Behavior > 6`
+
+### 9a. Official Source Collection Worker (`backend/app/workers/source_collection.py`)
+- Collects only explicitly registered HTTPS document URLs (HTML or native PDF); it does not crawl site links.
+- Limits downloads to 25 MB, validates public IP targets and each redirect, extracts visible HTML/PDF text, and logs queued/running/succeeded/unchanged/failed runs.
+- Compares normalized text hashes; unchanged texts do not consume an embedding call. Changed texts replace the current text/vector and update collection timestamps.
+- Celery Beat dispatches enabled sources weekly on Monday 02:00 UTC (03:00 Benin time); platform admins can trigger a manual collection and inspect history.
+- Implements: `prd.md > Admin & Governance > Legal Corpus`
 
 ### 10. Frontend App Shell (`frontend/app/`, `frontend/components/`)
 - Next.js App Router: `(auth)/login`, `(dashboard)/layout` (sidebar), `/dashboard`, `/projects/[id]`, `/projects/[id]/upload`, `/projects/[id]/analysis/[jobId]`, `/projects/[id]/reports/[version]`, `/projects/[id]/reports/[version]/context`, `/projects/[id]/reports/[version]/diff`, `/admin/*`.
@@ -247,6 +254,23 @@ class LegalSource(BaseUUID):
     effective_date: date | None
     abrogated_date: date | None
     embedding: list[float]  # PGVector column
+    collection_enabled: bool = False
+    last_collection_at: datetime | None
+    last_successful_collection_at: datetime | None
+    last_collection_status: str | None
+
+class SourceCollectionRun(BaseUUID):
+    source_id: UUID = Field(foreign_key="legal_source.id")
+    trigger_type: str  # manual | scheduled
+    status: str  # queued | running | succeeded | unchanged | failed
+    requested_at: datetime
+    started_at: datetime | None
+    finished_at: datetime | None
+    previous_hash: str | None
+    collected_hash: str | None
+    changed: bool | None
+    http_status_code: int | None
+    error_message: str | None
 
 class RiskFinding(BaseUUID):
     report_version_id: UUID = Field(foreign_key="report_version.id")
@@ -414,7 +438,7 @@ ece/
 
 | Simpler Thing Built | Instead of Fuller Thing | Why |
 |---------------------|-------------------------|-----|
-| **Seed corpus (~30 texts)** | Automated ingestion/scraping from official sites | POC proves RAG + consensus on curated data; scraping is ops-heavy, brittle, out of scope |
+| **Seed corpus (~30 texts) + targeted official URL collection** | Recursive discovery/crawling of whole sites | Direct HTML/PDF URLs can be refreshed manually or weekly with durable run history; broad crawling remains brittle and out of scope |
 | **Single LLM provider (OpenAI/Anthropic)** | Multi-provider abstraction + local LLM (Ollama/vLLM) | Configurable via env; local LLM needs GPU, model serving infra — deferred |
 | **No OCR (Tesseract)** | OCR for scanned PDFs | Scope explicitly cuts scanned PDFs; native PDF/DOCX/MD cover POC |
 | **Polling for job status** | WebSockets / Server-Sent Events | Polling (2s interval) is simpler, sufficient for demo; SSE adds backend complexity |

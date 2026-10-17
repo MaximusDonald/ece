@@ -79,11 +79,19 @@ class LLMConfigUpdate(BaseModel):
 
 class LLMConfigRead(LLMConfigBase):
     id: UUID
+    available: bool = False
     created_at: datetime
     updated_at: datetime
     
     class Config:
         from_attributes = True
+
+
+class LLMProviderAvailability(BaseModel):
+    provider: LLMProvider
+    label: str
+    available: bool
+    default_model: str
 
 
 # Country Module Schemas

@@ -87,10 +87,43 @@ export interface User {
   created_at: string;
 }
 
+export type LLMProvider = 'openai' | 'anthropic' | 'gemini' | 'groq';
+
+export interface LLMModelConfig {
+  id: string;
+  name: string;
+  provider: LLMProvider;
+  model: string;
+  temperature: number;
+  max_tokens: number;
+  system_prompt_version: string;
+  system_prompt: string;
+  is_active: boolean;
+  is_default: boolean;
+  available: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LLMProviderAvailability {
+  provider: LLMProvider;
+  label: string;
+  available: boolean;
+  default_model: string;
+}
+
 export interface Organization {
   id: string;
   name: string;
   plan: string;
+  created_at: string;
+}
+
+export interface OrganizationMember {
+  id: string;
+  email: string;
+  role: string;
+  is_active: boolean;
   created_at: string;
 }
 
@@ -201,6 +234,27 @@ export interface JobResponse {
   error: string | null;
 }
 
+export interface DocumentPipelineStep {
+  step: number;
+  key: string;
+  label: string;
+  status: 'pending' | 'running' | 'retrying' | 'completed' | 'failed';
+  message: string;
+}
+
+export interface DocumentPipeline {
+  document_id: string;
+  filename: string | null;
+  status: 'not_started' | 'queued' | 'running' | 'completed' | 'failed';
+  current_step: number | null;
+  progress: number;
+  steps: DocumentPipelineStep[];
+  error: string | null;
+  warnings: string[];
+  report_version_id: string | null;
+  updated_at: string | null;
+}
+
 export interface JobStep {
   step: number;
   name: string;
@@ -225,6 +279,29 @@ export interface LegalSource {
   embedding: number[];
   created_at: string;
   updated_at: string;
+  collection_enabled: boolean;
+  last_collection_at: string | null;
+  last_successful_collection_at: string | null;
+  last_collection_status: string | null;
+  last_collection_run_id: string | null;
+  source_etag: string | null;
+  source_last_modified: string | null;
+}
+
+export interface SourceCollectionRun {
+  id: string;
+  source_id: string;
+  trigger_type: 'manual' | 'scheduled';
+  triggered_by: string | null;
+  status: 'queued' | 'running' | 'succeeded' | 'unchanged' | 'failed';
+  requested_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  http_status_code: number | null;
+  previous_hash: string | null;
+  collected_hash: string | null;
+  changed: boolean | null;
+  error_message: string | null;
 }
 
 export interface DiffLine {
@@ -261,7 +338,7 @@ export const authApi = {
   getMe: () =>
     api.get<User>('/auth/users/me'),
   
-  updateMe: (data: Partial<User>) =>
+  updateMe: (data: Partial<User> & { password?: string }) =>
     api.patch<User>('/auth/users/me', data),
 };
 
@@ -272,6 +349,15 @@ export const orgApi = {
   
   getMe: () =>
     api.get<Organization>('/projects/organization/me'),
+
+  updateMe: (name: string) =>
+    api.patch<Organization>('/projects/organization/me', { name }),
+
+  listMembers: () =>
+    api.get<OrganizationMember[]>('/projects/organization/members'),
+
+  createMember: (data: { email: string; password: string; role: string }) =>
+    api.post<OrganizationMember>('/projects/organization/members', data),
 };
 
 // Project API
@@ -314,6 +400,31 @@ export const documentApi = {
   
   getAnalysis: (projectId: string, documentId: string) =>
     api.get<DocumentAnalysis>(`/projects/${projectId}/documents/${documentId}/analysis`),
+
+  getPipeline: (projectId: string, documentId: string) =>
+    api.get<DocumentPipeline>(`/projects/${projectId}/documents/${documentId}/pipeline`),
+
+  resumeAnalysis: (projectId: string, documentId: string) =>
+    api.post<{ status: string; stage: string; job_id?: string | null }>(
+      `/projects/${projectId}/documents/${documentId}/resume`,
+    ),
+
+  download: async (projectId: string, documentId: string) => {
+    const response = await http.get<Blob>(
+      `/projects/${projectId}/documents/${documentId}/download`,
+      { responseType: 'blob' },
+    );
+    const disposition = response.headers['content-disposition'] as string | undefined;
+    const encodedName = disposition?.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+    const plainName = disposition?.match(/filename="?([^";]+)"?/i)?.[1];
+    let filename = 'document';
+    try {
+      filename = encodedName ? decodeURIComponent(encodedName) : plainName || filename;
+    } catch {
+      filename = plainName || filename;
+    }
+    return { blob: response.data, filename };
+  },
   
   getJobStatus: (projectId: string, jobId: string) =>
     api.get<JobResponse>(`/projects/${projectId}/documents/jobs/${jobId}`),
@@ -337,6 +448,26 @@ export const reportApi = {
     api.get<ReportDiff>(`/reports/${versionId}/diff`, { 
       params: { compare_with: compareWith, report_type: reportType } 
     }),
+
+  downloadPdf: async (versionId: string, reportType: 'report1' | 'report2') => {
+    const response = await http.get<Blob>(`/reports/${versionId}/download`, {
+      params: { type: reportType },
+      responseType: 'blob',
+    });
+    const disposition = response.headers['content-disposition'] as string | undefined;
+    const filename = disposition?.match(/filename="?([^";]+)"?/i)?.[1] || `${reportType}.pdf`;
+    return { blob: response.data, filename };
+  },
+
+  downloadMarkdown: async (versionId: string, reportType: 'report1' | 'report2') => {
+    const response = await http.get<Blob>(`/reports/${versionId}/export`, {
+      params: { format: 'markdown', type: reportType },
+      responseType: 'blob',
+    });
+    const disposition = response.headers['content-disposition'] as string | undefined;
+    const filename = disposition?.match(/filename="?([^";]+)"?/i)?.[1] || `${reportType}.md`;
+    return { blob: response.data, filename };
+  },
 };
 
 // Admin API
@@ -353,6 +484,12 @@ export const adminApi = {
   
   verifySource: (id: string) =>
     api.post(`/admin/sources/${id}/verify`),
+
+  collectSource: (id: string) =>
+    api.post<SourceCollectionRun>(`/admin/sources/${id}/collect`),
+
+  listSourceCollections: (id: string) =>
+    api.get<SourceCollectionRun[]>(`/admin/sources/${id}/collections`),
   
   // Scoring Rules
   listRules: () =>
@@ -366,13 +503,15 @@ export const adminApi = {
   
   // LLM Configs
   listModels: () =>
-    api.get('/admin/models'),
+    api.get<LLMModelConfig[]>('/admin/models'),
+  listModelProviders: () =>
+    api.get<LLMProviderAvailability[]>('/admin/models/providers'),
   
   createModel: (data: any) =>
-    api.post('/admin/models', data),
+    api.post<LLMModelConfig>('/admin/models', data),
   
   updateModel: (id: string, data: any) =>
-    api.patch(`/admin/models/${id}`, data),
+    api.patch<LLMModelConfig>(`/admin/models/${id}`, data),
   
   // Countries
   listCountries: () =>

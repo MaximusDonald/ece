@@ -1,296 +1,252 @@
 'use client';
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useMemo, useState, type FormEvent } from 'react';
+import { AlertTriangle, CheckCircle, Edit2, Plus, Search, X } from 'lucide-react';
+import { AxiosError } from 'axios';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useAdminModels, useCreateModel, useUpdateModel } from '@/hooks/useApi';
-import { Plus, Save, X, Edit2, CheckCircle, AlertTriangle } from 'lucide-react';
-import { useState } from 'react';
+import { useAdminModelProviders, useAdminModels, useCreateModel, useUpdateModel } from '@/hooks/useApi';
+import type { LLMModelConfig, LLMProvider } from '@/lib/api';
 import { toast } from '@/hooks/use-toast';
 
-const PROVIDER_OPTIONS = [
-  { value: 'openai', label: 'OpenAI' },
-  { value: 'anthropic', label: 'Anthropic' },
-];
-
-const MODEL_OPTIONS: Record<string, string[]> = {
-  openai: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'],
-  anthropic: ['claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022', 'claude-3-opus-20240229'],
+type ModelForm = {
+  name: string;
+  provider: LLMProvider;
+  model: string;
+  temperature: number;
+  max_tokens: number;
+  system_prompt_version: string;
+  system_prompt: string;
+  is_default: boolean;
 };
 
+const emptyForm = (provider: LLMProvider = 'openai'): ModelForm => ({
+  name: '',
+  provider,
+  model: '',
+  temperature: 0.1,
+  max_tokens: 4000,
+  system_prompt_version: 'v1',
+  system_prompt: 'You are a legal expert. Answer precisely and never invent legal references.',
+  is_default: false,
+});
+
+function getErrorMessage(error: unknown) {
+  const detail = (error as AxiosError<{ detail?: string }>)?.response?.data?.detail;
+  return typeof detail === 'string' ? detail : 'La requête a échoué. Vérifiez les champs et réessayez.';
+}
+
 export default function AdminModelsPage() {
-  const { data: models, isLoading, refetch } = useAdminModels();
+  const { data: models, isLoading, isError, refetch } = useAdminModels();
+  const { data: providers, isLoading: providersLoading } = useAdminModelProviders();
   const createModel = useCreateModel();
   const updateModel = useUpdateModel();
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [formData, setFormData] = useState({
-    name: '',
-    provider: 'openai',
-    model: 'gpt-4o-mini',
-    temperature: 0.1,
-    max_tokens: 4000,
-    system_prompt_version: 'v1',
-    system_prompt: 'Tu es un expert juridique spécialisé en droit CEDEAO/UEMOA/OHADA et droit béninois. Réponds de manière précise, structurée et sourcée. Ne jamais inventer de références juridiques. Si tu ne sais pas, dis-le explicitement.',
-    is_active: true,
-    is_default: false,
+  const [search, setSearch] = useState('');
+  const [providerFilter, setProviderFilter] = useState('all');
+  const [availabilityFilter, setAvailabilityFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingModel, setEditingModel] = useState<LLMModelConfig | null>(null);
+  const [form, setForm] = useState<ModelForm>(emptyForm());
+  const availableProviders = providers?.filter((item) => item.available) ?? [];
+
+  const providerLabels = useMemo(
+    () => new Map((providers ?? []).map((item) => [item.provider, item.label])),
+    [providers],
+  );
+
+  const filteredModels = (models ?? []).filter((item) => {
+    const matchesName = `${item.name} ${item.model}`.toLowerCase().includes(search.toLowerCase());
+    return matchesName
+      && (providerFilter === 'all' || item.provider === providerFilter)
+      && (availabilityFilter === 'all' || (availabilityFilter === 'available') === item.available)
+      && (statusFilter === 'all' || (statusFilter === 'active') === item.is_active);
   });
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const startCreate = () => {
+    const provider = availableProviders[0]?.provider ?? 'openai';
+    const definition = providers?.find((item) => item.provider === provider);
+    setEditingModel(null);
+    setForm({ ...emptyForm(provider), model: definition?.default_model ?? '' });
+    setIsFormOpen(true);
+  };
+
+  const startEdit = (model: LLMModelConfig) => {
+    setEditingModel(model);
+    setForm({
+      name: model.name,
+      provider: model.provider,
+      model: model.model,
+      temperature: model.temperature,
+      max_tokens: model.max_tokens,
+      system_prompt_version: model.system_prompt_version,
+      system_prompt: model.system_prompt,
+      is_default: model.is_default,
+    });
+    setIsFormOpen(true);
+  };
+
+  const closeForm = () => {
+    setIsFormOpen(false);
+    setEditingModel(null);
+  };
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     try {
-      if (editingId) {
-        await updateModel.mutateAsync({ id: editingId, data: formData });
+      if (editingModel) {
+        await updateModel.mutateAsync({
+          id: editingModel.id,
+          data: {
+            model: form.model,
+            temperature: form.temperature,
+            max_tokens: form.max_tokens,
+            system_prompt_version: form.system_prompt_version,
+            system_prompt: form.system_prompt,
+            is_default: form.is_default,
+          },
+        });
+        toast({ title: 'Modèle modifié', description: 'La configuration a été enregistrée.' });
       } else {
-        await createModel.mutateAsync(formData);
+        await createModel.mutateAsync({ ...form, is_active: true });
+        toast({ title: 'Modèle vérifié et ajouté', description: 'Le test fournisseur a réussi.' });
       }
-      setIsCreateOpen(false);
-      setEditingId(null);
-      resetForm();
+      closeForm();
       refetch();
-    } catch (err) {
-      toast({ title: 'Enregistrement impossible', description: 'Le modèle n’a pas pu être enregistré. Vérifiez les champs puis réessayez.', variant: 'destructive' });
+    } catch (error) {
+      toast({
+        title: editingModel ? 'Modification impossible' : 'Test ou ajout impossible',
+        description: getErrorMessage(error),
+        variant: 'destructive',
+      });
     }
   };
 
-  const resetForm = () => {
-    setFormData({
-      name: '',
-      provider: 'openai',
-      model: 'gpt-4o-mini',
-      temperature: 0.1,
-      max_tokens: 4000,
-      system_prompt_version: 'v1',
-      system_prompt: 'Tu es un expert juridique spécialisé en droit CEDEAO/UEMOA/OHADA et droit béninois. Réponds de manière précise, structurée et sourcée. Ne jamais inventer de références juridiques. Si tu ne sais pas, dis-le explicitement.',
-      is_active: true,
-      is_default: false,
-    });
-  };
-
-  const handleEdit = (model: any) => {
-    setEditingId(model.id);
-    setFormData({ ...model });
-    setIsCreateOpen(true);
+  const toggleModel = async (model: LLMModelConfig) => {
+    if (!model.available) return;
+    try {
+      await updateModel.mutateAsync({ id: model.id, data: { is_active: !model.is_active } });
+      toast({
+        title: model.is_active ? 'Modèle désactivé' : 'Modèle activé',
+        description: model.is_active ? 'Les appels en cours ne sont pas interrompus.' : 'Il peut maintenant participer au choix et au fallback.',
+      });
+    } catch (error) {
+      toast({ title: 'Activation impossible', description: getErrorMessage(error), variant: 'destructive' });
+    }
   };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="page-title">Modèles LLM</h1>
-          <p className="page-subtitle">Configurez les modèles d'IA utilisés pour l'analyse et le RAG</p>
+          <p className="page-subtitle">Disponibilité des fournisseurs, modèles actifs et ordre de secours.</p>
         </div>
-        <Button onClick={() => { resetForm(); setIsCreateOpen(true); }}>
-          <Plus className="h-4 w-4 mr-2" />
-          Nouveau modèle
+        <Button onClick={startCreate} disabled={providersLoading || availableProviders.length === 0}>
+          <Plus className="h-4 w-4" /> Nouveau modèle
         </Button>
       </div>
 
-      {/* Models Table */}
       <Card>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sovereign-500" />
-            </div>
-          ) : models && models.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nom</TableHead>
-                  <TableHead>Fournisseur</TableHead>
-                  <TableHead>Modèle</TableHead>
-                  <TableHead>Température</TableHead>
-                  <TableHead>Max tokens</TableHead>
-                  <TableHead>Version prompt</TableHead>
-                  <TableHead>Défaut</TableHead>
-                  <TableHead>Actif</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {models.map((model) => (
-                  <TableRow key={model.id}>
-                    <TableCell className="font-medium">{model.name}</TableCell>
-                    <TableCell>
-                      <Badge variant={model.provider === 'openai' ? 'default' : 'secondary'}>
-                        {model.provider.toUpperCase()}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="font-mono text-sm">{model.model}</TableCell>
-                    <TableCell>{model.temperature}</TableCell>
-                    <TableCell>{model.max_tokens}</TableCell>
-                    <TableCell>{model.system_prompt_version}</TableCell>
-                    <TableCell>
-                      {model.is_default && <Badge variant="default">Défaut</Badge>}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={model.is_active ? 'conforme' : 'secondary'}>
-                        {model.is_active ? 'Oui' : 'Non'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" onClick={() => handleEdit(model)}>
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          ) : (
-            <div className="text-center py-12">
-              <h3 className="text-lg font-medium text-slate-900 mb-2">Aucun modèle</h3>
-              <p className="text-slate-500 mb-4">Configurez votre premier modèle LLM.</p>
-              <Button onClick={() => { resetForm(); setIsCreateOpen(true); }}>
-                <Plus className="h-4 w-4 mr-2" />
-                Ajouter un modèle
-              </Button>
-            </div>
+        <CardHeader><CardTitle className="text-base">Fournisseurs déclarés</CardTitle></CardHeader>
+        <CardContent className="flex flex-wrap gap-2">
+          {(providers ?? []).map((provider) => (
+            <Badge key={provider.provider} variant={provider.available ? 'conforme' : 'secondary'}>
+              {provider.label} · {provider.available ? 'Available' : 'Non disponible'}
+            </Badge>
+          ))}
+          {providersLoading && <span className="text-sm text-slate-500">Vérification des fournisseurs…</span>}
+          {!providersLoading && !availableProviders.length && (
+            <p className="flex items-center gap-2 text-sm text-amber-700"><AlertTriangle className="h-4 w-4" />Aucune clé fournisseur configurée. L’ajout et l’activation sont désactivés.</p>
           )}
         </CardContent>
       </Card>
 
-      {/* Create/Edit Modal */}
-      {isCreateOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => { setIsCreateOpen(false); setEditingId(null); resetForm(); }}>
-          <div className="bg-white rounded-xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 border-b border-slate-200 flex items-center justify-between">
-              <h2 className="text-xl font-semibold">{editingId ? 'Modifier le modèle' : 'Nouveau modèle LLM'}</h2>
-              <button onClick={() => { setIsCreateOpen(false); setEditingId(null); resetForm(); }} className="text-slate-400 hover:text-slate-600">
-                <X className="h-6 w-6" />
-              </button>
-            </div>
-            <form onSubmit={handleSubmit} className="p-6 space-y-6">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <Label htmlFor="name">Nom *</Label>
-                  <Input
-                    id="name"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="ex: OpenAI GPT-4o-mini (Default)"
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="provider">Fournisseur *</Label>
-                  <Select value={formData.provider} onValueChange={(v) => setFormData({ ...formData, provider: v, model: MODEL_OPTIONS[v][0] })}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PROVIDER_OPTIONS.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="model">Modèle *</Label>
-                  <Select value={formData.model} onValueChange={(v) => setFormData({ ...formData, model: v })}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {MODEL_OPTIONS[formData.provider].map((m) => (
-                        <SelectItem key={m} value={m}>{m}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="temperature">Température</Label>
-                  <Input
-                    id="temperature"
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    max="2"
-                    value={formData.temperature}
-                    onChange={(e) => setFormData({ ...formData, temperature: parseFloat(e.target.value) })}
-                    className="input"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="max_tokens">Max tokens</Label>
-                  <Input
-                    id="max_tokens"
-                    type="number"
-                    min="1"
-                    value={formData.max_tokens}
-                    onChange={(e) => setFormData({ ...formData, max_tokens: parseInt(e.target.value) })}
-                    className="input"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="system_prompt_version">Version prompt système</Label>
-                  <Input
-                    id="system_prompt_version"
-                    value={formData.system_prompt_version}
-                    onChange={(e) => setFormData({ ...formData, system_prompt_version: e.target.value })}
-                    className="input"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <Label htmlFor="system_prompt">Prompt système *</Label>
-                <textarea
-                  id="system_prompt"
-                  value={formData.system_prompt}
-                  onChange={(e) => setFormData({ ...formData, system_prompt: e.target.value })}
-                  className="input min-h-[200px] font-mono text-sm"
-                  required
-                />
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <Label>Actif</Label>
-                  <div className="mt-2">
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={formData.is_active}
-                        onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                        className="h-4 w-4 text-sovereign-500 border-slate-300 rounded"
-                      />
-                      <span className="text-sm">Modèle actif</span>
-                    </label>
-                  </div>
-                </div>
-                <div>
-                  <Label>Modèle par défaut</Label>
-                  <div className="mt-2">
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={formData.is_default}
-                        onChange={(e) => setFormData({ ...formData, is_default: e.target.checked })}
-                        className="h-4 w-4 text-sovereign-500 border-slate-300 rounded"
-                      />
-                      <span className="text-sm">Utiliser comme modèle par défaut</span>
-                    </label>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
-                <Button type="button" variant="secondary" onClick={() => { setIsCreateOpen(false); setEditingId(null); resetForm(); }}>
-                  Annuler
-                </Button>
-                <Button type="submit" disabled={createModel.isPending || updateModel.isPending}>
-                  {createModel.isPending || updateModel.isPending ? 'Enregistrement...' : editingId ? 'Enregistrer' : 'Créer'}
-                </Button>
-              </div>
-            </form>
+      <Card>
+        <CardHeader><CardTitle className="text-base">Filtres</CardTitle></CardHeader>
+        <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Input aria-label="Rechercher un modèle" placeholder="Nom ou identifiant du modèle" value={search} onChange={(event) => setSearch(event.target.value)} className="pl-9" />
           </div>
+          <Select value={providerFilter} onValueChange={setProviderFilter}>
+            <SelectTrigger aria-label="Filtrer par fournisseur"><SelectValue placeholder="Tous les fournisseurs" /></SelectTrigger>
+            <SelectContent><SelectItem value="all">Tous les fournisseurs</SelectItem>{(providers ?? []).map((item) => <SelectItem key={item.provider} value={item.provider}>{item.label}</SelectItem>)}</SelectContent>
+          </Select>
+          <Select value={availabilityFilter} onValueChange={setAvailabilityFilter}>
+            <SelectTrigger aria-label="Filtrer par disponibilité"><SelectValue placeholder="Toutes les disponibilités" /></SelectTrigger>
+            <SelectContent><SelectItem value="all">Toutes les disponibilités</SelectItem><SelectItem value="available">Available</SelectItem><SelectItem value="unavailable">Non disponible</SelectItem></SelectContent>
+          </Select>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger aria-label="Filtrer par statut"><SelectValue placeholder="Tous les statuts" /></SelectTrigger>
+            <SelectContent><SelectItem value="all">Tous les statuts</SelectItem><SelectItem value="active">Actifs</SelectItem><SelectItem value="inactive">Inactifs</SelectItem></SelectContent>
+          </Select>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="overflow-x-auto pt-6">
+          {isLoading ? (
+            <div className="flex justify-center py-12" role="status" aria-label="Chargement des modèles"><div className="h-8 w-8 animate-spin rounded-full border-b-2 border-sovereign-500" /></div>
+          ) : isError ? (
+            <div className="py-10 text-center"><AlertTriangle className="mx-auto mb-2 h-6 w-6 text-amber-600" /><p>Impossible de charger les modèles.</p><Button variant="outline" className="mt-3" onClick={() => refetch()}>Réessayer</Button></div>
+          ) : filteredModels.length ? (
+            <Table>
+              <TableHeader><TableRow>
+                <TableHead>Nom / modèle</TableHead><TableHead>Fournisseur</TableHead><TableHead>Disponibilité</TableHead>
+                <TableHead>Température</TableHead><TableHead>Tokens max.</TableHead><TableHead>Prompt</TableHead>
+                <TableHead>Défaut</TableHead><TableHead>Statut</TableHead><TableHead>Activer</TableHead><TableHead className="text-right">Actions</TableHead>
+              </TableRow></TableHeader>
+              <TableBody>{filteredModels.map((model) => (
+                <TableRow key={model.id}>
+                  <TableCell><div className="font-medium">{model.name}</div><code className="text-xs text-slate-500">{model.model}</code></TableCell>
+                  <TableCell>{providerLabels.get(model.provider) ?? model.provider}</TableCell>
+                  <TableCell><Badge variant={model.available ? 'conforme' : 'secondary'}>{model.available ? 'Available' : 'Non disponible'}</Badge></TableCell>
+                  <TableCell>{model.temperature}</TableCell><TableCell>{model.max_tokens}</TableCell><TableCell>{model.system_prompt_version}</TableCell>
+                  <TableCell>{model.is_default ? <Badge>Défaut</Badge> : <span className="text-slate-400">—</span>}</TableCell>
+                  <TableCell>{model.is_active ? 'Actif' : 'Inactif'}</TableCell>
+                  <TableCell>
+                    <button
+                      type="button" role="switch" aria-checked={model.is_active} aria-label={`${model.is_active ? 'Désactiver' : 'Activer'} ${model.name}`}
+                      disabled={(!model.available && !model.is_active) || updateModel.isPending}
+                      onClick={() => void toggleModel(model)}
+                      title={!model.available ? 'Ajoutez une clé API pour activer ce modèle.' : undefined}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sovereign-500 disabled:cursor-not-allowed disabled:opacity-40 ${model.is_active ? 'bg-sovereign-600' : 'bg-slate-300'}`}
+                    ><span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${model.is_active ? 'translate-x-6' : 'translate-x-1'}`} /></button>
+                  </TableCell>
+                  <TableCell className="text-right"><Button variant="ghost" size="icon" aria-label={`Modifier ${model.name}`} onClick={() => startEdit(model)}><Edit2 className="h-4 w-4" /></Button></TableCell>
+                </TableRow>
+              ))}</TableBody>
+            </Table>
+          ) : (
+            <div className="py-12 text-center text-sm text-slate-500">Aucun modèle ne correspond aux filtres.</div>
+          )}
+        </CardContent>
+      </Card>
+
+      {isFormOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) closeForm(); }}>
+          <section role="dialog" aria-modal="true" aria-labelledby="model-form-title" className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white shadow-xl">
+            <header className="flex items-center justify-between border-b p-5"><h2 id="model-form-title" className="text-lg font-semibold">{editingModel ? 'Modifier le modèle' : 'Nouveau modèle'}</h2><Button type="button" variant="ghost" size="icon" onClick={closeForm} aria-label="Fermer"><X className="h-5 w-5" /></Button></header>
+            <form onSubmit={handleSubmit} className="space-y-5 p-5">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div><Label htmlFor="model-name">Nom</Label><Input id="model-name" required value={form.name} disabled={Boolean(editingModel)} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="Ex. Modèle de secours juridique" /></div>
+                <div><Label htmlFor="model-provider">Fournisseur</Label><Select disabled={Boolean(editingModel)} value={form.provider} onValueChange={(value) => { const provider = value as LLMProvider; const item = providers?.find((entry) => entry.provider === provider); setForm({ ...form, provider, model: item?.default_model ?? '' }); }}><SelectTrigger id="model-provider"><SelectValue /></SelectTrigger><SelectContent>{availableProviders.map((item) => <SelectItem key={item.provider} value={item.provider}>{item.label}</SelectItem>)}</SelectContent></Select></div>
+                <div className="sm:col-span-2"><Label htmlFor="model-id">Identifiant modèle</Label><Input id="model-id" required value={form.model} onChange={(event) => setForm({ ...form, model: event.target.value })} placeholder="Identifiant accepté par le fournisseur" /><p className="mt-1 text-xs text-slate-500">Le backend effectue un appel de test court avant d’enregistrer un nouveau modèle.</p></div>
+                <div><Label htmlFor="temperature">Température</Label><Input id="temperature" type="number" step="0.1" min="0" max="2" value={form.temperature} onChange={(event) => setForm({ ...form, temperature: Number(event.target.value) })} /></div>
+                <div><Label htmlFor="max-tokens">Tokens maximum</Label><Input id="max-tokens" type="number" min="1" value={form.max_tokens} onChange={(event) => setForm({ ...form, max_tokens: Number(event.target.value) })} /></div>
+                <div className="sm:col-span-2"><Label htmlFor="prompt-version">Version du prompt système</Label><Input id="prompt-version" value={form.system_prompt_version} onChange={(event) => setForm({ ...form, system_prompt_version: event.target.value })} /></div>
+                <div className="sm:col-span-2"><Label htmlFor="system-prompt">Prompt système</Label><textarea id="system-prompt" required value={form.system_prompt} onChange={(event) => setForm({ ...form, system_prompt: event.target.value })} className="input min-h-36 w-full rounded-lg border border-slate-300 p-3 text-sm" /></div>
+              </div>
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.is_default} onChange={(event) => setForm({ ...form, is_default: event.target.checked })} /><CheckCircle className="h-4 w-4 text-slate-500" />Définir comme modèle prioritaire</label>
+              <footer className="flex justify-end gap-2 border-t pt-4"><Button type="button" variant="outline" onClick={closeForm}>Annuler</Button><Button type="submit" disabled={createModel.isPending || updateModel.isPending || (!editingModel && !availableProviders.some((item) => item.provider === form.provider))}>{createModel.isPending ? 'Test du fournisseur…' : updateModel.isPending ? 'Enregistrement…' : editingModel ? 'Enregistrer' : 'Tester et créer'}</Button></footer>
+            </form>
+          </section>
         </div>
       )}
     </div>

@@ -42,7 +42,9 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const logout = useLogout();
   const { data: currentUser } = useMe();
-  const isPlatformAdmin = currentUser?.role === 'platform_admin';
+  const isPlatformAdmin = currentUser?.is_superuser || currentUser?.role === 'platform_admin';
+  const canManageTeam = isPlatformAdmin || currentUser?.role === 'org_admin';
+  const visibleNavigation = navigation.filter((item) => item.href !== '/dashboard/team' || canManageTeam);
   const [collapsed, setCollapsed] = React.useState(false);
 
   const handleLogout = async () => {
@@ -87,7 +89,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
               <h3 className="px-3 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                 Application
               </h3>
-              {navigation.map((item) => {
+              {visibleNavigation.map((item) => {
                 const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
                 const Icon = item.icon;
                 return (
@@ -142,7 +144,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
           {collapsed && (
             <>
-              {navigation.map((item) => {
+              {visibleNavigation.map((item) => {
                 const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
                 const Icon = item.icon;
                 return (

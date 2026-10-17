@@ -1,10 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Response
+from fastapi.responses import StreamingResponse
 from sqlmodel import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from uuid import UUID
 from typing import List, Optional
 from datetime import datetime
+from minio.error import S3Error
 
 from app.core.database import get_async_session
 from app.core.security import get_current_active_user, require_role
@@ -218,6 +220,54 @@ async def export_report(
             media_type="text/markdown",
             headers={"Content-Disposition": f'attachment; filename="{filename}"'}
         )
+
+
+@router.get("/{report_version_id}/download")
+async def download_report_pdf(
+    report_version_id: UUID,
+    type: str = Query("report1", pattern="^(report1|report2)$"),
+    current_user = Depends(get_current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Stream a report PDF through the authenticated API, not an internal MinIO URL."""
+    report = await session.get(ReportVersion, report_version_id)
+    if not report:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
+
+    from app.models.user import Project
+    project = await session.get(Project, report.project_id)
+    if not project or project.org_id != current_user.org_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
+
+    object_name = report.report1_pdf_minio if type == "report1" else report.report2_pdf_minio
+    if not object_name:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="PDF not yet generated")
+
+    minio_client = get_minio_client()
+    bucket_name = get_bucket_name(str(project.org_id), "reports")
+    try:
+        minio_client.stat_object(bucket_name, object_name)
+        response = minio_client.get_object(bucket_name, object_name)
+    except S3Error as exc:
+        if exc.code in {"NoSuchKey", "NoSuchObject", "NoSuchBucket"}:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="PDF introuvable dans le stockage") from exc
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Stockage des rapports indisponible") from exc
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Stockage des rapports indisponible") from exc
+
+    def stream_pdf():
+        try:
+            while chunk := response.read(1024 * 1024):
+                yield chunk
+        finally:
+            response.close()
+            response.release_conn()
+
+    return StreamingResponse(
+        stream_pdf(),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="ece_{type}_v{report.version}.pdf"'},
+    )
 
 
 from app.models.user import Project

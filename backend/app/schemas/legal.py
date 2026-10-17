@@ -2,7 +2,7 @@ from uuid import UUID
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
-from app.models.legal import RiskLevel, ConfidenceLevel, LegalLevel, SourceStatus
+from app.models.legal import RiskLevel, ConfidenceLevel, LegalLevel, SourceStatus, SourceCollectionRunStatus
 
 
 # Legal Source Schemas
@@ -21,23 +21,64 @@ class LegalSourceBase(BaseModel):
 
 
 class LegalSourceCreate(LegalSourceBase):
-    pass
+    content_text: Optional[str] = None
+    content_hash: Optional[str] = None
+    collection_enabled: bool = False
 
 
 class LegalSourceUpdate(BaseModel):
+    title: Optional[str] = Field(default=None, max_length=500)
+    authority: Optional[str] = Field(default=None, max_length=255)
+    country_code: Optional[str] = Field(default=None, max_length=2)
+    level: Optional[LegalLevel] = None
+    article_ref: Optional[str] = Field(default=None, max_length=100)
+    url_official: Optional[str] = Field(default=None, max_length=1000)
+    content_text: Optional[str] = None
     status: Optional[SourceStatus] = None
     abrogated_date: Optional[datetime] = None
     replacement_source_id: Optional[UUID] = None
+    collection_enabled: Optional[bool] = None
 
 
 class LegalSourceRead(LegalSourceBase):
     id: UUID
     embedding: List[float] = []
+    collection_enabled: bool = False
+    last_collection_at: Optional[datetime] = None
+    last_successful_collection_at: Optional[datetime] = None
+    last_collection_status: Optional[str] = None
+    last_collection_run_id: Optional[UUID] = None
+    source_etag: Optional[str] = None
+    source_last_modified: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     
     class Config:
         from_attributes = True
+
+
+class SourceCollectionRunRead(BaseModel):
+    id: UUID
+    source_id: UUID
+    trigger_type: str
+    triggered_by: Optional[UUID] = None
+    status: SourceCollectionRunStatus
+    requested_at: datetime
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    http_status_code: Optional[int] = None
+    previous_hash: Optional[str] = None
+    collected_hash: Optional[str] = None
+    changed: Optional[bool] = None
+    error_message: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class SourceVerificationResult(BaseModel):
+    source: LegalSourceRead
+    message: str
 
 
 # Risk Finding Schemas

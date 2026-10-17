@@ -68,7 +68,7 @@ Basé directement sur la suite de mockups validés (`ece-mockups/screens/*.html`
     - Vue comparative côte à côte highlighting les clauses modifiées, résolues ou ajoutées.
 11. **11-admin-governance.html — Admin & Governance Console** (accès réservé rôle `platform_admin`) :
     - Sidebar dédiée : *Sources*, *Règles de scoring*, *Modèles*, *Pays/Juridictions*, *Utilisateurs*, *Audit Logs*.
-    - **Sources** : Table des textes juridiques ingérés (Titre, Autorité, Pays, Niveau, Statut *Vérifiée/À vérifier/Archivée*, Date collecte, Hash SHA-256, URL). Actions : *Valider*, *Marquer abrogé*, *Remplacer*, *Vérifier URL*.
+     - **Sources** : textes juridiques et URL officielles explicites (HTML/PDF), texte extrait, statut, hash, date de derniere collecte et historique. Collecte manuelle ou hebdomadaire activable par source; aucun parcours automatique des liens du site.
     - **Règles de scoring** : Éditeur de règles déterministes (pondérations par niveau de risque, seuils de confiance) avec prévisualisation d'impact.
     - **Modèles** : Sélection du modèle LLM utilisé (API externe / local), paramètres de température, max tokens, prompt système versionné.
     - **Pays/Juridictions** : Activation/désactivation des modules pays, liaison corpus national ↔ socle communautaire.
@@ -130,6 +130,7 @@ Basé directement sur la suite de mockups validés (`ece-mockups/screens/*.html`
 ### 6. Console d'Administration & Gouvernance (`11-admin-governance.html`)
 - Accessible uniquement aux comptes dotés du rôle `platform_admin`.
 - **Gestion du corpus juridique** : Validation, marquage d'obsolescence, remplacement, vérification d'intégrité (hash SHA-256 vs URL officielle) des textes sources.
+- **Collecte des sources** : enregistrer une URL officielle HTML/PDF, lancer une collecte manuelle ou activer la collecte hebdomadaire, consulter la date, le statut et l'historique des executions. Le collecteur suit uniquement les URL explicitement ajoutees et ne parcourt pas les liens des sites.
 - **Configuration du moteur de scoring** : Édition des pondérations, seuils de confiance, règles déterministes par domaine/pays.
 - **Gestion des modèles LLM** : Choix du fournisseur (API / local), version du prompt système, paramètres de génération.
 - **Activation des modules pays** : Bascule d'activation des juridictions nationales, liaison avec le socle communautaire CEDEAO/UEMOA/OHADA.
@@ -173,12 +174,13 @@ Basé directement sur la suite de mockups validés (`ece-mockups/screens/*.html`
 
 ---
 
+- **Veille reglementaire** : collecte manuelle et hebdomadaire des URL officielles enregistrees (HTML/PDF), avec historique et mise a jour du corpus; pas de crawl recursif des sites.
+
 ## Deferred From the POC
 
 - **Alimentation du corpus juridique complet des 14 autres pays de la CEDEAO** (Sénégal, Côte d'Ivoire, Togo, etc.) — *différé pour le post-POC*.
 - **OCR complexe pour PDF scannés de mauvaise qualité** — *flux limité aux PDF natifs et DOCX/Markdown*.
 - **Abonnements payants et quotas Stripe/Paystack** — *toutes les fonctionnalités sont ouvertes en mode POC*.
-- **Veille réglementaire automatisée par scraping quotidien** — *remplacé par un corpus fixe vérifié pour le POC*.
 
 ---
 

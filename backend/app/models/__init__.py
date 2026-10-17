@@ -2,7 +2,7 @@
 from app.models.user import User, Organization, UserRole, PlanType, Project, ProjectStatus
 from app.models.document import Document, DocumentExtraction, DocumentAnalysis, DocumentStatus
 from app.models.legal import (
-    LegalSource, LegalLevel, SourceStatus,
+    LegalSource, LegalLevel, SourceStatus, SourceCollectionRun, SourceCollectionRunStatus,
     RiskFinding, RiskLevel, ConfidenceLevel,
     ReportVersion, AuditLog
 )
@@ -14,7 +14,7 @@ __all__ = [
     # Document
     "Document", "DocumentExtraction", "DocumentAnalysis", "DocumentStatus",
     # Legal
-    "LegalSource", "LegalLevel", "SourceStatus",
+    "LegalSource", "LegalLevel", "SourceStatus", "SourceCollectionRun", "SourceCollectionRunStatus",
     "RiskFinding", "RiskLevel", "ConfidenceLevel",
     "ReportVersion", "AuditLog",
     # Admin

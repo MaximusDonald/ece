@@ -1,7 +1,7 @@
 from celery import Celery
 from sqlmodel import select
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import selectinload, sessionmaker
 from uuid import UUID
 from datetime import datetime
 from typing import List
@@ -12,6 +12,7 @@ from app.models.legal import RiskFinding, ReportVersion
 from app.services.minio_client import get_minio_client, upload_file, get_bucket_name
 from app.services.pdf_generator import generate_pdf_from_html
 from app.workers.celery_app import celery_app
+from app.workers.pipeline_tracker import complete_step, fail_step, get_document_for_report, start_step
 
 settings = get_settings()
 
@@ -26,10 +27,18 @@ SyncSession = sessionmaker(async_engine, class_=AsyncSession, expire_on_commit=F
 
 async def run_report_generation(report_version_id: UUID) -> None:
     """Generate PDF reports from Markdown."""
+    document_id = get_document_for_report(report_version_id)
+    if document_id:
+        start_step(document_id, 5, "Preparation des deux rapports et de leurs PDF")
     async with SyncSession() as session:
-        report = await session.get(ReportVersion, report_version_id)
+        result = await session.execute(
+            select(ReportVersion)
+            .options(selectinload(ReportVersion.project))
+            .where(ReportVersion.id == report_version_id)
+        )
+        report = result.scalar_one_or_none()
         if not report:
-            return
+            raise RuntimeError("Rapport introuvable pendant la generation des PDF")
         
         try:
             # Generate PDFs
@@ -55,7 +64,9 @@ async def run_report_generation(report_version_id: UUID) -> None:
             
         except Exception as e:
             print(f"Report generation error: {e}")
-            # Non-blocking - reports still available in Markdown
+            raise
+        if document_id:
+            complete_step(document_id, 5, "Les deux rapports et leurs PDF sont prets", report_version_id)
 
 
 def markdown_to_html(markdown: str, title: str) -> str:
@@ -112,4 +123,7 @@ def report_generation_task(self, report_version_id: str):
     try:
         asyncio.run(run_report_generation(UUID(report_version_id)))
     except Exception as exc:
+        document_id = get_document_for_report(report_version_id)
+        if document_id:
+            fail_step(document_id, 5, retrying=self.request.retries < self.max_retries)
         self.retry(exc=exc, countdown=60)

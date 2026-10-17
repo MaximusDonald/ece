@@ -1,7 +1,7 @@
 from celery import Celery
 from sqlmodel import select
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import selectinload, sessionmaker
 from uuid import UUID
 from datetime import datetime
 
@@ -9,6 +9,8 @@ from app.core.config import get_settings
 from app.models.legal import RiskFinding, ReportVersion, RiskLevel, ConfidenceLevel
 from app.models.admin import ScoringRule
 from app.workers.celery_app import celery_app
+from app.workers.task_dispatch import enqueue_document_task
+from app.workers.pipeline_tracker import complete_step, fail_step, get_document_for_report, start_step
 
 settings = get_settings()
 
@@ -23,10 +25,18 @@ SyncSession = sessionmaker(async_engine, class_=AsyncSession, expire_on_commit=F
 
 async def run_scoring(report_version_id: UUID) -> None:
     """Apply deterministic scoring rules to findings."""
+    document_id = get_document_for_report(report_version_id)
+    if document_id:
+        start_step(document_id, 4, "Calcul du score de risque et de la confiance")
     async with SyncSession() as session:
-        report = await session.get(ReportVersion, report_version_id)
+        result = await session.execute(
+            select(ReportVersion)
+            .options(selectinload(ReportVersion.project))
+            .where(ReportVersion.id == report_version_id)
+        )
+        report = result.scalar_one_or_none()
         if not report:
-            return
+            raise RuntimeError("Rapport introuvable pour le calcul du score")
         
         findings = await session.execute(
             select(RiskFinding).where(RiskFinding.report_version_id == report_version_id)
@@ -94,8 +104,16 @@ async def run_scoring(report_version_id: UUID) -> None:
         await session.commit()
         
         # Chain to report generation
+        if document_id:
+            complete_step(document_id, 4, "Score global et niveaux de confiance calcules")
+            start_step(document_id, 5, "Preparation des rapports et fichiers PDF")
         from app.workers.report import report_generation_task
-        report_generation_task.delay(str(report_version_id))
+        try:
+            enqueue_document_task(report_generation_task, report_version_id, "report")
+        except Exception as exc:
+            print(f"Unable to queue report generation for {report_version_id}: {exc}")
+            if document_id:
+                fail_step(document_id, 5)
 
 
 @celery_app.task(bind=True, max_retries=2)
@@ -104,6 +122,9 @@ def scoring_task(self, report_version_id: str):
     try:
         asyncio.run(run_scoring(UUID(report_version_id)))
     except Exception as exc:
+        document_id = get_document_for_report(report_version_id)
+        if document_id:
+            fail_step(document_id, 4, retrying=self.request.retries < self.max_retries)
         self.retry(exc=exc, countdown=60)
 
 

@@ -8,18 +8,23 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, Brain, Tag, AlertTriangle, Search } from 'lucide-react';
-import { formatDateTime } from '@/lib/utils';
+import { formatDateTime, getApiErrorMessage } from '@/lib/utils';
 
 export default function AnalysisPage() {
   const params = useParams();
   const projectId = params.id as string;
   const documentId = params.documentId as string;
-  const { data: analysis, isLoading } = useDocumentAnalysis(projectId, documentId);
+  const { data: analysis, isLoading, error, refetch } = useDocumentAnalysis(projectId, documentId);
+  const apiError = error as { response?: { status?: number; data?: { detail?: string } } } | null;
+  const isAnalysisPending = apiError?.response?.status === 404 &&
+    ['Extraction not found', 'Analysis not found'].includes(apiError.response.data?.detail || '');
 
-  if (isLoading) {
+  if (isLoading || (!analysis && isAnalysisPending)) {
     return (
-      <div className="flex justify-center py-8">
+      <div className="flex flex-col items-center justify-center gap-3 py-12" role="status" aria-live="polite">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sovereign-500" />
+        <p className="font-medium text-slate-700">Analyses en cours</p>
+        <p className="text-sm text-slate-500">Les résultats apparaîtront ici dès que le traitement sera terminé.</p>
       </div>
     );
   }
@@ -27,9 +32,11 @@ export default function AnalysisPage() {
   if (!analysis) {
     return (
       <div className="text-center py-12">
-        <Brain className="h-12 w-12 text-slate-300 mx-auto mb-4" />
-        <h3 className="text-lg font-medium text-slate-900 mb-2">Analyse non disponible</h3>
-        <p className="text-slate-500 mb-4">L'analyse sémantique n'a pas encore été effectuée ou a échoué.</p>
+        <Brain className="h-12 w-12 text-danger-300 mx-auto mb-4" />
+        <h3 className="text-lg font-medium text-slate-900 mb-2">Impossible de charger l’analyse</h3>
+        <p role="alert" className="text-slate-500 mb-4">{getApiErrorMessage(error, 'Une erreur est survenue lors du chargement.')}</p>
+        <Button variant="secondary" onClick={() => void refetch()} className="mb-3">Réessayer</Button>
+        <br />
         <Link href={`/dashboard/projects/${projectId}`}>
           <Button variant="secondary">Retour au projet</Button>
         </Link>

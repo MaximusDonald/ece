@@ -173,3 +173,32 @@ Propriétaire — POC pour démonstration hackathon.
 ---
 
 **ECE** — *Faire de la conformité un levier, pas un fardeau.*
+
+## Équipe et paramètres
+
+- La page **Équipe** est réservée aux administrateurs d’organisation. Elle liste les membres de l’organisation courante et permet d’en ajouter avec un rôle `org_admin`, `analyst`, `reader` ou `external_auditor`. Le rôle global `platform_admin` ne peut pas être attribué depuis une organisation.
+- API d’équipe : `GET /api/projects/organization/members` liste les membres ; `POST /api/projects/organization/members` crée un membre (e-mail, mot de passe initial de 8 caractères minimum, rôle). Les deux routes sont limitées à l’organisation de l’administrateur authentifié.
+- La page **Paramètres** permet à chaque utilisateur de modifier son e-mail et son mot de passe via `PATCH /api/auth/users/me`. Un administrateur d’organisation peut aussi renommer son organisation via `PATCH /api/projects/organization/me`.
+- Le premier projet d’un utilisateur sans organisation crée d’abord son organisation avec le nom saisi dans le formulaire, puis le projet.
+- Les membres ajoutés reçoivent un mot de passe initial communiqué par l’administrateur ; aucun courriel d’invitation ni réinitialisation obligatoire n’est encore intégré.
+## Cycle d'analyse documentaire
+
+L'upload accepte les PDF, DOCX, Markdown et fichiers texte jusqu'a 50 Mo. La nature du document est stockee dans `document.document_type` (50 caracteres maximum) et enrichit les requetes de recherche juridique. Le suivi authentifie `GET /api/projects/{project_id}/documents/{document_id}/pipeline` expose les cinq etapes, leur progression, les avertissements/erreurs et l'identifiant du rapport. `POST .../resume` relance l'etape manquante apres une interruption.
+
+Les rapports PDF sont transmis par `GET /api/reports/{report_version_id}/download?type=report1|report2`; les boutons du frontend utilisent cette route authentifiee au lieu d'une URL MinIO interne. Les rapports Markdown restent disponibles via les routes d'export existantes.
+
+La base locale est mise a jour de façon additive au demarrage. Les scripts SQL reversibles se trouvent dans `backend/migrations/20261016_add_document_type.sql` et `backend/migrations/20261016_remove_document_type.sql`. Le retour arriere supprime la colonne et donc les valeurs de nature deja enregistrees.
+
+## Veille des sources juridiques
+
+Depuis l’administration, chaque source peut être collectée à la demande ou incluse dans le cycle hebdomadaire. L’URL doit pointer directement vers un document public en HTTPS (HTML ou PDF); le collecteur n’explore pas les liens d’un site. L’historique conserve le déclencheur, les dates, le statut, le hash précédent/nouveau et les erreurs. Le texte courant et son embedding ne sont recalculés que si le texte extrait change.
+
+Celery Beat exécute la collecte hebdomadaire le lundi à 02:00 UTC (03:00 au Bénin). Seules les sources dont « collecte automatique hebdomadaire » est activée sont traitées. Les colonnes et la table d’historique sont ajoutées au démarrage; les scripts de migration sont `backend/migrations/20261016_add_source_collection.sql` et `backend/migrations/20261016_remove_source_collection.sql`.
+
+- API de collecte : `POST /api/admin/sources/{source_id}/collect` met une collecte manuelle en file (202); `GET /api/admin/sources/{source_id}/collections` renvoie les 20 executions les plus recentes. `PATCH /api/admin/sources/{source_id}` modifie notamment `collection_enabled`. Ces routes exigent le role `platform_admin`.
+
+## Modèles LLM et fournisseurs
+
+Les fournisseurs autorisés sont déclarés dans `backend/app/services/llm_registry.py`. L’API admin calcule leur disponibilité à partir d’une clé API non vide et ne transmet jamais les clés au frontend. Les nouvelles configurations sont testées avec un appel court avant insertion. Le routeur des appels de discussion consulte les modèles actifs en base et tente au plus trois modèles disponibles, par défaut puis dans un ordre stable. Le fallback couvre les timeouts, erreurs de connexion, réponses HTTP 5xx, limites de débit et erreurs d’authentification; les erreurs de requête 4xx ne sont pas réessayées.
+
+La migration Alembic `backend/alembic/versions/20261017_01_expand_llm_providers.py` convertit l’enum PostgreSQL fournisseur en texte et ajoute de façon idempotente les modèles Anthropic, Gemini et Groq sans remplacer la configuration OpenAI existante. Pour une base locale existante, depuis le dossier `backend`, exécuter `alembic -c alembic.ini upgrade head`. Le downgrade refuse de convertir si des lignes Gemini/Groq existent, afin de ne pas perdre leur configuration; exporter ou supprimer explicitement ces lignes avant un retour arrière.

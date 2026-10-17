@@ -11,7 +11,7 @@ export function getApiErrorMessage(error: unknown, fallback: string): string {
     message?: string;
   };
   const detail = maybeError?.response?.data?.detail ?? maybeError?.response?.data?.message;
-  if (maybeError?.response?.status === 401) return 'Votre session a expiré. Connectez-vous à nouveau.';
+  if (maybeError?.response?.status === 401) return 'Le serveur n’a pas authentifié cette requête. Reconnectez-vous puis réessayez.';
   if (maybeError?.response?.status === 403) return 'Vous n’avez pas les droits nécessaires pour effectuer cette action.';
   if (maybeError?.response?.status === 404) return 'La ressource demandée est introuvable.';
   if (typeof detail === 'string' && detail.trim()) return detail;

@@ -2,19 +2,21 @@
 
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { useDocumentExtraction } from '@/hooks/useApi';
+import { useDocumentExtraction, useDownloadDocument } from '@/hooks/useApi';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { FileText, Download, ChevronLeft, Copy, Check } from 'lucide-react';
-import { formatDateTime, formatSize } from '@/lib/utils';
+import { FileText, Download, ChevronLeft, Copy, Check, Loader2 } from 'lucide-react';
+import { formatDateTime } from '@/lib/utils';
 import { useState } from 'react';
+import { toast } from '@/hooks/use-toast';
 
 export default function ExtractionPage() {
   const params = useParams();
   const projectId = params.id as string;
   const documentId = params.documentId as string;
-  const { data: extraction, isLoading, refetch } = useDocumentExtraction(projectId, documentId);
+  const { data: extraction, isLoading } = useDocumentExtraction(projectId, documentId);
+  const downloadMutation = useDownloadDocument();
   const [copied, setCopied] = useState(false);
 
   const copyMarkdown = async () => {
@@ -72,11 +74,9 @@ export default function ExtractionPage() {
               </>
             )}
           </Button>
-          <Button variant="outline" asChild>
-            <Link href={`/api/documents/${extraction.document_id}/download`} target="_blank">
-              <Download className="h-4 w-4 mr-2" />
-              Télécharger
-            </Link>
+          <Button variant="outline" disabled={downloadMutation.isPending} onClick={() => downloadMutation.mutate({ projectId, documentId }, { onError: () => toast({ title: 'Téléchargement impossible', description: 'Le document n’a pas pu être téléchargé. Réessayez dans un instant.', variant: 'destructive' }) })}>
+            {downloadMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
+            Télécharger
           </Button>
         </div>
       </div>

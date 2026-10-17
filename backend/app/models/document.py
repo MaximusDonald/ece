@@ -20,6 +20,7 @@ class Document(SQLModel, table=True):
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     project_id: UUID = Field(foreign_key="project.id", index=True)
     filename: str = Field(max_length=255)
+    document_type: Optional[str] = Field(default=None, max_length=50)
     mime_type: str = Field(max_length=100)
     minio_bucket: str = Field(max_length=100)
     minio_object: str = Field(max_length=255)

@@ -40,7 +40,8 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api")
 app.include_router(projects.router, prefix="/api")
 app.include_router(documents.router, prefix="/api")
-# app.include_router(reports.router, prefix="/api")
+# Reports are part of the core upload-to-audit journey.
+app.include_router(reports.router, prefix="/api")
 # app.include_router(jobs.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 

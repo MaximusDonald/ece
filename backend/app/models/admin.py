@@ -3,7 +3,7 @@ from datetime import datetime
 from uuid import UUID, uuid4
 from typing import Optional, Dict, Any
 from sqlmodel import SQLModel, Field, Column, JSON
-from sqlalchemy import DateTime, String, Enum as SQLEnum, Text
+from sqlalchemy import DateTime, String, Text
 
 
 class ScoringRule(SQLModel, table=True):
@@ -28,6 +28,8 @@ class ScoringRule(SQLModel, table=True):
 class LLMProvider(str, enum.Enum):
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
+    GEMINI = "gemini"
+    GROQ = "groq"
 
 
 class LLMConfig(SQLModel, table=True):
@@ -35,7 +37,9 @@ class LLMConfig(SQLModel, table=True):
     
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     name: str = Field(max_length=100, unique=True)
-    provider: LLMProvider = Field(sa_column=Column(SQLEnum(LLMProvider)))
+    # Providers are validated by the application registry; VARCHAR lets the
+    # registry grow without coupling PostgreSQL enum deployments to code.
+    provider: str = Field(sa_column=Column(String(20), nullable=False, index=True))
     model: str = Field(max_length=100)  # e.g., "gpt-4o", "claude-3-5-sonnet"
     temperature: float = Field(default=0.1)
     max_tokens: int = Field(default=4000)

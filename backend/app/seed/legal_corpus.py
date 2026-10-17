@@ -362,28 +362,51 @@ async def seed_scoring_rules() -> None:
 
 
 async def seed_llm_config() -> None:
-    """Seed default LLM configuration."""
+    """Seed one known chat model for each provider declared in code."""
+    from app.core.config import get_settings
     from app.models.admin import LLMConfig, LLMProvider
-    
-    configs = [
-        LLMConfig(
-            name="OpenAI GPT-4o-mini (Default)",
-            provider=LLMProvider.OPENAI,
-            model="gpt-4o-mini",
-            temperature=0.1,
-            max_tokens=4000,
-            system_prompt_version="v1",
-            system_prompt="Tu es un expert juridique spécialisé en droit CEDEAO/UEMOA/OHADA et droit béninois. Réponds de manière précise, structurée et sourcée. Ne jamais inventer de références juridiques. Si tu ne sais pas, dis-le explicitement.",
-            is_active=True,
-            is_default=True,
-        ),
+    from app.services.llm_registry import PROVIDER_REGISTRY
+
+    settings = get_settings()
+    system_prompt = (
+        "You are a legal expert specialized in ECOWAS, WAEMU, OHADA and Beninese law. "
+        "Answer precisely and never invent legal references."
+    )
+    provider_models = [
+        (LLMProvider.OPENAI, PROVIDER_REGISTRY[LLMProvider.OPENAI].default_model, "OpenAI GPT-4o-mini", True),
+        (LLMProvider.ANTHROPIC, PROVIDER_REGISTRY[LLMProvider.ANTHROPIC].default_model, "Anthropic Claude Haiku", False),
+        (LLMProvider.GEMINI, settings.gemini_model or PROVIDER_REGISTRY[LLMProvider.GEMINI].default_model, "Google Gemini Flash", False),
+        (LLMProvider.GROQ, settings.groq_model or PROVIDER_REGISTRY[LLMProvider.GROQ].default_model, "Groq Llama 3.3", False),
     ]
-    
+
     async with SyncSession() as session:
-        for config in configs:
-            existing = await session.execute(select(LLMConfig).where(LLMConfig.name == config.name))
+        for provider, model, name, is_default in provider_models:
+            existing = await session.execute(
+                select(LLMConfig).where(
+                    LLMConfig.provider == provider.value,
+                    LLMConfig.model == model,
+                )
+            )
             if not existing.scalar_one_or_none():
-                session.add(config)
+                session.add(LLMConfig(
+                    name=name,
+                    provider=provider.value,
+                    model=model,
+                    temperature=0.1,
+                    max_tokens=4000,
+                    system_prompt_version="v1",
+                    system_prompt=system_prompt,
+                    is_active=True,
+                    is_default=is_default,
+                ))
+        defaults = await session.execute(select(LLMConfig).where(LLMConfig.is_default.is_(True)))
+        if not defaults.scalars().first():
+            primary = await session.execute(
+                select(LLMConfig).where(LLMConfig.provider == LLMProvider.OPENAI.value).limit(1)
+            )
+            default_config = primary.scalar_one_or_none()
+            if default_config:
+                default_config.is_default = True
         await session.commit()
         print("Seeded LLM config.")
 

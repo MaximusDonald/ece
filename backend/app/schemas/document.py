@@ -9,6 +9,7 @@ from enum import Enum
 # Document Schemas
 class DocumentBase(BaseModel):
     filename: str
+    document_type: Optional[str] = None
     mime_type: str
     size_bytes: int
 
@@ -89,6 +90,27 @@ class JobResponse(BaseModel):
     estimated_remaining_seconds: Optional[int] = None
     result: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
+
+
+class PipelineStepRead(BaseModel):
+    step: int
+    key: str
+    label: str
+    status: str
+    message: str
+
+
+class DocumentPipelineRead(BaseModel):
+    document_id: UUID
+    filename: Optional[str] = None
+    status: str
+    current_step: Optional[int] = None
+    progress: int = 0
+    steps: List[PipelineStepRead] = Field(default_factory=list)
+    error: Optional[str] = None
+    warnings: List[str] = Field(default_factory=list)
+    report_version_id: Optional[UUID] = None
+    updated_at: Optional[datetime] = None
 
 
 from enum import Enum

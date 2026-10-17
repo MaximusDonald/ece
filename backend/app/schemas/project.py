@@ -1,7 +1,7 @@
 from uuid import UUID
 from datetime import datetime
 from typing import Optional, List
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from fastapi_users import schemas as fastapi_users_schemas
 from app.models.user import UserRole, PlanType, ProjectStatus
 
@@ -12,6 +12,10 @@ class UserCreate(fastapi_users_schemas.BaseUserCreate):
 
 
 class UserRead(fastapi_users_schemas.BaseUser[UUID]):
+    # The local bootstrap account uses an internal .local address. Keep
+    # response serialization permissive; registration/update still validate
+    # deliverable email addresses through their own schemas.
+    email: str
     role: UserRole
     org_id: Optional[UUID] = None
     created_at: datetime
@@ -38,6 +42,26 @@ class OrganizationRead(OrganizationBase):
     
     class Config:
         from_attributes = True
+
+
+class OrganizationUpdate(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+
+
+class OrganizationMemberCreate(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=72)
+    role: UserRole = UserRole.ANALYST
+
+
+class OrganizationMemberRead(BaseModel):
+    id: UUID
+    email: EmailStr
+    role: UserRole
+    is_active: bool
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Project Schemas

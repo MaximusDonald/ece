@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useProjects, useCreateProject } from '@/hooks/useApi';
+import { useProjects, useCreateProject, useCreateOrganization, useMe } from '@/hooks/useApi';
 import { Plus, Search } from 'lucide-react';
 import Link from 'next/link';
 import { cn, formatDateTime, getApiErrorMessage } from '@/lib/utils';
@@ -169,6 +169,9 @@ export default function ProjectsPage() {
 
 function NewProjectModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
   const createProject = useCreateProject();
+  const createOrganization = useCreateOrganization();
+  const userQuery = useMe();
+  const [organizationName, setOrganizationName] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     country_code: 'BJ',
@@ -195,6 +198,7 @@ function NewProjectModal({ onClose, onSuccess }: { onClose: () => void; onSucces
     // Validation
     const newErrors: Record<string, string> = {};
     if (!formData.name.trim()) newErrors.name = 'Le nom est requis';
+    if (!userQuery.data?.org_id && !organizationName.trim()) newErrors.organization = 'Le nom de votre organisation est requis';
     if (!formData.sector.trim()) newErrors.sector = 'Le secteur est requis';
     if (formData.treatments.length === 0) newErrors.treatments = 'Sélectionnez au moins un type de traitement';
     
@@ -204,6 +208,12 @@ function NewProjectModal({ onClose, onSuccess }: { onClose: () => void; onSucces
     }
 
     try {
+      if (userQuery.isError) throw userQuery.error;
+      if (userQuery.isLoading || !userQuery.data) {
+        setErrors({ submit: 'Le compte est encore en cours de vérification. Réessayez dans un instant.' });
+        return;
+      }
+      if (!userQuery.data.org_id) await createOrganization.mutateAsync(organizationName.trim());
       await createProject.mutateAsync({
         name: formData.name,
         country_code: formData.country_code,
@@ -242,6 +252,21 @@ function NewProjectModal({ onClose, onSuccess }: { onClose: () => void; onSucces
             />
             {errors.name && <p className="mt-1 text-sm text-danger-600">{errors.name}</p>}
           </div>
+
+          {!userQuery.data?.org_id && (
+            <div>
+              <label className="label" htmlFor="organization-name">Nom de l’organisation *</label>
+              <Input
+                id="organization-name"
+                value={organizationName}
+                onChange={(event) => setOrganizationName(event.target.value)}
+                placeholder="ex. Mon entreprise"
+                className={errors.organization ? 'input-error' : ''}
+              />
+              {errors.organization && <p className="mt-1 text-sm text-danger-600">{errors.organization}</p>}
+              <p className="mt-1 text-xs text-slate-500">Votre organisation sera créée avant le premier projet.</p>
+            </div>
+          )}
 
           <div>
             <label className="label">Pays cible *</label>
@@ -298,10 +323,10 @@ function NewProjectModal({ onClose, onSuccess }: { onClose: () => void; onSucces
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
-            <Button type="button" variant="secondary" onClick={onClose} disabled={createProject.isPending}>
+            <Button type="button" variant="secondary" onClick={onClose} disabled={createProject.isPending || createOrganization.isPending}>
               Annuler
             </Button>
-            <Button type="submit" disabled={createProject.isPending}>
+            <Button type="submit" disabled={createProject.isPending || createOrganization.isPending || userQuery.isLoading}>
               {createProject.isPending ? 'Création...' : 'Créer le projet'}
             </Button>
           </div>
