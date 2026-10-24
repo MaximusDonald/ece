@@ -9,6 +9,7 @@ from app.core.config import get_settings
 from app.models.legal import RiskFinding, ReportVersion, RiskLevel, ConfidenceLevel
 from app.models.admin import ScoringRule
 from app.workers.celery_app import celery_app
+from app.workers.async_runner import run_async_task
 from app.workers.task_dispatch import enqueue_document_task
 from app.workers.pipeline_tracker import complete_step, fail_step, get_document_for_report, start_step
 
@@ -120,7 +121,7 @@ async def run_scoring(report_version_id: UUID) -> None:
 def scoring_task(self, report_version_id: str):
     """Celery task for scoring."""
     try:
-        asyncio.run(run_scoring(UUID(report_version_id)))
+        run_async_task(run_scoring(UUID(report_version_id)), async_engine)
     except Exception as exc:
         document_id = get_document_for_report(report_version_id)
         if document_id:
@@ -128,4 +129,3 @@ def scoring_task(self, report_version_id: str):
         self.retry(exc=exc, countdown=60)
 
 
-import asyncio

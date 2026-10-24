@@ -65,61 +65,9 @@ class OpenAIClient(LLMClient):
     async def get_embeddings(self, texts: list[str]) -> list[list[float]]:
         response = await self.client.embeddings.create(model=self.embedding_model, input=texts)
         return [item.embedding for item in response.data]
-
-
-class AnthropicClient(LLMClient):
-    def __init__(self, model: Optional[str] = None, timeout: float = 20.0):
-        from anthropic import AsyncAnthropic
-
-        self.client = AsyncAnthropic(api_key=settings.anthropic_api_key, timeout=timeout)
-        self.model = model or "claude-3-5-haiku-20241022"
-
-    async def chat_completion(self, prompt: str, response_format: Optional[str] = None, *, model: Optional[str] = None, temperature: Optional[float] = None, max_tokens: Optional[int] = None, system_prompt: Optional[str] = None) -> str:
-        if response_format == "json":
-            prompt = f"{prompt}\n\nReply with valid JSON only."
-        response = await self.client.messages.create(
-            model=model or self.model,
-            system=system_prompt or DEFAULT_SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.1 if temperature is None else temperature,
-            max_tokens=4000 if max_tokens is None else max_tokens,
-        )
-        return response.content[0].text
-
-    async def get_embeddings(self, texts: list[str]) -> list[list[float]]:
-        if settings.openai_api_key and settings.openai_api_key.strip():
-            return await OpenAIClient().get_embeddings(texts)
-        raise NotImplementedError("Anthropic does not provide embeddings; configure OpenAI for embeddings.")
-
-
-class GroqClient(LLMClient):
-    def __init__(self, model: Optional[str] = None, timeout: float = 20.0):
-        from groq import AsyncGroq
-
-        self.client = AsyncGroq(api_key=settings.groq_api_key, timeout=timeout)
-        self.model = model or settings.groq_model or "llama-3.3-70b-versatile"
-
-    async def chat_completion(self, prompt: str, response_format: Optional[str] = None, *, model: Optional[str] = None, temperature: Optional[float] = None, max_tokens: Optional[int] = None, system_prompt: Optional[str] = None) -> str:
-        kwargs = {
-            "model": model or self.model,
-            "messages": [
-                {"role": "system", "content": system_prompt or DEFAULT_SYSTEM_PROMPT},
-                {"role": "user", "content": prompt},
-            ],
-            "temperature": 0.1 if temperature is None else temperature,
-            "max_tokens": 4000 if max_tokens is None else max_tokens,
-        }
-        if response_format == "json":
-            kwargs["response_format"] = {"type": "json_object"}
-        response = await self.client.chat.completions.create(**kwargs)
-        return response.choices[0].message.content or ""
-
-    async def get_embeddings(self, texts: list[str]) -> list[list[float]]:
-        if settings.openai_api_key and settings.openai_api_key.strip():
-            return await OpenAIClient().get_embeddings(texts)
-        raise NotImplementedError("Groq does not provide embeddings; configure OpenAI for embeddings.")
-
-
+    
+    
+    
 class GeminiClient(LLMClient):
     def __init__(self, model: Optional[str] = None, timeout: float = 20.0):
         from google import genai
@@ -129,7 +77,7 @@ class GeminiClient(LLMClient):
             api_key=settings.gemini_api_key,
             http_options=types.HttpOptions(timeout=int(timeout * 1000)),
         )
-        self.model = model or settings.gemini_model or "gemini-1.5-flash"
+        self.model = model or settings.gemini_model or "gemini-3.5-flash-lite"
         self.embedding_model = "gemini-embedding-2"
 
     async def chat_completion(self, prompt: str, response_format: Optional[str] = None, *, model: Optional[str] = None, temperature: Optional[float] = None, max_tokens: Optional[int] = None, system_prompt: Optional[str] = None) -> str:
@@ -170,6 +118,64 @@ class GeminiClient(LLMClient):
             result = close()
             if hasattr(result, "__await__"):
                 await result
+                
+
+
+class AnthropicClient(LLMClient):
+    def __init__(self, model: Optional[str] = None, timeout: float = 20.0):
+        from anthropic import AsyncAnthropic
+
+        self.client = AsyncAnthropic(api_key=settings.anthropic_api_key, timeout=timeout)
+        self.model = model or "claude-3-5-haiku-20241022"
+
+    async def chat_completion(self, prompt: str, response_format: Optional[str] = None, *, model: Optional[str] = None, temperature: Optional[float] = None, max_tokens: Optional[int] = None, system_prompt: Optional[str] = None) -> str:
+        if response_format == "json":
+            prompt = f"{prompt}\n\nReply with valid JSON only."
+        response = await self.client.messages.create(
+            model=model or self.model,
+            system=system_prompt or DEFAULT_SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.1 if temperature is None else temperature,
+            max_tokens=4000 if max_tokens is None else max_tokens,
+        )
+        return response.content[0].text
+
+    async def get_embeddings(self, texts: list[str]) -> list[list[float]]:
+        if settings.openai_api_key and settings.openai_api_key.strip():
+            return await OpenAIClient().get_embeddings(texts)
+        elif settings.gemini_api_key and settings.gemini_api_key.strip():
+            return await GeminiClient().get_embeddings(texts)
+        raise NotImplementedError("Anthropic does not provide embeddings; configure OpenAI or Gemini for embeddings.")
+
+
+class GroqClient(LLMClient):
+    def __init__(self, model: Optional[str] = None, timeout: float = 20.0):
+        from groq import AsyncGroq
+
+        self.client = AsyncGroq(api_key=settings.groq_api_key, timeout=timeout)
+        self.model = model or settings.groq_model or "llama-3.3-70b-versatile"
+
+    async def chat_completion(self, prompt: str, response_format: Optional[str] = None, *, model: Optional[str] = None, temperature: Optional[float] = None, max_tokens: Optional[int] = None, system_prompt: Optional[str] = None) -> str:
+        kwargs = {
+            "model": model or self.model,
+            "messages": [
+                {"role": "system", "content": system_prompt or DEFAULT_SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ],
+            "temperature": 0.1 if temperature is None else temperature,
+            "max_tokens": 4000 if max_tokens is None else max_tokens,
+        }
+        if response_format == "json":
+            kwargs["response_format"] = {"type": "json_object"}
+        response = await self.client.chat.completions.create(**kwargs)
+        return response.choices[0].message.content or ""
+
+    async def get_embeddings(self, texts: list[str]) -> list[list[float]]:
+        if settings.openai_api_key and settings.openai_api_key.strip():
+            return await OpenAIClient().get_embeddings(texts)
+        elif settings.gemini_api_key and settings.gemini_api_key.strip():
+            return await GeminiClient().get_embeddings(texts)
+        raise NotImplementedError("Groq does not provide embeddings; configure OpenAI or Gemini for embeddings.")
 
 
 def get_llm_client() -> LLMClient:

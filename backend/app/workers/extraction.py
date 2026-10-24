@@ -7,12 +7,12 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from uuid import UUID
 from datetime import datetime
-import asyncio
 
 from app.core.config import get_settings
 from app.models.document import Document, DocumentExtraction, DocumentStatus
 from app.services.minio_client import get_minio_client, download_file
 from app.workers.celery_app import celery_app
+from app.workers.async_runner import run_async_task
 from app.workers.task_dispatch import enqueue_document_task
 from app.workers.pipeline_tracker import complete_step, fail_step, start_step
 
@@ -176,7 +176,7 @@ async def run_extraction(document_id: UUID) -> None:
 def extract_document_task(self, document_id: str):
     """Celery task for document extraction."""
     try:
-        asyncio.run(run_extraction(UUID(document_id)))
+        run_async_task(run_extraction(UUID(document_id)), async_engine)
     except Exception as exc:
         fail_step(document_id, 1, retrying=self.request.retries < self.max_retries)
         self.retry(exc=exc, countdown=60)

@@ -37,8 +37,21 @@ const emptyForm = (provider: LLMProvider = 'openai'): ModelForm => ({
 });
 
 function getErrorMessage(error: unknown) {
-  const detail = (error as AxiosError<{ detail?: string }>)?.response?.data?.detail;
-  return typeof detail === 'string' ? detail : 'La requête a échoué. Vérifiez les champs et réessayez.';
+  const detail = (error as AxiosError<{ detail?: unknown }>)?.response?.data?.detail;
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => {
+        if (typeof item === 'string') return item;
+        if (!item || typeof item !== 'object') return '';
+        const issue = item as { loc?: unknown[]; msg?: unknown };
+        const field = issue.loc?.filter((part) => part !== 'body').join('.');
+        return [field, typeof issue.msg === 'string' ? issue.msg : 'Valeur invalide'].filter(Boolean).join(' : ');
+      })
+      .filter(Boolean)
+      .join(' ; ') || 'Les données envoyées sont invalides.';
+  }
+  return 'La requête a échoué. Vérifiez les champs et réessayez.';
 }
 
 export default function AdminModelsPage() {

@@ -5,13 +5,13 @@ from sqlalchemy.orm import selectinload, sessionmaker
 from uuid import UUID
 from datetime import datetime
 from typing import List
-import asyncio
 
 from app.core.config import get_settings
 from app.models.legal import RiskFinding, ReportVersion
 from app.services.minio_client import get_minio_client, upload_file, get_bucket_name
 from app.services.pdf_generator import generate_pdf_from_html
 from app.workers.celery_app import celery_app
+from app.workers.async_runner import run_async_task
 from app.workers.pipeline_tracker import complete_step, fail_step, get_document_for_report, start_step
 
 settings = get_settings()
@@ -121,7 +121,7 @@ def markdown_to_html(markdown: str, title: str) -> str:
 def report_generation_task(self, report_version_id: str):
     """Celery task for report generation."""
     try:
-        asyncio.run(run_report_generation(UUID(report_version_id)))
+        run_async_task(run_report_generation(UUID(report_version_id)), async_engine)
     except Exception as exc:
         document_id = get_document_for_report(report_version_id)
         if document_id:

@@ -59,7 +59,7 @@ PROVIDER_REGISTRY: dict[LLMProvider, ProviderDefinition] = {
         LLMProvider.GEMINI,
         "Google Gemini",
         "gemini_api_key",
-        "gemini-1.5-flash",
+        "gemini-3.8-flash",
         GeminiClient,
     ),
     LLMProvider.GROQ: ProviderDefinition(

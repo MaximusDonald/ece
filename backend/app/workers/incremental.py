@@ -6,7 +6,6 @@ from uuid import UUID
 from datetime import datetime
 from typing import List, Dict, Any
 import json
-import asyncio
 
 from app.core.config import get_settings
 from app.models.legal import RiskFinding, ReportVersion, RiskLevel, ConfidenceLevel
@@ -14,6 +13,7 @@ from app.models.document import DocumentExtraction, DocumentAnalysis
 from app.services.llm_client import get_llm_client
 from app.services.diff_engine import compute_diff
 from app.workers.celery_app import celery_app
+from app.workers.async_runner import run_async_task
 
 settings = get_settings()
 
@@ -271,6 +271,6 @@ def generate_legal_synthesis_report(findings: List[Dict]) -> str:
 def incremental_update_task(self, report_version_id: str, context_data: dict):
     """Celery task for incremental update."""
     try:
-        asyncio.run(run_incremental_update(UUID(report_version_id), context_data))
+        run_async_task(run_incremental_update(UUID(report_version_id), context_data), async_engine)
     except Exception as exc:
         self.retry(exc=exc, countdown=60)

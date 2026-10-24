@@ -453,7 +453,26 @@ async def list_country_modules(
     """List country modules."""
     query = select(CountryModule).order_by(CountryModule.country_code)
     result = await session.execute(query)
-    return result.scalars().all()
+    modules = result.scalars().all()
+
+    source_counts = await session.execute(
+        select(
+            LegalSource.country_code,
+            func.count(LegalSource.id),
+            func.max(LegalSource.last_successful_collection_at),
+        )
+        .where(LegalSource.country_code.is_not(None))
+        .group_by(LegalSource.country_code)
+    )
+    stats_by_country = {
+        country_code: (count, last_sync)
+        for country_code, count, last_sync in source_counts.all()
+    }
+    for module in modules:
+        module.legal_sources_count, module.last_sync = stats_by_country.get(
+            module.country_code, (0, None)
+        )
+    return modules
 
 
 @router.patch("/countries/{country_code}", response_model=CountryModuleRead)
@@ -464,7 +483,10 @@ async def update_country_module(
     session: AsyncSession = Depends(get_async_session),
 ):
     """Activate/deactivate a country module."""
-    module = await session.get(CountryModule, country_code.upper())
+    result = await session.execute(
+        select(CountryModule).where(CountryModule.country_code == country_code.upper())
+    )
+    module = result.scalar_one_or_none()
     if not module:
         raise HTTPException(status_code=404, detail="Country module not found")
     

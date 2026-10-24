@@ -197,15 +197,16 @@ SEED_TEXTS = [
 
 
 async def seed_legal_corpus() -> None:
-    """Seed the legal corpus with initial texts."""
+    """Seed any missing legal corpus texts without skipping a partial corpus."""
     async with SyncSession() as session:
-        # Check if already seeded
-        existing = await session.execute(select(LegalSource).limit(1))
-        if existing.scalar_one_or_none():
-            print("Legal corpus already seeded, skipping.")
-            return
-        
+        seeded_count = 0
         for text_data in SEED_TEXTS:
+            existing = await session.execute(
+                select(LegalSource.id).where(LegalSource.title == text_data["title"])
+            )
+            if existing.scalar_one_or_none():
+                continue
+
             # Compute hash
             content_hash = hashlib.sha256(text_data["content_text"].encode()).hexdigest()
             
@@ -227,9 +228,10 @@ async def seed_legal_corpus() -> None:
                 embedding=embedding_vec,
             )
             session.add(source)
+            seeded_count += 1
         
         await session.commit()
-        print(f"Seeded {len(SEED_TEXTS)} legal sources.")
+        print(f"Seeded {seeded_count} legal sources.")
 
 
 async def seed_admin_user() -> None:
@@ -383,8 +385,9 @@ async def seed_llm_config() -> None:
         for provider, model, name, is_default in provider_models:
             existing = await session.execute(
                 select(LLMConfig).where(
-                    LLMConfig.provider == provider.value,
-                    LLMConfig.model == model,
+                    (LLMConfig.provider == provider.value)
+                    & (LLMConfig.model == model)
+                    | (LLMConfig.name == name),
                 )
             )
             if not existing.scalar_one_or_none():

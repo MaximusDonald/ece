@@ -17,6 +17,8 @@ fastapi-users==15.0.0
 fastapi_users_db_sqlalchemy==6.0.1
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
+# Passlib 1.7.4 hashing fails with bcrypt 5.x; stay on the compatible 4.x line.
+bcrypt==4.3.0
 python-multipart==0.0.20
 
 # Auth OAuth

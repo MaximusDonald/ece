@@ -1,6 +1,5 @@
 """Collect and re-index explicitly registered official legal document URLs."""
 
-import asyncio
 import hashlib
 import html
 import ipaddress
@@ -20,6 +19,7 @@ from app.core.config import get_settings
 from app.models.legal import LegalSource, SourceCollectionRun, SourceCollectionRunStatus, SourceStatus
 from app.services.llm_client import get_llm_client
 from app.workers.celery_app import celery_app
+from app.workers.async_runner import run_async_task
 
 
 MAX_DOWNLOAD_BYTES = 25 * 1024 * 1024
@@ -137,18 +137,18 @@ async def _download(url: str, etag: str | None, last_modified: str | None) -> tu
 
 
 async def _collect(run_id: UUID, source_id: UUID) -> None:
-    async with Session() as session:
-        run = await session.get(SourceCollectionRun, run_id)
-        source = await session.get(LegalSource, source_id)
-        if not run or not source:
-            return
-        run.status = SourceCollectionRunStatus.RUNNING
-        run.started_at = datetime.utcnow()
-        source.last_collection_at = run.started_at
-        source.last_collection_status = run.status.value
-        await session.commit()
+    try:
+        async with Session() as session:
+            run = await session.get(SourceCollectionRun, run_id)
+            source = await session.get(LegalSource, source_id)
+            if not run or not source:
+                return
+            run.status = SourceCollectionRunStatus.RUNNING
+            run.started_at = datetime.utcnow()
+            source.last_collection_at = run.started_at
+            source.last_collection_status = run.status.value
+            await session.commit()
 
-        try:
             status_code, collected_text, final_url, etag, last_modified, _ = await _download(
                 source.url_official, source.source_etag, source.source_last_modified
             )
@@ -184,8 +184,10 @@ async def _collect(run_id: UUID, source_id: UUID) -> None:
             source.last_collection_status = run.status.value
             source.last_collection_run_id = run.id
             await session.commit()
-        except Exception as exc:
-            await session.rollback()
+    except Exception as exc:
+        # A failure before the initial RUNNING commit must also leave a terminal
+        # run state; use a fresh session in the current task loop for recovery.
+        async with Session() as session:
             run = await session.get(SourceCollectionRun, run_id)
             source = await session.get(LegalSource, source_id)
             if run:
@@ -204,10 +206,13 @@ def collect_source(run_id: str, source_id: str) -> None:
     lock_key = f"ece:source-collection-lock:{source_id}"
     redis = celery_app.backend.client
     if not redis.set(lock_key, run_id, nx=True, ex=60 * 60):
-        asyncio.run(_mark_failed(UUID(run_id), UUID(source_id), "Une autre collecte de cette source est déjà en cours."))
+        run_async_task(
+            _mark_failed(UUID(run_id), UUID(source_id), "Une autre collecte de cette source est déjà en cours."),
+            engine,
+        )
         return
     try:
-        asyncio.run(_collect(UUID(run_id), UUID(source_id)))
+        run_async_task(_collect(UUID(run_id), UUID(source_id)), engine)
     finally:
         redis.delete(lock_key)
 
@@ -271,4 +276,4 @@ async def _queue_enabled_sources() -> int:
 @celery_app.task(name="app.workers.source_collection.collect_enabled_sources")
 def collect_enabled_sources() -> int:
     """Queue the weekly refresh for all enabled official URLs."""
-    return asyncio.run(_queue_enabled_sources())
+    return run_async_task(_queue_enabled_sources(), engine)

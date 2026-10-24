@@ -7,13 +7,13 @@ from uuid import UUID
 from datetime import datetime
 from typing import List, Dict, Any, Tuple
 import json
-import asyncio
 
 from app.core.config import get_settings
 from app.models.document import Document, DocumentExtraction, DocumentAnalysis
 from app.models.legal import LegalSource, RiskFinding, ReportVersion, RiskLevel, ConfidenceLevel
 from app.services.llm_client import get_llm_client
 from app.workers.celery_app import celery_app
+from app.workers.async_runner import run_async_task
 from app.workers.task_dispatch import enqueue_document_task
 from app.workers.pipeline_tracker import add_warning, bind_report, complete_step, fail_step, start_step
 
@@ -392,7 +392,7 @@ def generate_legal_synthesis_report(findings: List[Dict]) -> str:
 def legal_research_task(self, document_id: str):
     """Celery task for legal research."""
     try:
-        asyncio.run(run_legal_research(UUID(document_id)))
+        run_async_task(run_legal_research(UUID(document_id)), async_engine)
     except Exception as exc:
         fail_step(document_id, 3, retrying=self.request.retries < self.max_retries)
         self.retry(exc=exc, countdown=60)
