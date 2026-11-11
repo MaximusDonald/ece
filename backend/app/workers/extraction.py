@@ -9,6 +9,7 @@ from uuid import UUID
 from datetime import datetime
 
 from app.core.config import get_settings
+from app.core.utils import ensure_uuid
 from app.models.document import Document, DocumentExtraction, DocumentStatus
 from app.services.minio_client import get_minio_client, download_file
 from app.workers.celery_app import celery_app
@@ -143,15 +144,28 @@ async def run_extraction(document_id: UUID) -> None:
             quality_score = calculate_quality_score(markdown, page_count)
             language = detect_language(markdown)
             
-            # Save extraction
-            extraction = DocumentExtraction(
-                document_id=document.id,
-                markdown=markdown,
-                quality_score=quality_score,
-                page_count=page_count,
-                language=language,
-            )
-            session.add(extraction)
+            # Save or update extraction (idempotent for Celery retries)
+            existing_extraction = (
+                await session.execute(
+                    select(DocumentExtraction).where(DocumentExtraction.document_id == document.id)
+                )
+            ).scalar_one_or_none()
+
+            if existing_extraction:
+                existing_extraction.markdown = markdown
+                existing_extraction.quality_score = quality_score
+                existing_extraction.page_count = page_count
+                existing_extraction.language = language
+                session.add(existing_extraction)
+            else:
+                extraction = DocumentExtraction(
+                    document_id=document.id,
+                    markdown=markdown,
+                    quality_score=quality_score,
+                    page_count=page_count,
+                    language=language,
+                )
+                session.add(extraction)
             
             # Update document status
             document.status = DocumentStatus.EXTRACTED
@@ -173,10 +187,10 @@ async def run_extraction(document_id: UUID) -> None:
 
 
 @celery_app.task(bind=True, max_retries=3)
-def extract_document_task(self, document_id: str):
+def extract_document_task(self, document_id):
     """Celery task for document extraction."""
     try:
-        run_async_task(run_extraction(UUID(document_id)), async_engine)
+        run_async_task(run_extraction(ensure_uuid(document_id)), async_engine)
     except Exception as exc:
-        fail_step(document_id, 1, retrying=self.request.retries < self.max_retries)
+        fail_step(str(document_id), 1, retrying=self.request.retries < self.max_retries)
         self.retry(exc=exc, countdown=60)

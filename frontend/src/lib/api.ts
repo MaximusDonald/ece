@@ -28,10 +28,10 @@ http.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
-    
+
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
-      
+
       try {
         const refreshToken = Cookies.get('refresh_token');
         if (refreshToken) {
@@ -40,14 +40,14 @@ http.interceptors.response.use(
             { refresh_token: refreshToken },
             { withCredentials: true }
           );
-          
+
           const { access_token } = response.data;
           Cookies.set('access_token', access_token, { expires: 7 });
-          
+
           if (originalRequest.headers) {
             originalRequest.headers.Authorization = `Bearer ${access_token}`;
           }
-          
+
           return http(originalRequest);
         }
       } catch {
@@ -57,7 +57,7 @@ http.interceptors.response.use(
         window.location.href = '/auth/login';
       }
     }
-    
+
     return Promise.reject(error);
   }
 );
@@ -185,6 +185,16 @@ export interface VagueZone {
   suggested_fields: string[];
 }
 
+export interface MatchedSourceDetail {
+  id: string;
+  title: string;
+  authority: string;
+  original_filename?: string | null;
+  download_url?: string | null;
+  level?: string | null;
+  article_ref?: string | null;
+}
+
 export interface RiskFinding {
   id: string;
   report_version_id: string;
@@ -193,6 +203,7 @@ export interface RiskFinding {
   risk_level: string;
   confidence: string;
   matched_sources: string[];
+  sources_details?: MatchedSourceDetail[];
   obsolescence_flag: boolean;
   conflict_flag: boolean;
   conflict_details: string | null;
@@ -276,7 +287,7 @@ export interface LegalSource {
   status: string;
   effective_date: string | null;
   abrogated_date: string | null;
-  embedding: number[];
+  embedding?: number[];
   created_at: string;
   updated_at: string;
   collection_enabled: boolean;
@@ -286,6 +297,49 @@ export interface LegalSource {
   last_collection_run_id: string | null;
   source_etag: string | null;
   source_last_modified: string | null;
+  is_portal?: boolean;
+  parent_source_id?: string | null;
+  original_filename?: string | null;
+  download_url?: string | null;
+  minio_object_path?: string | null;
+  legal_terms?: Record<string, any>;
+  extracted_articles?: Array<{
+    article_ref?: string;
+    title?: string;
+    content_summary?: string;
+    has_sanction?: boolean;
+    sanction_details?: string | null;
+  }>;
+  summary?: string | null;
+  crawl_depth?: number;
+  child_documents_count?: number;
+}
+
+export interface LegalDocumentItem {
+  id: string;
+  parent_source_id: string | null;
+  parent_title?: string | null;
+  parent_authority?: string | null;
+  title: string;
+  authority: string;
+  country_code: string | null;
+  level: string;
+  original_filename: string | null;
+  download_url: string | null;
+  minio_object_path: string | null;
+  summary: string | null;
+  legal_terms: Record<string, any>;
+  extracted_articles: Array<{
+    article_ref?: string;
+    title?: string;
+    content_summary?: string;
+    has_sanction?: boolean;
+    sanction_details?: string | null;
+  }>;
+  article_count: number;
+  content_hash: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface SourceCollectionRun {
@@ -302,6 +356,9 @@ export interface SourceCollectionRun {
   collected_hash: string | null;
   changed: boolean | null;
   error_message: string | null;
+  discovered_urls_count?: number;
+  downloaded_files_count?: number;
+  ai_processed_count?: number;
 }
 
 export interface DiffLine {
@@ -328,16 +385,16 @@ export const authApi = {
       new URLSearchParams({ username: email, password }),
       { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
     ),
-  
+
   register: (email: string, password: string) =>
     api.post('/auth/register', { email, password }),
-  
+
   logout: () =>
     api.post('/auth/jwt/logout'),
-  
+
   getMe: () =>
     api.get<User>('/auth/users/me'),
-  
+
   updateMe: (data: Partial<User> & { password?: string }) =>
     api.patch<User>('/auth/users/me', data),
 };
@@ -346,7 +403,7 @@ export const authApi = {
 export const orgApi = {
   create: (name: string) =>
     api.post<Organization>('/projects/organization', { name }),
-  
+
   getMe: () =>
     api.get<Organization>('/projects/organization/me'),
 
@@ -364,16 +421,16 @@ export const orgApi = {
 export const projectApi = {
   list: (status?: string) =>
     api.get<ProjectListItem[]>('/projects', { params: { status } }),
-  
+
   create: (data: { name: string; country_code: string; sector: string; treatments: string[] }) =>
     api.post<Project>('/projects', data),
-  
+
   get: (id: string) =>
     api.get<Project>(`/projects/${id}`),
-  
+
   update: (id: string, data: Partial<Project>) =>
     api.patch<Project>(`/projects/${id}`, data),
-  
+
   delete: (id: string) =>
     api.delete(`/projects/${id}`),
 };
@@ -388,16 +445,16 @@ export const documentApi = {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
-  
+
   list: (projectId: string) =>
     api.get<Document[]>(`/projects/${projectId}/documents`),
-  
+
   get: (projectId: string, documentId: string) =>
     api.get<Document>(`/projects/${projectId}/documents/${documentId}`),
-  
+
   getExtraction: (projectId: string, documentId: string) =>
     api.get<DocumentExtraction>(`/projects/${projectId}/documents/${documentId}/extraction`),
-  
+
   getAnalysis: (projectId: string, documentId: string) =>
     api.get<DocumentAnalysis>(`/projects/${projectId}/documents/${documentId}/analysis`),
 
@@ -425,7 +482,10 @@ export const documentApi = {
     }
     return { blob: response.data, filename };
   },
-  
+
+  delete: (projectId: string, documentId: string) =>
+    api.delete<void>(`/projects/${projectId}/documents/${documentId}`),
+
   getJobStatus: (projectId: string, jobId: string) =>
     api.get<JobResponse>(`/projects/${projectId}/documents/jobs/${jobId}`),
 };
@@ -434,19 +494,19 @@ export const documentApi = {
 export const reportApi = {
   listVersions: (projectId: string) =>
     api.get<ReportVersionListItem[]>(`/reports/projects/${projectId}`),
-  
+
   getVersion: (versionId: string) =>
     api.get<ReportVersion>(`/reports/${versionId}`),
-  
+
   getFindings: (versionId: string, filters?: { risk_level?: string; confidence?: string }) =>
     api.get<RiskFinding[]>(`/reports/${versionId}/findings`, { params: filters }),
-  
+
   addContext: (versionId: string, contextData: Record<string, any>) =>
     api.post(`/reports/${versionId}/context`, contextData),
-  
+
   getDiff: (versionId: string, compareWith: string, reportType: 'report1' | 'report2') =>
-    api.get<ReportDiff>(`/reports/${versionId}/diff`, { 
-      params: { compare_with: compareWith, report_type: reportType } 
+    api.get<ReportDiff>(`/reports/${versionId}/diff`, {
+      params: { compare_with: compareWith, report_type: reportType }
     }),
 
   downloadPdf: async (versionId: string, reportType: 'report1' | 'report2') => {
@@ -475,58 +535,67 @@ export const adminApi = {
   // Sources
   listSources: (params?: { status?: string; country_code?: string; level?: string }) =>
     api.get<LegalSource[]>('/admin/sources', { params }),
-  
+
+  listDocuments: (params?: { parent_id?: string; country_code?: string; level?: string; search?: string }) =>
+    api.get<LegalDocumentItem[]>('/admin/sources/documents', { params }),
+
   createSource: (data: Partial<LegalSource>) =>
     api.post<LegalSource>('/admin/sources', data),
-  
+
   updateSource: (id: string, data: Partial<LegalSource>) =>
     api.patch<LegalSource>(`/admin/sources/${id}`, data),
-  
+
+  deleteSource: (id: string) =>
+    api.delete(`/admin/sources/${id}`),
+
   verifySource: (id: string) =>
     api.post(`/admin/sources/${id}/verify`),
 
-  collectSource: (id: string) =>
-    api.post<SourceCollectionRun>(`/admin/sources/${id}/collect`),
+  collectSource: (id: string, depth: number = 2) =>
+    api.post<SourceCollectionRun>(`/admin/sources/${id}/collect`, null, { params: { depth } }),
 
   listSourceCollections: (id: string) =>
     api.get<SourceCollectionRun[]>(`/admin/sources/${id}/collections`),
-  
+
+  downloadDocumentUrl: (sourceId: string) =>
+    `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/admin/sources/${sourceId}/download`,
+
   // Scoring Rules
   listRules: () =>
     api.get('/admin/rules'),
-  
+
   createRule: (data: any) =>
     api.post('/admin/rules', data),
-  
+
   updateRule: (id: string, data: any) =>
     api.patch(`/admin/rules/${id}`, data),
-  
+
   // LLM Configs
   listModels: () =>
     api.get<LLMModelConfig[]>('/admin/models'),
   listModelProviders: () =>
     api.get<LLMProviderAvailability[]>('/admin/models/providers'),
-  
+
   createModel: (data: any) =>
     api.post<LLMModelConfig>('/admin/models', data),
-  
+
   updateModel: (id: string, data: any) =>
     api.patch<LLMModelConfig>(`/admin/models/${id}`, data),
-  
+
   // Countries
   listCountries: () =>
     api.get('/admin/countries'),
-  
+
   updateCountry: (code: string, data: { is_active: boolean }) =>
     api.patch(`/admin/countries/${code}`, data),
-  
+
   // Users
   listUsers: () =>
     api.get('/admin/users'),
 
   createPlatformAdmin: (data: { email: string; password: string }) =>
     api.post('/admin/users/admins', data),
-  
+
   // Audit Logs
   listAuditLogs: (params?: { entity_type?: string; user_id?: string }) =>
     api.get('/admin/audit', { params }),

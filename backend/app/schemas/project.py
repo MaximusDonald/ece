@@ -1,14 +1,27 @@
 from uuid import UUID
 from datetime import datetime
 from typing import Optional, List
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 from fastapi_users import schemas as fastapi_users_schemas
 from app.models.user import UserRole, PlanType, ProjectStatus
+from app.core.password_strength import password_strength_score
 
 
 # Auth Schemas
 class UserCreate(fastapi_users_schemas.BaseUserCreate):
-    pass
+    password: str = Field(min_length=8, max_length=72)
+
+    @field_validator("password")
+    @classmethod
+    def require_strong_password(cls, password: str) -> str:
+        if len(password.encode("utf-8")) > 72:
+            raise ValueError("Le mot de passe ne peut pas dépasser 72 octets.")
+        score = password_strength_score(password)
+        if score < 7:
+            raise ValueError(
+                f"Le mot de passe doit atteindre au moins 7/10 (score actuel : {score}/10)."
+            )
+        return password
 
 
 class UserRead(fastapi_users_schemas.BaseUser[UUID]):

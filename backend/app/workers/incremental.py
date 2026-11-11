@@ -1,19 +1,22 @@
 from celery import Celery
 from sqlmodel import select
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, selectinload
 from uuid import UUID
 from datetime import datetime
 from typing import List, Dict, Any
 import json
 
 from app.core.config import get_settings
+from app.core.utils import ensure_uuid
 from app.models.legal import RiskFinding, ReportVersion, RiskLevel, ConfidenceLevel
-from app.models.document import DocumentExtraction, DocumentAnalysis
+from app.models.document import Document, DocumentExtraction, DocumentAnalysis
+from app.models.user import Project
 from app.services.llm_client import get_llm_client
 from app.services.diff_engine import compute_diff
 from app.workers.celery_app import celery_app
 from app.workers.async_runner import run_async_task
+from app.workers.task_dispatch import enqueue_document_task
 
 settings = get_settings()
 
@@ -31,22 +34,48 @@ llm = get_llm_client()
 async def run_incremental_update(report_version_id: UUID, context_data: Dict[str, Any]) -> None:
     """Run incremental update based on complementary context."""
     async with SyncSession() as session:
-        old_report = await session.get(ReportVersion, report_version_id)
-        if not old_report:
+        result = await session.execute(
+            select(ReportVersion)
+            .options(
+                selectinload(ReportVersion.project).selectinload(Project.documents).selectinload(Document.extraction)
+            )
+            .where(ReportVersion.id == report_version_id)
+        )
+        old_report = result.scalar_one_or_none()
+        if not old_report or not old_report.project:
             return
         
         try:
             # Get current extraction and analysis
-            extraction = await session.get(DocumentExtraction, old_report.project.documents[0].extraction.id) if old_report.project.documents else None
+            extraction = None
+            if old_report.project.documents and old_report.project.documents[0].extraction:
+                extraction = old_report.project.documents[0].extraction
+            else:
+                # Fallback fetch extraction via project document
+                doc_res = await session.execute(
+                    select(Document).where(Document.project_id == old_report.project_id)
+                )
+                first_doc = doc_res.scalars().first()
+                if first_doc:
+                    ext_res = await session.execute(
+                        select(DocumentExtraction).where(DocumentExtraction.document_id == first_doc.id)
+                    )
+                    extraction = ext_res.scalar_one_or_none()
+
             if not extraction:
                 return
             
-            analysis = await session.get(DocumentAnalysis, extraction.id)
+            analysis_res = await session.execute(
+                select(DocumentAnalysis).where(DocumentAnalysis.extraction_id == extraction.id)
+            )
+            analysis = analysis_res.scalar_one_or_none()
+            if not analysis:
+                return
             
             # Update analysis with new context (in practice, would re-run semantic on affected parts)
             # For POC, we'll add the context to vague_zones resolution
             updated_vague_zones = []
-            for zone in analysis.vague_zones:
+            for zone in (analysis.vague_zones or []):
                 zone_key = zone.get("clause_ref", "").lower()
                 if any(k in zone_key for k in context_data.keys()):
                     # This zone is resolved by new context
@@ -57,62 +86,50 @@ async def run_incremental_update(report_version_id: UUID, context_data: Dict[str
             analysis.vague_zones = updated_vague_zones
             session.add(analysis)
             
-            # Re-run legal research only for affected findings
-            affected_findings = await session.execute(
-                select(RiskFinding).where(
-                    RiskFinding.report_version_id == report_version_id,
-                    RiskFinding.clause_ref.in_([z["clause_ref"] for z in updated_vague_zones if z.get("resolved")])
+            # Re-run legal research only for affected findings without modifying existing report findings
+            all_findings = (
+                await session.execute(
+                    select(RiskFinding).where(RiskFinding.report_version_id == report_version_id)
                 )
-            )
-            affected_findings = affected_findings.scalars().all()
+            ).scalars().all()
+
+            resolved_refs = {z["clause_ref"] for z in updated_vague_zones if z.get("resolved")}
             
-            # For each affected finding, re-run consensus with new context
-            for finding in affected_findings:
-                # Build updated prompt with context
-                new_finding = await re_run_consensus_for_finding(finding, context_data, extraction, analysis)
-                if new_finding:
-                    finding.finding_text = new_finding["finding_text"]
-                    finding.risk_level = RiskLevel(new_finding["risk_level"])
-                    finding.confidence = ConfidenceLevel(new_finding["confidence"])
-                    finding.matched_sources = new_finding.get("matched_sources", [])
-                    finding.obsolescence_flag = new_finding.get("obsolescence_flag", False)
-                    finding.conflict_flag = new_finding.get("conflict_flag", False)
-                    finding.conflict_details = new_finding.get("conflict_details")
-                    finding.recommendation = new_finding["recommendation"]
+            new_findings_data = []
+            for f in all_findings:
+                f_data = {
+                    "clause_ref": f.clause_ref,
+                    "finding_text": f.finding_text,
+                    "risk_level": f.risk_level.value,
+                    "confidence": f.confidence.value,
+                    "matched_sources": f.matched_sources,
+                    "obsolescence_flag": f.obsolescence_flag,
+                    "conflict_flag": f.conflict_flag,
+                    "conflict_details": f.conflict_details,
+                    "recommendation": f.recommendation,
+                }
+                if f.clause_ref in resolved_refs:
+                    updated_data = await re_run_consensus_for_finding(f, context_data, extraction, analysis)
+                    if updated_data:
+                        f_data.update(updated_data)
+                new_findings_data.append(f_data)
             
             # Create new report version
             new_version_num = increment_version(old_report.version)
             
-            # Regenerate reports
-            all_findings = await session.execute(
-                select(RiskFinding).where(RiskFinding.report_version_id == report_version_id)
-            )
-            all_findings = all_findings.scalars().all()
-            
-            findings_data = [{
-                "clause_ref": f.clause_ref,
-                "finding_text": f.finding_text,
-                "risk_level": f.risk_level.value,
-                "confidence": f.confidence.value,
-                "matched_sources": f.matched_sources,
-                "obsolescence_flag": f.obsolescence_flag,
-                "conflict_flag": f.conflict_flag,
-                "conflict_details": f.conflict_details,
-                "recommendation": f.recommendation,
-            } for f in all_findings]
-            
             # Calculate new scores
             severity_counts = {"critique": 0, "eleve": 0, "modere": 0, "a_surveiller": 0, "conforme": 0}
-            for f in all_findings:
-                severity_counts[f.risk_level.value] = severity_counts.get(f.risk_level.value, 0) + 1
+            for f_data in new_findings_data:
+                lvl = f_data["risk_level"]
+                severity_counts[lvl] = severity_counts.get(lvl, 0) + 1
             
             weights = {"critique": 25, "eleve": 15, "modere": 10, "a_surveiller": 5, "conforme": 0}
             raw_score = sum(weights.get(level, 0) * count for level, count in severity_counts.items())
             global_score = min(100, raw_score)
             
             # Generate new reports
-            report1_md = generate_findings_report(findings_data, extraction, analysis)
-            report2_md = generate_legal_synthesis_report(findings_data)
+            report1_md = generate_findings_report(new_findings_data, extraction, analysis)
+            report2_md = generate_legal_synthesis_report(new_findings_data)
             
             new_report = ReportVersion(
                 project_id=old_report.project_id,
@@ -127,30 +144,30 @@ async def run_incremental_update(report_version_id: UUID, context_data: Dict[str
             session.add(new_report)
             await session.flush()
             
-            # Copy findings to new version
-            for f in all_findings:
+            # Save new findings instances for new report version
+            for f_data in new_findings_data:
                 new_finding = RiskFinding(
                     report_version_id=new_report.id,
-                    clause_ref=f.clause_ref,
-                    finding_text=f.finding_text,
-                    risk_level=f.risk_level,
-                    confidence=f.confidence,
-                    matched_sources=f.matched_sources,
-                    obsolescence_flag=f.obsolescence_flag,
-                    conflict_flag=f.conflict_flag,
-                    conflict_details=f.conflict_details,
-                    recommendation=f.recommendation,
+                    clause_ref=f_data["clause_ref"],
+                    finding_text=f_data["finding_text"],
+                    risk_level=RiskLevel(f_data["risk_level"]),
+                    confidence=ConfidenceLevel(f_data["confidence"]),
+                    matched_sources=f_data.get("matched_sources", []),
+                    obsolescence_flag=f_data.get("obsolescence_flag", False),
+                    conflict_flag=f_data.get("conflict_flag", False),
+                    conflict_details=f_data.get("conflict_details"),
+                    recommendation=f_data["recommendation"],
                 )
                 session.add(new_finding)
             
             await session.commit()
             
-            # Generate diffs
-            diff1 = compute_diff(old_report.report1_markdown, new_report.report1_markdown)
-            diff2 = compute_diff(old_report.report2_markdown, new_report.report2_markdown)
-            
-            # Store diffs (could be in separate table or computed on demand)
-            # For POC, we'll just ensure the diff engine works
+            # Trigger PDF generation for the new version
+            from app.workers.report import report_generation_task
+            try:
+                enqueue_document_task(report_generation_task, new_report.id, "report")
+            except Exception as exc:
+                print(f"Unable to queue PDF generation for new report {new_report.id}: {exc}")
             
         except Exception as e:
             print(f"Incremental update error: {e}")
@@ -268,9 +285,9 @@ def generate_legal_synthesis_report(findings: List[Dict]) -> str:
 
 
 @celery_app.task(bind=True, max_retries=2)
-def incremental_update_task(self, report_version_id: str, context_data: dict):
+def incremental_update_task(self, report_version_id, context_data: dict):
     """Celery task for incremental update."""
     try:
-        run_async_task(run_incremental_update(UUID(report_version_id), context_data), async_engine)
+        run_async_task(run_incremental_update(ensure_uuid(report_version_id), context_data), async_engine)
     except Exception as exc:
         self.retry(exc=exc, countdown=60)

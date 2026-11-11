@@ -429,3 +429,52 @@ async def get_job_status(
         result=task_result.result if task_result.state == "SUCCESS" else None,
         error=str(task_result.info) if task_result.state == "FAILURE" else None,
     )
+
+
+@router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_document(
+    project_id: UUID,
+    document_id: UUID,
+    current_user: User = Depends(get_current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Delete a document and its associated storage and records."""
+    # Verify project access
+    project = await session.get(Project, project_id)
+    if not project or project.org_id != current_user.org_id:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    document = await session.get(Document, document_id)
+    if not document or document.project_id != project_id:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    # 1. Try to remove object from MinIO
+    try:
+        minio_client = get_minio_client()
+        if minio_client.bucket_exists(document.minio_bucket):
+            minio_client.remove_object(document.minio_bucket, document.minio_path)
+    except Exception:
+        # Pass or log if MinIO file already absent
+        pass
+
+    # 2. Delete extractions and analyses
+    extractions = (
+        await session.execute(
+            select(DocumentExtraction).where(DocumentExtraction.document_id == document_id)
+        )
+    ).scalars().all()
+
+    for ext in extractions:
+        analyses = (
+            await session.execute(
+                select(DocumentAnalysis).where(DocumentAnalysis.extraction_id == ext.id)
+            )
+        ).scalars().all()
+        for analysis in analyses:
+            await session.delete(analysis)
+        await session.delete(ext)
+
+    # 3. Delete document itself
+    await session.delete(document)
+    await session.commit()
+    return None

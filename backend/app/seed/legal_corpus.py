@@ -2,13 +2,13 @@
 import hashlib
 from datetime import date
 from uuid import UUID, uuid4
-from sqlmodel import select
+from sqlmodel import select, delete
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 import asyncio
 
 from app.core.config import get_settings
-from app.models.legal import LegalSource, LegalLevel, SourceStatus
+from app.models.legal import LegalSource, LegalLevel, SourceStatus, SourceCollectionRun
 from app.services.llm_client import get_llm_client
 
 settings = get_settings()
@@ -24,214 +24,206 @@ SyncSession = sessionmaker(async_engine, class_=AsyncSession, expire_on_commit=F
 llm = get_llm_client()
 
 
-SEED_TEXTS = [
-    # CEDEAO / Supranational
+DEFAULT_SYSTEM_PROMPT = """Tu es l'auditeur juridique et réglementaire référent d'ECO-Compliance Engine (ECE), spécialisé en droit du numérique, protection des données personnelles, cybersécurité et réglementation financière pour l'Afrique de l'Ouest (République du Bénin, espace CEDEAO, UEMOA, OHADA, BCEAO).
+
+TON RÔLE & MISSION :
+1. Analyser avec une rigueur juridique absolue les documents contractuels, techniques et opérationnels soumis par les organisations.
+2. Évaluer la stricte conformité au regard des normes impératives en vigueur (Loi n° 2017-20 portant Code du numérique au Bénin, délibérations de l'APDP Bénin, Acte additionnel CEDEAO A/SA.1/01/10, Règlement UEMOA 09/2010, Instructions BCEAO, Actes uniformes OHADA).
+3. Détecter les infractions, clauses abusives, manquements et zones de flou juridique.
+4. Établir des constats objectifs, proportionnés et directement étayés par des sources juridiques officielles primaires.
+
+DIRECTIVES DÉONTOLOGIQUES & D'EXÉCUTION :
+- RÈGLE D'OR : N'invente JAMAIS d'article, de loi, de numéro d'acte ou de disposition réglementaire. Si une information est absente ou incertaine, qualifie-la explicitement en "zone floue" avec un niveau de confiance "low".
+- TRAÇABILITÉ : Chaque constat doit être rattaché aux identifiants exacts des sources fournies et citer nommément le texte officiel, son autorité et le fichier PDF ou article applicable.
+- HIÉRARCHIE DES NORMES : Identifie et signale tout conflit de normes entre le niveau supranational communautaire (CEDEAO / UEMOA / OHADA) et le niveau national souverain béninois.
+- SANCTIONS : Mentionne systématiquement les régimes de sanctions administratives (amendes forfaitaires ou % de chiffre d'affaires prévues par l'APDP) et pénales applicables en cas de non-conformité.
+- FORMAT STRICT : Respecte scrupuleusement la structure JSON demandée sans texte superflu hors du JSON."""
+
+
+BASE_PORTAL_SOURCES = [
     {
-        "title": "Acte additionnel A/SA.1/01/10 relatif à la protection des données à caractère personnel dans l'espace CEDEAO",
-        "authority": "CEDEAO",
-        "country_code": None,
-        "level": LegalLevel.ACTE,
-        "article_ref": "Article 1-25",
-        "url_official": "https://anssi.gouv.ci/reglementations/textes-communautaires/?sous_cat=cedeao",
-        "content_text": """L'Acte additionnel A/SA.1/01/10 établit le cadre juridique de protection des données personnelles dans l'espace CEDEAO. 
-        Il définit les principes de licéité, loyauté, transparence, proportionnalité, exactitude, conservation limitée, intégrité et confidentialité.
-        Tout traitement de données personnelles doit être fondé sur le consentement de la personne concernée ou sur une base légale.
-        Les responsables de traitement doivent mettre en œuvre des mesures techniques et organisationnelles appropriées.
-        Les transferts de données hors de l'espace CEDEAO nécessitent des garanties adéquates.""",
-        "status": SourceStatus.VERIFIED,
-        "effective_date": date(2010, 2, 16),
-    },
-    {
-        "title": "Directive CEDEAO sur les transactions électroniques",
-        "authority": "CEDEAO",
-        "country_code": None,
-        "level": LegalLevel.DIRECTIVE,
-        "article_ref": "Articles 1-30",
-        "url_official": "https://www.cedeao.int/",
-        "content_text": """La directive CEDEAO sur les transactions électroniques harmonise le cadre juridique des transactions électroniques.
-        Elle établit la reconnaissance juridique des écritures et signatures électroniques.
-        Les prestataires de services de certification doivent être accrédités.
-        La conservation des données de trafic est encadrée.""",
-        "status": SourceStatus.VERIFIED,
-        "effective_date": date(2010, 2, 16),
-    },
-    # UEMOA
-    {
-        "title": "Règlement UEMOA n°09/2010/CM/UEMOA relatif à la protection des données personnelles",
-        "authority": "UEMOA",
-        "country_code": None,
-        "level": LegalLevel.REGLEMENT,
-        "article_ref": "Articles 1-40",
-        "url_official": "https://www.uemoa.int/",
-        "content_text": """Le règlement UEMOA transpose l'Acte additionnel CEDEAO au niveau de l'Union.
-        Il renforce les obligations des responsables de traitement.
-        L'autorité de protection des données de chaque État membre assure le contrôle.""",
-        "status": SourceStatus.VERIFIED,
-        "effective_date": date(2010, 12, 20),
-    },
-    # OHADA
-    {
-        "title": "Acte uniforme OHADA relatif au droit commercial général",
-        "authority": "OHADA",
-        "country_code": None,
-        "level": LegalLevel.ACTE,
-        "article_ref": "Articles 1-200",
-        "url_official": "https://www.ohada.org/",
-        "content_text": """L'Acte uniforme OHADA sur le droit commercial général s'applique dans les 17 États parties.
-        Il régit les actes de commerce, les commerçants, les sociétés commerciales.
-        Les contrats électroniques y sont reconnus.""",
-        "status": SourceStatus.VERIFIED,
-        "effective_date": date(2010, 1, 1),
-    },
-    # BCEAO
-    {
-        "title": "Instruction BCEAO n°001-01-2018 relative aux services de paiement",
-        "authority": "BCEAO",
-        "country_code": None,
-        "level": LegalLevel.INSTRUCTION,
-        "article_ref": "Articles 1-50",
-        "url_official": "https://www.bceao.int/fr/reglementations/reglementation-des-systemes-de-paiement",
-        "content_text": """L'instruction BCEAO encadre les services de paiement dans l'UMOA.
-        Les établissements de paiement doivent être agréés.
-        La protection des données des clients est obligatoire.
-        Les fonds des clients doivent être séparés des fonds propres.""",
-        "status": SourceStatus.VERIFIED,
-        "effective_date": date(2018, 1, 1),
-    },
-    {
-        "title": "Règlement BCEAO relatif à la monnaie électronique",
-        "authority": "BCEAO",
-        "country_code": None,
-        "level": LegalLevel.REGLEMENT,
-        "article_ref": "Articles 1-60",
-        "url_official": "https://www.bceao.int/fr/reglementations",
-        "content_text": """Le règlement BCEAO sur la monnaie électronique définit les conditions d'émission et de gestion.
-        Les émetteurs doivent être agréés par la BCEAO.
-        La protection des utilisateurs et la lutte contre le blanchiment sont renforcées.""",
-        "status": SourceStatus.VERIFIED,
-        "effective_date": date(2015, 7, 1),
-    },
-    # Bénin - National
-    {
-        "title": "Loi n°2017-20 du 13 juin 2018 portant Code du numérique en République du Bénin",
-        "authority": "Assemblée nationale du Bénin",
+        "title": "APDP Bénin - Autorité de Protection des Données Personnelles",
+        "authority": "APDP Bénin",
         "country_code": "BJ",
         "level": LegalLevel.LOI,
-        "article_ref": "Articles 1-500",
-        "url_official": "https://www.gouv.bj/",
-        "content_text": """Le Code du numérique du Bénin est le texte fondateur du droit numérique béninois.
-        Il couvre : commerce électronique, protection des données, cybersécurité, signature électronique, noms de domaine.
-        L'APDP (Autorité de Protection des Données Personnelles) est instituée comme autorité de contrôle.
-        Les traitements de données sensibles font l'objet d'autorisation préalable.
-        L'hébergement des données au Bénin est encouragé.""",
+        "article_ref": "Portail officiel APDP",
+        "url_official": "https://service.apdp.bj/",
+        "is_portal": True,
+        "crawl_depth": 2,
+        "collection_enabled": True,
+        "content_text": """Portail officiel de l'Autorité de Protection des Données Personnelles (APDP) de la République du Bénin (https://service.apdp.bj/).
+        L'APDP est l'autorité administrative indépendante chargée de veiller à ce que les traitements de données à caractère personnel soient mis en œuvre conformément à la loi n° 2017-20 portant Code du numérique.
+        Missions : réception des déclarations et demandes d'autorisation, tenue du registre public des traitements, information des personnes concernées et des responsables de traitement, contrôle sur pièces et sur place, instruction des plaintes, prononcé de sanctions administratives et saisine de la justice pénale.""",
         "status": SourceStatus.VERIFIED,
         "effective_date": date(2018, 6, 13),
     },
     {
-        "title": "Décret n°2019-101 portant attributions de l'APDP",
-        "authority": "Présidence de la République du Bénin",
-        "country_code": "BJ",
-        "level": LegalLevel.DECRET,
-        "article_ref": "Articles 1-20",
-        "url_official": "https://apdp.bj/",
-        "content_text": """Le décret définit les missions, l'organisation et le fonctionnement de l'APDP.
-        L'APDP reçoit les déclarations de traitements, délivre les autorisations, contrôle et sanctionne.
-        Elle tient le registre des traitements déclarés.""",
-        "status": SourceStatus.VERIFIED,
-        "effective_date": date(2019, 4, 15),
-    },
-    {
-        "title": "Formulaire unique APDP - Déclaration de traitement de données personnelles",
-        "authority": "APDP Bénin",
-        "country_code": "BJ",
-        "level": LegalLevel.FORMULAIRE,
-        "article_ref": "Formulaire unique",
-        "url_official": "https://apiprod.apdp.bj/storage/df9c83eb5048b2f9dace428ae6ee710a/FORMULAIRE-UNIQUE.pdf",
-        "content_text": """Formulaire officiel de déclaration de traitement de données personnelles auprès de l'APDP.
-        Doit être complété par tout responsable de traitement avant mise en œuvre.
-        Comprend : identification du responsable, finalités, catégories de données, destinataires, transferts, mesures de sécurité, durée de conservation.""",
-        "status": SourceStatus.VERIFIED,
-        "effective_date": date(2020, 1, 1),
-    },
-    {
-        "title": "Guide APDP - Protection des données personnelles au Bénin : grands principes",
-        "authority": "APDP Bénin",
-        "country_code": "BJ",
-        "level": LegalLevel.GUIDE,
-        "article_ref": "Guide 2022",
-        "url_official": "https://archive.apdp.bj/wp-content/uploads/2022/10/1PROTECTION-DES-DONNEES-PERSONNELLES-AU-BENIN-ET-GRANDS-PRINCIPES-DE-LA-PROTECTION-DES-DONNEES-PERSONNELLES.pdf",
-        "content_text": """Guide pédagogique de l'APDP expliquant les grands principes de la protection des données au Bénin.
-        Couvre : consentement, droits des personnes, obligations des responsables, transferts internationaux, sanctions.
-        Indique que les sanctions peuvent aller jusqu'à 4% du chiffre d'affaires mondial.""",
-        "status": SourceStatus.VERIFIED,
-        "effective_date": date(2022, 10, 1),
-    },
-    {
-        "title": "Loi n°2018-34 du 5 octobre 2018 portant lutte contre la cybercriminalité",
-        "authority": "Assemblée nationale du Bénin",
+        "title": "Portail Officiel du Gouvernement du Bénin (Secrétariat Général du Gouvernement)",
+        "authority": "République du Bénin",
         "country_code": "BJ",
         "level": LegalLevel.LOI,
-        "article_ref": "Articles 1-80",
+        "article_ref": "Portail officiel Lois & Décrets",
         "url_official": "https://www.gouv.bj/",
-        "content_text": """La loi béninoise sur la cybercriminalité réprime les infractions liées aux systèmes d'information.
-        Couvre : accès frauduleux, interception, atteinte à l'intégrité, vol de données, escroquerie en ligne.
-        Prévoit des peines de prison et amendes.""",
+        "is_portal": True,
+        "crawl_depth": 2,
+        "collection_enabled": True,
+        "content_text": """Portail officiel du Gouvernement de la République du Bénin.
+        Publication officielle des lois votées par l'Assemblée nationale et des décrets pris en Conseil des ministres.
+        Textes fondamentaux applicables : Loi n° 2017-20 du 13 juin 2018 portant Code du numérique, Loi n° 2018-34 portant lutte contre la cybercriminalité, Décrets d'application relatifs à l'identification électronique, aux transactions électroniques et à la sécurité des systèmes d'information.""",
         "status": SourceStatus.VERIFIED,
-        "effective_date": date(2018, 10, 5),
+        "effective_date": date(2018, 6, 13),
     },
-    # Additional BCEAO texts
     {
-        "title": "Instruction BCEAO sur la lutte contre le blanchiment de capitaux et le financement du terrorisme",
+        "title": "CEDEAO - Commission de la Communauté Économique des États de l'Afrique de l'Ouest",
+        "authority": "CEDEAO",
+        "country_code": None,
+        "level": LegalLevel.ACTE,
+        "article_ref": "Portail officiel communautaire",
+        "url_official": "https://ecowas.int/",
+        "is_portal": True,
+        "crawl_depth": 2,
+        "collection_enabled": True,
+        "content_text": """Portail institutionnel officiel de la CEDEAO (Communauté Économique des États de l'Afrique de l'Ouest).
+        Cadre juridique communautaire contraignant pour les 15 États membres : Acte additionnel A/SA.1/01/10 relatif à la protection des données à caractère personnel, Directive C/DIR.1/08/11 sur la lutte contre la cybercriminalité, Directive sur les transactions électroniques.""",
+        "status": SourceStatus.VERIFIED,
+        "effective_date": date(2010, 2, 16),
+    },
+    {
+        "title": "UEMOA - Commission de l'Union Économique et Monétaire Ouest Africaine",
+        "authority": "UEMOA",
+        "country_code": None,
+        "level": LegalLevel.REGLEMENT,
+        "article_ref": "Portail officiel UEMOA",
+        "url_official": "https://www.uemoa.int/",
+        "is_portal": True,
+        "crawl_depth": 2,
+        "collection_enabled": True,
+        "content_text": """Portail officiel de la Commission de l'UEMOA (Union Économique et Monétaire Ouest Africaine).
+        Textes réglementaires d'application directe : Règlement n° 09/2010/CM/UEMOA relatif à la protection des données personnelles dans l'espace UEMOA, directives relatives aux services de la société de l'information et au commerce électronique.""",
+        "status": SourceStatus.VERIFIED,
+        "effective_date": date(2010, 12, 20),
+    },
+    {
+        "title": "BCEAO - Banque Centrale des États de l'Afrique de l'Ouest",
         "authority": "BCEAO",
         "country_code": None,
         "level": LegalLevel.INSTRUCTION,
-        "article_ref": "Articles 1-80",
-        "url_official": "https://www.bceao.int/fr/reglementations",
-        "content_text": """Obligations de vigilance pour les établissements financiers et de paiement.
-        Identification du client, connaissance du client (KYC), déclaration de soupçons.
-        Conservation des documents pendant 5 ans après la fin de la relation.""",
+        "article_ref": "Portail Réglementation Bancaire & Financière",
+        "url_official": "https://www.bceao.int/",
+        "is_portal": True,
+        "crawl_depth": 2,
+        "collection_enabled": True,
+        "content_text": """Portail officiel de la BCEAO (Banque Centrale des États de l'Afrique de l'Ouest).
+        Réglementation prudentielle, bancaire et financière applicable aux 8 pays de l'UMOA : Règlement relatif à l'émission de monnaie électronique, Instructions encadrant les prestataires de services de paiement, dispositions relatives à la lutte contre le blanchiment de capitaux et le financement du terrorisme (LBC/FT).""",
         "status": SourceStatus.VERIFIED,
-        "effective_date": date(2018, 1, 1),
+        "effective_date": date(2015, 7, 1),
+    },
+    {
+        "title": "OHADA - Organisation pour l'Harmonisation en Afrique du Droit des Affaires",
+        "authority": "OHADA",
+        "country_code": None,
+        "level": LegalLevel.ACTE,
+        "article_ref": "Portail officiel Actes Uniformes",
+        "url_official": "https://www.ohada.org/",
+        "is_portal": True,
+        "crawl_depth": 2,
+        "collection_enabled": True,
+        "content_text": """Portail officiel du Secrétariat Permanent de l'OHADA.
+        Droit uniforme directement applicable dans les 17 États parties : Acte uniforme sur le droit commercial général (contrats électroniques, registres du commerce), Acte uniforme relatif au droit des sociétés commerciales et du GIE, Acte uniforme portant organisation des sûretés.""",
+        "status": SourceStatus.VERIFIED,
+        "effective_date": date(2010, 1, 1),
     },
 ]
 
+# Backward compatibility alias
+SEED_TEXTS = BASE_PORTAL_SOURCES
+
 
 async def seed_legal_corpus() -> None:
-    """Seed any missing legal corpus texts without skipping a partial corpus."""
+    """Seed and harmonize base official portal sources, cleaning redundant specific sub-URLs."""
     async with SyncSession() as session:
-        seeded_count = 0
-        for text_data in SEED_TEXTS:
-            existing = await session.execute(
-                select(LegalSource.id).where(LegalSource.title == text_data["title"])
+        # 1. Clean up redundant, obsolete or overly specific legacy URLs
+        legacy_redundant_urls = [
+            "https://apiprod.apdp.bj/storage/df9c83eb5048b2f9dace428ae6ee710a/FORMULAIRE-UNIQUE.pdf",
+            "https://archive.apdp.bj/wp-content/uploads/2022/10/1PROTECTION-DES-DONNEES-PERSONNELLES-AU-BENIN-ET-GRANDS-PRINCIPES-DE-LA-PROTECTION-DES-DONNEES-PERSONNELLES.pdf",
+            "https://anssi.gouv.ci/reglementations/textes-communautaires/?sous_cat=cedeao",
+            "https://www.bceao.int/fr/reglementations/reglementation-des-systemes-de-paiement",
+            "https://apdp.bj/",
+            "https://apdp.bj",
+        ]
+        
+        for old_url in legacy_redundant_urls:
+            old_rows = await session.execute(
+                select(LegalSource.id).where(LegalSource.url_official == old_url)
             )
-            if existing.scalar_one_or_none():
-                continue
+            row_ids = old_rows.scalars().all()
+            for r_id in row_ids:
+                await session.execute(
+                    delete(SourceCollectionRun).where(SourceCollectionRun.source_id == r_id)
+                )
+                await session.execute(
+                    delete(LegalSource).where(LegalSource.parent_source_id == r_id)
+                )
+                await session.execute(
+                    delete(LegalSource).where(LegalSource.id == r_id)
+                )
+
+        await session.commit()
+
+        # 2. Upsert each base official portal source
+        seeded_count = 0
+        for text_data in BASE_PORTAL_SOURCES:
+            existing = await session.execute(
+                select(LegalSource).where(
+                    (LegalSource.url_official == text_data["url_official"])
+                    | (LegalSource.authority == text_data["authority"])
+                    | (LegalSource.title == text_data["title"])
+                )
+            )
+            source = existing.scalars().first()
 
             # Compute hash
-            content_hash = hashlib.sha256(text_data["content_text"].encode()).hexdigest()
-            
-            # Get embedding
-            embedding = await llm.get_embeddings([text_data["content_text"]])
-            embedding_vec = embedding[0] if embedding else [0.0] * 1536
-            
-            source = LegalSource(
-                title=text_data["title"],
-                authority=text_data["authority"],
-                country_code=text_data["country_code"],
-                level=text_data["level"],
-                article_ref=text_data["article_ref"],
-                url_official=text_data["url_official"],
-                content_hash=content_hash,
-                content_text=text_data["content_text"],
-                status=text_data["status"],
-                effective_date=text_data.get("effective_date"),
-                embedding=embedding_vec,
-            )
-            session.add(source)
-            seeded_count += 1
-        
+            content_hash = hashlib.sha256(text_data["content_text"].encode("utf-8")).hexdigest()
+
+            if source:
+                # Update existing portal to ensure base URL and portal flag are correct
+                source.title = text_data["title"]
+                source.authority = text_data["authority"]
+                source.country_code = text_data["country_code"]
+                source.level = text_data["level"]
+                source.url_official = text_data["url_official"]
+                source.article_ref = text_data["article_ref"]
+                source.is_portal = True
+                source.crawl_depth = text_data.get("crawl_depth", 2)
+                source.collection_enabled = text_data.get("collection_enabled", True)
+                source.status = text_data["status"]
+                source.content_text = text_data["content_text"]
+                source.content_hash = content_hash
+            else:
+                embedding = await llm.get_embeddings([text_data["content_text"]])
+                embedding_vec = embedding[0] if embedding else [0.0] * 1536
+
+                source = LegalSource(
+                    title=text_data["title"],
+                    authority=text_data["authority"],
+                    country_code=text_data["country_code"],
+                    level=text_data["level"],
+                    article_ref=text_data["article_ref"],
+                    url_official=text_data["url_official"],
+                    content_hash=content_hash,
+                    content_text=text_data["content_text"],
+                    status=text_data["status"],
+                    effective_date=text_data.get("effective_date"),
+                    embedding=embedding_vec,
+                    is_portal=True,
+                    crawl_depth=text_data.get("crawl_depth", 2),
+                    collection_enabled=text_data.get("collection_enabled", True),
+                )
+                session.add(source)
+                seeded_count += 1
+
         await session.commit()
-        print(f"Seeded {seeded_count} legal sources.")
+        print(f"Seeded/Harmonized base official portals (added {seeded_count}).")
 
 
 async def seed_admin_user() -> None:
@@ -364,16 +356,13 @@ async def seed_scoring_rules() -> None:
 
 
 async def seed_llm_config() -> None:
-    """Seed one known chat model for each provider declared in code."""
+    """Seed one known chat model for each provider declared in code with clear detailed system prompt."""
     from app.core.config import get_settings
     from app.models.admin import LLMConfig, LLMProvider
     from app.services.llm_registry import PROVIDER_REGISTRY
 
     settings = get_settings()
-    system_prompt = (
-        "You are a legal expert specialized in ECOWAS, WAEMU, OHADA and Beninese law. "
-        "Answer precisely and never invent legal references."
-    )
+    system_prompt = DEFAULT_SYSTEM_PROMPT
     provider_models = [
         (LLMProvider.OPENAI, PROVIDER_REGISTRY[LLMProvider.OPENAI].default_model, "OpenAI GPT-4o-mini", True),
         (LLMProvider.ANTHROPIC, PROVIDER_REGISTRY[LLMProvider.ANTHROPIC].default_model, "Anthropic Claude Haiku", False),
@@ -390,18 +379,25 @@ async def seed_llm_config() -> None:
                     | (LLMConfig.name == name),
                 )
             )
-            if not existing.scalar_one_or_none():
+            config = existing.scalar_one_or_none()
+            if not config:
                 session.add(LLMConfig(
                     name=name,
                     provider=provider.value,
                     model=model,
                     temperature=0.1,
                     max_tokens=4000,
-                    system_prompt_version="v1",
+                    system_prompt_version="v2",
                     system_prompt=system_prompt,
                     is_active=True,
                     is_default=is_default,
                 ))
+            else:
+                # Upgrade prompt to v2 if it had the old short generic prompt
+                if len(config.system_prompt.strip()) < 200 or config.system_prompt_version == "v1":
+                    config.system_prompt = system_prompt
+                    config.system_prompt_version = "v2"
+
         defaults = await session.execute(select(LLMConfig).where(LLMConfig.is_default.is_(True)))
         if not defaults.scalars().first():
             primary = await session.execute(
@@ -411,7 +407,7 @@ async def seed_llm_config() -> None:
             if default_config:
                 default_config.is_default = True
         await session.commit()
-        print("Seeded LLM config.")
+        print("Seeded/Updated LLM configs with detailed system prompt.")
 
 
 async def run_all_seeds():

@@ -48,9 +48,27 @@ async def init_db() -> None:
             "last_collection_run_id": "UUID NULL",
             "source_etag": "VARCHAR(500) NULL",
             "source_last_modified": "VARCHAR(200) NULL",
+            "is_portal": "BOOLEAN NOT NULL DEFAULT FALSE",
+            "parent_source_id": "UUID NULL REFERENCES legal_source(id) ON DELETE SET NULL",
+            "original_filename": "VARCHAR(500) NULL",
+            "download_url": "VARCHAR(1000) NULL",
+            "minio_object_path": "VARCHAR(500) NULL",
+            "legal_terms": "JSON NULL",
+            "extracted_articles": "JSON NULL",
+            "summary": "TEXT NULL",
+            "crawl_depth": "INTEGER NOT NULL DEFAULT 2",
         }.items():
             await conn.exec_driver_sql(
                 f"ALTER TABLE legal_source ADD COLUMN IF NOT EXISTS {column} {definition};"
+            )
+
+        for column, definition in {
+            "discovered_urls_count": "INTEGER NOT NULL DEFAULT 0",
+            "downloaded_files_count": "INTEGER NOT NULL DEFAULT 0",
+            "ai_processed_count": "INTEGER NOT NULL DEFAULT 0",
+        }.items():
+            await conn.exec_driver_sql(
+                f"ALTER TABLE source_collection_run ADD COLUMN IF NOT EXISTS {column} {definition};"
             )
 
 

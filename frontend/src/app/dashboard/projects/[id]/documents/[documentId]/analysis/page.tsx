@@ -2,19 +2,62 @@
 
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { useDocumentAnalysis } from '@/hooks/useApi';
+import { useDocumentAnalysis, useDocumentExtraction, useDocumentPipeline } from '@/hooks/useApi';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, Brain, Tag, AlertTriangle, Search } from 'lucide-react';
+import { ChevronLeft, Brain, AlertTriangle, Search } from 'lucide-react';
 import { formatDateTime, getApiErrorMessage } from '@/lib/utils';
+
+const SUGGESTED_FIELD_LABELS: Record<string, string> = {
+  base_legale_traitement: 'base légale du traitement',
+  droits_personnes_concernees: 'droits des personnes concernées',
+  localisation_stockage_donnees: 'lieu de stockage des données',
+  mesures_securite_transfert: 'mesures de sécurité des transferts',
+  conformite_rgpd_ou_loi_beninoise: 'règles de protection des données applicables',
+  localisation_hebergement: 'lieu d’hébergement des données',
+  hosting_location: 'lieu d’hébergement des données',
+  sous_traitant: 'sous-traitants concernés',
+  subcontractor: 'sous-traitants concernés',
+};
+
+function findSourceContext(markdown: string | undefined, reference: string) {
+  if (!markdown || !reference) return null;
+
+  const escapedReference = reference.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  let match = new RegExp(escapedReference, 'i').exec(markdown);
+  const sectionNumber = reference.match(/\d+(?:\.\d+)+/)?.[0];
+  if (!match && sectionNumber) {
+    const escapedNumber = sectionNumber.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    match = new RegExp(`^\\s*(?:#{1,6}\\s*)?(?:section\\s+)?${escapedNumber}\\b.*$`, 'im').exec(markdown);
+  }
+  if (!match) return null;
+
+  let page: string | undefined;
+  const pageHeadings = markdown.slice(0, match.index).matchAll(/^\s*#{1,6}\s*Page\s+(\d+)\s*$/gim);
+  for (const heading of pageHeadings) page = heading[1];
+  const excerpt = markdown.slice(match.index, match.index + 260).replace(/\s+/g, ' ').trim();
+  return { page, excerpt };
+}
+
+function readableZoneDescription(description: string) {
+  if (description.startsWith('Clause data_protection')) {
+    return 'La clause de protection des données personnelles reste trop générale.';
+  }
+  if (description.startsWith('Clause payment_services')) {
+    return 'La clause sur les services de paiement reste trop générale.';
+  }
+  return description;
+}
 
 export default function AnalysisPage() {
   const params = useParams();
   const projectId = params.id as string;
   const documentId = params.documentId as string;
   const { data: analysis, isLoading, error, refetch } = useDocumentAnalysis(projectId, documentId);
+  const { data: extraction } = useDocumentExtraction(projectId, documentId);
+  const { data: pipeline } = useDocumentPipeline(projectId, documentId);
+  const legalStep = pipeline?.steps.find((step) => step.key === 'legal_research');
   const apiError = error as { response?: { status?: number; data?: { detail?: string } } } | null;
   const isAnalysisPending = apiError?.response?.status === 404 &&
     ['Extraction not found', 'Analysis not found'].includes(apiError.response.data?.detail || '');
@@ -127,14 +170,30 @@ export default function AnalysisPage() {
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
                         <AlertTriangle className="h-4 w-4 text-warning-600" />
-                        <span className="font-medium text-warning-800">{zone.clause_ref}</span>
+                        <span className="font-medium text-warning-800">Repère proposé : {zone.clause_ref}</span>
                       </div>
-                      <p className="text-slate-700 mb-2">{zone.description}</p>
+                      <p className="text-slate-700 mb-2 whitespace-pre-line">{readableZoneDescription(zone.description)}</p>
+                      {!zone.description.includes('Extrait exact') && !zone.description.includes('Passage autour') && (
+                        <div className="mb-3 rounded-md border border-amber-200 bg-white/70 p-3 text-sm text-slate-700">
+                          {(() => {
+                            const context = findSourceContext(extraction?.markdown, zone.clause_ref);
+                            if (!context) {
+                              return <p>Repère proposé par l’analyse. Il n’a pas pu être retrouvé automatiquement dans le texte extrait.</p>;
+                            }
+                            return (
+                              <>
+                                {context.page && <p className="mb-1 font-medium">Page {context.page}</p>}
+                                <p><span className="font-medium">Passage autour du repère :</span> “{context.excerpt}”</p>
+                              </>
+                            );
+                          })()}
+                        </div>
+                      )}
                       {zone.suggested_fields && zone.suggested_fields.length > 0 && (
                         <div className="flex flex-wrap gap-2">
                           {zone.suggested_fields.map((field: string, i: number) => (
                             <Badge key={i} variant="outline" className="text-xs">
-                              {field.replace('_', ' ')}
+                              {SUGGESTED_FIELD_LABELS[field] || field.replaceAll('_', ' ')}
                             </Badge>
                           ))}
                         </div>
@@ -155,19 +214,35 @@ export default function AnalysisPage() {
         </CardContent>
       </Card>
 
-      {/* Next Steps */}
       <Card className="border-sovereign-200 bg-sovereign-50">
         <CardContent className="p-6">
           <div className="flex items-center gap-3">
             <Brain className="h-8 w-8 text-sovereign-500" />
             <div>
-              <h3 className="font-semibold text-sovereign-800">Prochaine étape</h3>
+              <h3 className="font-semibold text-sovereign-800">
+                {pipeline?.status === 'completed'
+                  ? 'Analyse juridique terminée'
+                  : legalStep?.status === 'failed'
+                    ? 'La recherche juridique a échoué'
+                    : legalStep?.status === 'completed'
+                      ? 'Recherche juridique terminée'
+                      : legalStep?.status === 'retrying'
+                        ? 'Nouvelle tentative de recherche juridique'
+                        : legalStep?.status === 'running'
+                          ? 'Recherche juridique en cours'
+                          : 'Recherche juridique en attente'}
+              </h3>
               <p className="text-sovereign-600 text-sm">
-                L'analyse sémantique est terminée. Le système va maintenant lancer la recherche juridique 
-                (RAG) sur le corpus CEDEAO/UEMOA/OHADA + Bénin pour identifier les obligations applicables.
+                {legalStep?.message || 'Vérification du lancement de la recherche juridique…'}
+                {pipeline?.error ? ` ${pipeline.error}` : ''}
               </p>
             </div>
           </div>
+          <Button asChild variant="outline" className="mt-4">
+            <Link href={`/dashboard/projects/${projectId}/documents/${documentId}/pipeline`}>
+              {legalStep?.status === 'failed' ? 'Voir l’erreur et relancer' : 'Suivre les étapes de l’audit'}
+            </Link>
+          </Button>
         </CardContent>
       </Card>
 

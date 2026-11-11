@@ -115,7 +115,41 @@ async def get_report_findings(
     result = await session.execute(query)
     findings = result.scalars().all()
     
-    return findings
+    # Batch load matched legal sources for rich display
+    all_source_ids = set()
+    for f in findings:
+        for sid in (f.matched_sources or []):
+            try:
+                all_source_ids.add(UUID(str(sid)))
+            except (ValueError, TypeError):
+                continue
+                
+    sources_map = {}
+    if all_source_ids:
+        from app.models.legal import LegalSource
+        src_res = await session.execute(select(LegalSource).where(LegalSource.id.in_(all_source_ids)))
+        for src in src_res.scalars().all():
+            sources_map[src.id] = {
+                "id": src.id,
+                "title": src.title,
+                "authority": src.authority,
+                "original_filename": src.original_filename,
+                "download_url": src.download_url or src.url_official,
+                "level": src.level.value if hasattr(src.level, "value") else str(src.level),
+                "article_ref": src.article_ref,
+            }
+            
+    response_items = []
+    for f in findings:
+        item = RiskFindingRead.model_validate(f)
+        item.sources_details = [
+            sources_map[UUID(str(sid))]
+            for sid in (f.matched_sources or [])
+            if UUID(str(sid)) in sources_map
+        ]
+        response_items.append(item)
+        
+    return response_items
 
 
 @router.post("/{report_version_id}/context", status_code=status.HTTP_202_ACCEPTED)

@@ -1,197 +1,231 @@
-"""Collect and re-index explicitly registered official legal document URLs."""
+"""Collect, recursively crawl, archive to MinIO, and extract legal sources with AI."""
 
 import hashlib
 import html
-import ipaddress
+import logging
 import re
-import socket
 from datetime import datetime, timedelta
-from html.parser import HTMLParser
-from urllib.parse import urljoin, urlparse
+from typing import List, Optional
+from urllib.parse import urlparse
 from uuid import UUID
 
 import fitz
 import httpx
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import get_settings
-from app.models.legal import LegalSource, SourceCollectionRun, SourceCollectionRunStatus, SourceStatus
+from app.models.legal import (
+    LegalLevel,
+    LegalSource,
+    SourceCollectionRun,
+    SourceCollectionRunStatus,
+    SourceStatus,
+)
+from app.services.crawler import (
+    DiscoveredDocument,
+    LegalCrawlerEngine,
+    validate_public_https_url,
+)
+from app.services.legal_extractor import LegalLLMExtractor
 from app.services.llm_client import get_llm_client
-from app.workers.celery_app import celery_app
+from app.services.minio_client import ensure_bucket_exists, get_minio_client, upload_file
 from app.workers.async_runner import run_async_task
+from app.workers.celery_app import celery_app
 
+logger = logging.getLogger(__name__)
 
-MAX_DOWNLOAD_BYTES = 25 * 1024 * 1024
-MAX_REDIRECTS = 5
 settings = get_settings()
 engine = create_async_engine(settings.database_url, pool_pre_ping=True)
 Session = async_sessionmaker(engine, expire_on_commit=False)
+MINIO_BUCKET_LEGAL = "legal-sources"
 
 
-class _VisibleHTMLText(HTMLParser):
-    _ignored = {"script", "style", "noscript", "svg", "nav", "footer"}
-
-    def __init__(self) -> None:
-        super().__init__(convert_charrefs=True)
-        self._skip_depth = 0
-        self.parts: list[str] = []
-
-    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        if tag.lower() in self._ignored:
-            self._skip_depth += 1
-
-    def handle_endtag(self, tag: str) -> None:
-        if tag.lower() in self._ignored and self._skip_depth:
-            self._skip_depth -= 1
-
-    def handle_data(self, data: str) -> None:
-        if not self._skip_depth and data.strip():
-            self.parts.append(data.strip())
-
-
-def _validate_public_https_url(url: str) -> None:
-    parsed = urlparse(url)
-    if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
-        raise ValueError("Seules les URL HTTPS publiques sont autorisées.")
-    hostname = parsed.hostname.rstrip(".").lower()
-    if hostname in {"localhost", "localhost.localdomain"} or hostname.endswith((".local", ".internal", ".localhost")):
-        raise ValueError("Les hôtes locaux ne peuvent pas être collectés.")
+async def _generate_embeddings(text: str) -> List[float]:
+    """Generate 1536-dimensional embeddings with fallback."""
+    llm = get_llm_client()
     try:
-        addresses = {ipaddress.ip_address(hostname)}
-    except ValueError:
-        try:
-            addresses = {
-                ipaddress.ip_address(item[4][0])
-                for item in socket.getaddrinfo(hostname, parsed.port or 443, type=socket.SOCK_STREAM)
-            }
-        except OSError as exc:
-            raise ValueError("Le domaine de l’URL ne peut pas être résolu.") from exc
-    if not addresses or any(not address.is_global for address in addresses):
-        raise ValueError("L’URL doit pointer uniquement vers des adresses IP publiques.")
-
-
-def _extract_content(body: bytes, content_type: str, url: str) -> str:
-    path = urlparse(url).path.lower()
-    if "pdf" in content_type.lower() or path.endswith(".pdf"):
-        document = fitz.open(stream=body, filetype="pdf")
-        try:
-            text = "\n".join(page.get_text("text") for page in document)
-        finally:
-            document.close()
-    elif "html" in content_type.lower() or "xhtml" in content_type.lower() or body.lstrip().startswith(b"<"):
-        parser = _VisibleHTMLText()
-        parser.feed(body.decode("utf-8", errors="replace"))
-        text = "\n".join(parser.parts)
-    else:
-        raise ValueError(f"Format non pris en charge ({content_type or 'inconnu'}). Utilisez une page HTML ou un PDF.")
-
-    normalized = "\n".join(re.sub(r"\s+", " ", line).strip() for line in html.unescape(text).splitlines())
-    normalized = re.sub(r"\n{3,}", "\n\n", normalized).strip()
-    if len(normalized) < 100:
-        raise ValueError("La page ne contient pas assez de texte juridique exploitable.")
-    return normalized
-
-
-async def _download(url: str, etag: str | None, last_modified: str | None) -> tuple[int, str, str, str | None, str | None, int]:
-    current_url = url
-    initial_host = urlparse(url).hostname
-    headers = {"User-Agent": "ECE-LegalCorpusCollector/1.0", "Accept": "text/html,application/xhtml+xml,application/pdf"}
-    if etag:
-        headers["If-None-Match"] = etag
-    if last_modified:
-        headers["If-Modified-Since"] = last_modified
-
-    async with httpx.AsyncClient(timeout=httpx.Timeout(45), follow_redirects=False) as client:
-        for _ in range(MAX_REDIRECTS + 1):
-            _validate_public_https_url(current_url)
-            if urlparse(current_url).hostname != initial_host:
-                headers.pop("If-None-Match", None)
-                headers.pop("If-Modified-Since", None)
-            async with client.stream("GET", current_url, headers=headers) as response:
-                if response.status_code in {301, 302, 303, 307, 308}:
-                    location = response.headers.get("location")
-                    if not location:
-                        raise ValueError("Redirection sans destination.")
-                    current_url = urljoin(current_url, location)
-                    continue
-                if response.status_code == 304:
-                    return 304, "", current_url, etag, last_modified, 0
-                response.raise_for_status()
-                content_type = response.headers.get("content-type", "").split(";", 1)[0].strip()
-                body = bytearray()
-                async for chunk in response.aiter_bytes():
-                    body.extend(chunk)
-                    if len(body) > MAX_DOWNLOAD_BYTES:
-                        raise ValueError("Le document dépasse la limite de collecte de 25 Mo.")
-                text = _extract_content(bytes(body), content_type, current_url)
-                return (
-                    response.status_code,
-                    text,
-                    current_url,
-                    response.headers.get("etag"),
-                    response.headers.get("last-modified"),
-                    len(body),
-                )
-    raise ValueError("Trop de redirections lors de la collecte.")
+        embeddings = await llm.get_embeddings([text[:12000]])
+        if embeddings and len(embeddings[0]) == 1536 and any(abs(v) > 1e-10 for v in embeddings[0]):
+            return embeddings[0]
+    except Exception as exc:
+        logger.warning("Embeddings provider fallback: %s", exc)
+    return [0.0] * 1536
 
 
 async def _collect(run_id: UUID, source_id: UUID) -> None:
+    """Execute intelligent recursive crawl, MinIO storage, and AI analysis."""
+    extractor = LegalLLMExtractor()
+    minio_client = get_minio_client()
+    ensure_bucket_exists(minio_client, MINIO_BUCKET_LEGAL)
+
+    async with Session() as session:
+        run = await session.get(SourceCollectionRun, run_id)
+        source = await session.get(LegalSource, source_id)
+        if not run or not source:
+            return
+
+        run.status = SourceCollectionRunStatus.RUNNING
+        run.started_at = datetime.utcnow()
+        source.last_collection_at = run.started_at
+        source.last_collection_status = run.status
+        await session.commit()
+
     try:
+        discovered_docs: List[DiscoveredDocument] = []
+        is_direct_pdf = source.url_official.lower().endswith(".pdf")
+
+        # Collect existing filenames under this specific parent source to prevent re-collecting duplicates
+        existing_filenames = set()
         async with Session() as session:
+            existing_children = await session.execute(
+                select(LegalSource.original_filename)
+                .where(LegalSource.parent_source_id == source_id)
+            )
+            for row in existing_children.scalars().all():
+                if row and row.strip():
+                    existing_filenames.add(row.strip().lower())
+
+        if is_direct_pdf:
+            filename = source.original_filename or source.url_official.split("/")[-1] or "document.pdf"
+            if filename.strip().lower() in existing_filenames:
+                logger.info("PDF direct '%s' déjà collecté pour cette source parent. Téléchargement ignoré.", filename)
+            else:
+                # Direct PDF document collection
+                validate_public_https_url(source.url_official)
+                async with httpx.AsyncClient(timeout=httpx.Timeout(45.0), follow_redirects=True) as client:
+                    resp = await client.get(source.url_official)
+                    resp.raise_for_status()
+                    content_bytes = resp.content
+                    sha256 = hashlib.sha256(content_bytes).hexdigest()
+                    minio_obj = f"{(source.country_code or 'bj').lower()}/{sha256[:12]}_{filename}"
+                    upload_file(minio_client, MINIO_BUCKET_LEGAL, minio_obj, content_bytes, "application/pdf")
+
+                    # Extract text
+                    doc = fitz.open(stream=content_bytes, filetype="pdf")
+                    try:
+                        text_parts = [p.get_text("text") for p in doc]
+                        full_text = "\n".join(text_parts).strip()
+                    finally:
+                        doc.close()
+
+                    discovered_docs.append(
+                        DiscoveredDocument(
+                            download_url=source.url_official,
+                            original_filename=filename,
+                            content_type="application/pdf",
+                            content_hash=sha256,
+                            content_text=full_text,
+                            minio_path=f"{MINIO_BUCKET_LEGAL}/{minio_obj}",
+                            source_page_url=source.url_official,
+                            anchor_text=source.title,
+                            file_size_bytes=len(content_bytes),
+                        )
+                    )
+        else:
+            # Recursive web crawl on portal with filename deduplication filter
+            crawler = LegalCrawlerEngine(
+                root_url=source.url_official,
+                max_depth=source.crawl_depth or 2,
+                country_code=source.country_code or "bj",
+                existing_filenames=existing_filenames,
+            )
+            discovered_docs = await crawler.crawl()
+
+        # Process each newly discovered legal document with AI
+        ai_processed = 0
+        async with Session() as session:
+            # Reload source & run
             run = await session.get(SourceCollectionRun, run_id)
             source = await session.get(LegalSource, source_id)
             if not run or not source:
                 return
-            run.status = SourceCollectionRunStatus.RUNNING
-            run.started_at = datetime.utcnow()
-            source.last_collection_at = run.started_at
-            source.last_collection_status = run.status.value
-            await session.commit()
 
-            status_code, collected_text, final_url, etag, last_modified, _ = await _download(
-                source.url_official, source.source_etag, source.source_last_modified
-            )
-            run.http_status_code = status_code
-            run.previous_hash = source.content_hash
-            source.source_etag = etag or source.source_etag
-            source.source_last_modified = last_modified or source.source_last_modified
+            run.discovered_urls_count = len(crawler.visited_urls) if not is_direct_pdf else 1
+            run.downloaded_files_count = len(discovered_docs)
 
-            if status_code == 304:
-                run.collected_hash = source.content_hash
-                run.changed = False
-                run.status = SourceCollectionRunStatus.UNCHANGED
-                source.status = SourceStatus.VERIFIED
-            else:
-                new_hash = hashlib.sha256(collected_text.encode("utf-8")).hexdigest()
-                run.collected_hash = new_hash
-                run.changed = new_hash != source.content_hash
-                if run.changed:
-                    embeddings = await get_llm_client().get_embeddings([collected_text[:12000]])
-                    if not embeddings or len(embeddings[0]) != 1536 or not any(abs(value) > 1e-10 for value in embeddings[0]):
-                        raise RuntimeError("Le fournisseur d’embeddings n’a pas retourné un vecteur exploitable de 1536 dimensions.")
-                    source.content_text = collected_text
-                    source.content_hash = new_hash
-                    source.embedding = embeddings[0]
-                    source.status = SourceStatus.VERIFIED
-                    source.updated_at = datetime.utcnow()
-                else:
-                    source.status = SourceStatus.VERIFIED
-                run.status = SourceCollectionRunStatus.SUCCEEDED if run.changed else SourceCollectionRunStatus.UNCHANGED
-                # A successful HTTP 200 confirms the current contents even when unchanged.
-            run.finished_at = datetime.utcnow()
-            source.last_successful_collection_at = run.finished_at
-            source.last_collection_status = run.status.value
+            for doc in discovered_docs:
+                try:
+                    doc_filename_clean = doc.original_filename.strip().lower()
+
+                    # Deduplication check by filename, download URL or hash under this parent source
+                    existing_result = await session.execute(
+                        select(LegalSource).where(
+                            (LegalSource.parent_source_id == source.id) &
+                            (
+                                (func.lower(LegalSource.original_filename) == doc_filename_clean) |
+                                (LegalSource.download_url == doc.download_url) |
+                                (LegalSource.content_hash == doc.content_hash)
+                            )
+                        )
+                    )
+                    child_source = existing_result.scalar_one_or_none()
+
+                    if child_source:
+                        logger.info(
+                            "Le document PDF '%s' existe déjà pour ce portail. Analyse IA ignorée.",
+                            doc.original_filename
+                        )
+                        continue
+
+                    # Run AI legal analysis for genuinely new document
+                    analysis = await extractor.analyze_document(
+                        text=doc.content_text,
+                        original_filename=doc.original_filename,
+                        source_hint=f"{source.authority} - {doc.anchor_text}",
+                    )
+
+                    # Compute vector embedding
+                    embedding = await _generate_embeddings(doc.content_text)
+
+                    # Create new child legal document
+                    new_child = LegalSource(
+                        title=analysis.official_title,
+                        authority=analysis.authority or source.authority,
+                        country_code=source.country_code,
+                        level=LegalLevel(analysis.legal_level),
+                        article_ref=analysis.act_number or doc.original_filename,
+                        url_official=doc.download_url,
+                        download_url=doc.download_url,
+                        original_filename=doc.original_filename,
+                        minio_object_path=doc.minio_path,
+                        content_hash=doc.content_hash,
+                        content_text=doc.content_text,
+                        status=SourceStatus.VERIFIED,
+                        embedding=embedding,
+                        is_portal=False,
+                        parent_source_id=source.id,
+                        summary=analysis.executive_summary,
+                        legal_terms={"terms": analysis.legal_terms},
+                        extracted_articles=analysis.key_articles,
+                        crawl_depth=1,
+                    )
+                    session.add(new_child)
+                    existing_filenames.add(doc_filename_clean)
+                    ai_processed += 1
+                except Exception as doc_exc:
+                    logger.warning("Error analyzing document %s: %s", doc.original_filename, doc_exc)
+
+            # Update parent source
+            source.is_portal = True
+            source.status = SourceStatus.VERIFIED
+            source.last_successful_collection_at = datetime.utcnow()
+            source.last_collection_status = SourceCollectionRunStatus.SUCCEEDED.value
             source.last_collection_run_id = run.id
+
+            run.ai_processed_count = ai_processed
+            run.status = SourceCollectionRunStatus.SUCCEEDED.value
+            run.finished_at = datetime.utcnow()
+            run.changed = len(discovered_docs) > 0
             await session.commit()
+
     except Exception as exc:
-        # A failure before the initial RUNNING commit must also leave a terminal
-        # run state; use a fresh session in the current task loop for recovery.
+        logger.exception("Source collection failed for source %s: %s", source_id, exc)
         async with Session() as session:
             run = await session.get(SourceCollectionRun, run_id)
             source = await session.get(LegalSource, source_id)
             if run:
-                run.status = SourceCollectionRunStatus.FAILED
+                run.status = SourceCollectionRunStatus.FAILED.value
                 run.finished_at = datetime.utcnow()
                 run.error_message = str(exc)[:2000]
             if source:
@@ -222,7 +256,7 @@ async def _mark_failed(run_id: UUID, source_id: UUID, message: str) -> None:
         run = await session.get(SourceCollectionRun, run_id)
         source = await session.get(LegalSource, source_id)
         if run:
-            run.status = SourceCollectionRunStatus.FAILED
+            run.status = SourceCollectionRunStatus.FAILED.value
             run.finished_at = datetime.utcnow()
             run.error_message = message
         if source:
@@ -246,7 +280,7 @@ async def _queue_enabled_sources() -> int:
             active = await session.execute(
                 select(SourceCollectionRun).where(
                     SourceCollectionRun.source_id == source.id,
-                    SourceCollectionRun.status.in_([SourceCollectionRunStatus.QUEUED, SourceCollectionRunStatus.RUNNING]),
+                    SourceCollectionRun.status.in_([SourceCollectionRunStatus.QUEUED.value, SourceCollectionRunStatus.RUNNING.value]),
                 ).order_by(SourceCollectionRun.requested_at.desc()).limit(1)
             )
             active_run = active.scalar_one_or_none()

@@ -6,9 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useReportVersions, useReportVersion, useReportFindings, useAddContext, useReportDiff, useDownloadReport } from '@/hooks/useApi';
 import { formatDateTime, getRiskBadgeClass, getConfidenceBadgeClass, getRiskEmoji, getConfidenceEmoji } from '@/lib/utils';
-import { AlertTriangle, CheckCircle, FileText, ChevronDown, ChevronUp, Search, Plus, Download, RefreshCw } from 'lucide-react';
+import { AlertTriangle, CheckCircle, FileText, ChevronDown, ChevronUp, Search, Plus, Download, RefreshCw, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { toast } from '@/hooks/use-toast';
 
 export function ProjectWorkspaceReports({ projectId }: { projectId: string }) {
@@ -17,21 +17,27 @@ export function ProjectWorkspaceReports({ projectId }: { projectId: string }) {
   const [activeTab, setActiveTab] = useState<'findings' | 'sources' | 'recommendations'>('findings');
   const [showContextModal, setShowContextModal] = useState(false);
 
-  const latestVersion = versions?.[0];
-  if (latestVersion && !selectedVersionId) {
-    setSelectedVersionId(latestVersion.id);
-  }
+  useEffect(() => {
+    if (versions && versions.length > 0 && !selectedVersionId) {
+      setSelectedVersionId(versions[0].id);
+    }
+  }, [versions, selectedVersionId]);
 
   const { data: reportVersion } = useReportVersion(selectedVersionId || '');
   const { data: findings } = useReportFindings(selectedVersionId || '');
   const addContextMutation = useAddContext();
   const downloadMutation = useDownloadReport();
+  const [downloadingType, setDownloadingType] = useState<string | null>(null);
 
   const downloadReport = (reportType: 'report1' | 'report2', format: 'pdf' | 'markdown') => {
     if (!reportVersion) return;
+    setDownloadingType(`${reportType}-${format}`);
     downloadMutation.mutate(
       { versionId: reportVersion.id, reportType, format },
-      { onError: () => toast({ title: 'Export impossible', description: 'Le fichier du rapport n’a pas pu être téléchargé. Réessayez après la fin de sa génération.', variant: 'destructive' }) },
+      {
+        onSettled: () => setDownloadingType(null),
+        onError: () => toast({ title: 'Export impossible', description: 'Le fichier du rapport n’a pas pu être téléchargé. Réessayez après la fin de sa génération.', variant: 'destructive' })
+      },
     );
   };
 
@@ -202,11 +208,23 @@ export function ProjectWorkspaceReports({ projectId }: { projectId: string }) {
               </Tabs>
 
               {/* Export Buttons */}
-              <div className="flex justify-end gap-3 mt-6 pt-6 border-t border-slate-200">
-                <Button variant="outline" onClick={() => downloadReport('report1', 'pdf')} disabled={downloadMutation.isPending}><Download className="mr-2 h-4 w-4" />Exporter Rapport 1 (PDF)</Button>
-                <Button variant="outline" onClick={() => downloadReport('report2', 'pdf')} disabled={downloadMutation.isPending}><Download className="mr-2 h-4 w-4" />Exporter Rapport 2 (PDF)</Button>
-                <Button variant="outline" onClick={() => downloadReport('report1', 'markdown')} disabled={downloadMutation.isPending}><FileText className="mr-2 h-4 w-4" />Exporter Rapport 1 (MD)</Button>
-                <Button variant="outline" onClick={() => downloadReport('report2', 'markdown')} disabled={downloadMutation.isPending}><FileText className="mr-2 h-4 w-4" />Exporter Rapport 2 (MD)</Button>
+              <div className="flex flex-wrap justify-end gap-3 mt-6 pt-6 border-t border-slate-200">
+                <Button variant="outline" onClick={() => downloadReport('report1', 'pdf')} disabled={downloadMutation.isPending}>
+                  {downloadingType === 'report1-pdf' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                  Exporter Rapport 1 (PDF)
+                </Button>
+                <Button variant="outline" onClick={() => downloadReport('report2', 'pdf')} disabled={downloadMutation.isPending}>
+                  {downloadingType === 'report2-pdf' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                  Exporter Rapport 2 (PDF)
+                </Button>
+                <Button variant="outline" onClick={() => downloadReport('report1', 'markdown')} disabled={downloadMutation.isPending}>
+                  {downloadingType === 'report1-markdown' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
+                  Exporter Rapport 1 (MD)
+                </Button>
+                <Button variant="outline" onClick={() => downloadReport('report2', 'markdown')} disabled={downloadMutation.isPending}>
+                  {downloadingType === 'report2-markdown' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
+                  Exporter Rapport 2 (MD)
+                </Button>
               </div>
             </>
           )}

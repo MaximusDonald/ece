@@ -52,6 +52,15 @@ class LegalSource(SQLModel, table=True):
     last_collection_run_id: Optional[UUID] = Field(default=None)
     source_etag: Optional[str] = Field(default=None, max_length=500)
     source_last_modified: Optional[str] = Field(default=None, max_length=200)
+    is_portal: bool = Field(default=False)
+    parent_source_id: Optional[UUID] = Field(default=None, foreign_key="legal_source.id", index=True)
+    original_filename: Optional[str] = Field(default=None, max_length=500)
+    download_url: Optional[str] = Field(default=None, max_length=1000)
+    minio_object_path: Optional[str] = Field(default=None, max_length=500)
+    legal_terms: Optional[Dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
+    extracted_articles: Optional[List[Dict[str, Any]]] = Field(default=None, sa_column=Column(JSON))
+    summary: Optional[str] = Field(default=None, sa_column=Column(Text))
+    crawl_depth: int = Field(default=2)
     created_at: datetime = Field(default_factory=datetime.utcnow, sa_column=Column(DateTime, nullable=False))
     updated_at: datetime = Field(default_factory=datetime.utcnow, sa_column=Column(DateTime, nullable=False))
     
@@ -87,6 +96,9 @@ class SourceCollectionRun(SQLModel, table=True):
     previous_hash: Optional[str] = Field(default=None, max_length=64)
     collected_hash: Optional[str] = Field(default=None, max_length=64)
     changed: Optional[bool] = Field(default=None)
+    discovered_urls_count: int = Field(default=0)
+    downloaded_files_count: int = Field(default=0)
+    ai_processed_count: int = Field(default=0)
     error_message: Optional[str] = Field(default=None, sa_column=Column(Text))
 
 

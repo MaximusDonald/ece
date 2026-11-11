@@ -16,6 +16,7 @@ import {
   Database,
   Code,
   Globe,
+  History,
   LogOut,
   ChevronLeft,
   ChevronRight,
@@ -29,13 +30,34 @@ const navigation = [
 ];
 
 const adminNavigation = [
-  { name: 'Sources juridiques', href: '/dashboard/admin/sources', icon: Database },
+  { name: 'Portails & Collecte IA', href: '/dashboard/admin/sources', icon: Globe },
+  { name: 'Bibliothèque juridique', href: '/dashboard/admin/sources/documents', icon: FileText },
   { name: 'Règles de scoring', href: '/dashboard/admin/rules', icon: Shield },
   { name: 'Modèles LLM', href: '/dashboard/admin/models', icon: Code },
-  { name: 'Pays / Juridictions', href: '/dashboard/admin/countries', icon: Globe },
+  { name: 'Pays / Juridictions', href: '/dashboard/admin/countries', icon: Database },
   { name: 'Utilisateurs', href: '/dashboard/admin/users', icon: Users },
-  { name: 'Journaux d\'audit', href: '/dashboard/admin/audit', icon: FileText },
+  { name: 'Journaux d\'audit', href: '/dashboard/admin/audit', icon: History },
 ];
+
+const getPageHeaderInfo = (pathname: string) => {
+  if (pathname === '/dashboard') return { title: 'Tableau de bord', category: 'Vue générale' };
+  if (pathname.includes('/upload')) return { title: 'Téléverser un document', category: 'Documents' };
+  if (pathname.includes('/pipeline')) return { title: 'Pipeline de traitement', category: 'Audit' };
+  if (pathname.includes('/analysis')) return { title: 'Analyse de conformité', category: 'Rapports' };
+  if (pathname.includes('/diff')) return { title: 'Comparaison de versions', category: 'Rapports' };
+  if (pathname.startsWith('/dashboard/projects/new')) return { title: 'Nouveau projet', category: 'Projets' };
+  if (pathname.startsWith('/dashboard/projects')) return { title: 'Projets de conformité', category: 'Gestion' };
+  if (pathname.startsWith('/dashboard/team')) return { title: 'Équipe & Accès', category: 'Organisation' };
+  if (pathname.startsWith('/dashboard/settings')) return { title: 'Paramètres', category: 'Compte' };
+  if (pathname.startsWith('/dashboard/admin/sources/documents')) return { title: 'Textes juridiques extraits', category: 'Gouvernance' };
+  if (pathname.startsWith('/dashboard/admin/sources')) return { title: 'Portails officiels & Collecte IA', category: 'Gouvernance' };
+  if (pathname.startsWith('/dashboard/admin/rules')) return { title: 'Règles de scoring', category: 'Gouvernance' };
+  if (pathname.startsWith('/dashboard/admin/models')) return { title: 'Modèles LLM', category: 'Gouvernance' };
+  if (pathname.startsWith('/dashboard/admin/countries')) return { title: 'Pays & Juridictions', category: 'Gouvernance' };
+  if (pathname.startsWith('/dashboard/admin/users')) return { title: 'Gestion des utilisateurs', category: 'Gouvernance' };
+  if (pathname.startsWith('/dashboard/admin/audit')) return { title: 'Journaux d’audit', category: 'Gouvernance' };
+  return { title: 'Tableau de bord', category: 'Plateforme' };
+};
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -191,15 +213,19 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           )}
         </nav>
 
-        {/* User menu placeholder */}
+        {/* User menu */}
         <div className={cn('p-4 border-t border-slate-200', collapsed && 'hidden')}>
           <div className="flex items-center gap-3 px-3 py-2">
             <div className="w-8 h-8 rounded-full bg-sovereign-100 flex items-center justify-center">
-              <span className="text-sm font-medium text-sovereign-600">U</span>
+              <span className="text-sm font-medium text-sovereign-600">
+                {currentUser?.email ? currentUser.email.charAt(0).toUpperCase() : 'U'}
+              </span>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-slate-900 truncate">Utilisateur</p>
-              <p className="text-xs text-slate-500 truncate">user@example.com</p>
+              <p className="text-sm font-medium text-slate-900 truncate">
+                {currentUser?.role ? currentUser.role.replace('_', ' ').toUpperCase() : 'Utilisateur'}
+              </p>
+              <p className="text-xs text-slate-500 truncate">{currentUser?.email || 'user@example.com'}</p>
             </div>
           </div>
           <Button variant="ghost" className="w-full justify-start" onClick={handleLogout} disabled={logout.isPending}>
@@ -217,21 +243,31 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         )}
       >
         {/* Top bar */}
-        <header className="sticky top-0 z-30 h-16 bg-white/80 backdrop-blur-sm border-b border-slate-200">
+        <header className="sticky top-0 z-30 h-16 bg-white/95 backdrop-blur-md border-b border-slate-200">
           <div className="h-full px-6 flex items-center justify-between">
-            <h1 className="text-xl font-semibold text-slate-900">
-              {(() => {
-                const segments = pathname.split('/').filter(Boolean);
-                if (segments.length <= 1) return 'Tableau de bord';
-                const last = segments[segments.length - 1];
-                if (last === 'new') return 'Nouveau projet';
-                if (last === 'upload') return 'Téléverser document';
-                if (last.startsWith('[')) return segments[segments.length - 2];
-                return last.charAt(0).toUpperCase() + last.slice(1);
-              })()}
-            </h1>
-            <div className="flex items-center gap-4">
-              {/* Notifications, user menu, etc. */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold uppercase tracking-wider text-sovereign-600 bg-sovereign-50 px-2.5 py-1 rounded-md border border-sovereign-200/50">
+                {getPageHeaderInfo(pathname).category}
+              </span>
+              <span className="text-slate-300">/</span>
+              <h1 className="text-base font-semibold text-slate-900">
+                {getPageHeaderInfo(pathname).title}
+              </h1>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100/80 border border-slate-200 text-xs text-slate-600">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span>Système opérationnel</span>
+              </div>
+              <div className="flex items-center gap-2.5 pl-3 border-l border-slate-200">
+                <div className="w-8 h-8 rounded-full bg-sovereign-600 text-white font-medium text-xs flex items-center justify-center">
+                  {currentUser?.email ? currentUser.email.charAt(0).toUpperCase() : 'A'}
+                </div>
+                <div className="hidden md:block text-left text-xs">
+                  <p className="font-semibold text-slate-800 leading-tight">{currentUser?.email || 'admin@ece.local'}</p>
+                  <p className="text-slate-500 capitalize">{currentUser?.role?.replace('_', ' ') || 'Utilisateur'}</p>
+                </div>
+              </div>
             </div>
           </div>
         </header>

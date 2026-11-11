@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import List
 
 from app.core.config import get_settings
+from app.core.utils import ensure_uuid
 from app.models.legal import RiskFinding, ReportVersion
 from app.services.minio_client import get_minio_client, upload_file, get_bucket_name
 from app.services.pdf_generator import generate_pdf_from_html
@@ -118,12 +119,12 @@ def markdown_to_html(markdown: str, title: str) -> str:
 
 
 @celery_app.task(bind=True, max_retries=2)
-def report_generation_task(self, report_version_id: str):
+def report_generation_task(self, report_version_id):
     """Celery task for report generation."""
     try:
-        run_async_task(run_report_generation(UUID(report_version_id)), async_engine)
+        run_async_task(run_report_generation(ensure_uuid(report_version_id)), async_engine)
     except Exception as exc:
-        document_id = get_document_for_report(report_version_id)
+        document_id = get_document_for_report(str(report_version_id))
         if document_id:
-            fail_step(document_id, 5, retrying=self.request.retries < self.max_retries)
+            fail_step(str(document_id), 5, retrying=self.request.retries < self.max_retries)
         self.retry(exc=exc, countdown=60)

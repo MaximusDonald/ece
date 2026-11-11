@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import Cookies from 'js-cookie';
 import { api, authApi, orgApi, projectApi, documentApi, reportApi, adminApi } from '@/lib/api';
-import type { Project, ProjectListItem, Document, DocumentPipeline, JobResponse, ReportVersionListItem, RiskFinding, ReportVersion, ReportDiff, LegalSource, SourceCollectionRun, LLMModelConfig, LLMProviderAvailability } from '@/lib/api';
+import type { Project, ProjectListItem, Document, JobResponse, ReportVersionListItem, RiskFinding, ReportVersion, ReportDiff, LegalSource, LegalDocumentItem, SourceCollectionRun, LLMModelConfig, LLMProviderAvailability } from '@/lib/api';
 
 // Auth hooks
 export function useLogin() {
@@ -172,6 +172,18 @@ export function useUploadDocument() {
   });
 }
 
+export function useDeleteDocument() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ projectId, documentId }: { projectId: string; documentId: string }) =>
+      documentApi.delete(projectId, documentId),
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ['documents', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['projects', projectId] });
+    },
+  });
+}
+
 export function useResumeDocumentPipeline() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -251,16 +263,6 @@ export function useDocumentAnalysis(projectId: string, documentId: string, enabl
       return !status || status === 404 ? 2000 : false;
     },
   });
-  const resumeRequested = useRef<string | null>(null);
-  const errorStatus = (query.error as { response?: { status?: number } } | null)?.response?.status;
-  useEffect(() => {
-    const key = `${projectId}:${documentId}`;
-    if (!enabled || !projectId || !documentId || errorStatus !== 404 || resumeRequested.current === key) return;
-    resumeRequested.current = key;
-    documentApi.resumeAnalysis(projectId, documentId)
-      .then(() => query.refetch())
-      .catch(() => undefined);
-  }, [documentId, enabled, errorStatus, projectId, query.refetch]);
   return query;
 }
 
@@ -382,11 +384,40 @@ export function useVerifySource() {
 export function useCollectSource() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => adminApi.collectSource(id),
-    onSuccess: (_, id) => {
+    mutationFn: (args: string | { id: string; depth?: number }) => {
+      const id = typeof args === 'string' ? args : args.id;
+      const depth = typeof args === 'string' ? 2 : (args.depth ?? 2);
+      return adminApi.collectSource(id, depth);
+    },
+    onSuccess: (_, args) => {
+      const id = typeof args === 'string' ? args : args.id;
       queryClient.invalidateQueries({ queryKey: ['adminSources'] });
+      queryClient.invalidateQueries({ queryKey: ['adminExtractedDocuments'] });
       queryClient.invalidateQueries({ queryKey: ['adminSourceCollections', id] });
     },
+  });
+}
+
+export function useDeleteSource() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => adminApi.deleteSource(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['adminSources'] });
+      queryClient.invalidateQueries({ queryKey: ['adminExtractedDocuments'] });
+    },
+  });
+}
+
+export function useAdminExtractedDocuments(params?: {
+  parent_id?: string;
+  country_code?: string;
+  level?: string;
+  search?: string;
+}) {
+  return useQuery<LegalDocumentItem[]>({
+    queryKey: ['adminExtractedDocuments', params],
+    queryFn: () => adminApi.listDocuments(params),
   });
 }
 

@@ -1,17 +1,53 @@
 'use client';
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import * as React from 'react';
+import Link from 'next/link';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useAdminSources, useAdminSourceCollections, useCollectSource, useCreateSource, useUpdateSource } from '@/hooks/useApi';
-import { Plus, Search, CheckCircle, AlertTriangle, Clock, ExternalLink, History, Loader2, Play } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  useAdminSources,
+  useAdminSourceCollections,
+  useCollectSource,
+  useCreateSource,
+  useUpdateSource,
+  useDeleteSource,
+} from '@/hooks/useApi';
+import {
+  Plus,
+  Search,
+  CheckCircle,
+  AlertTriangle,
+  Clock,
+  ExternalLink,
+  History,
+  Loader2,
+  Play,
+  Globe,
+  FileText,
+  Trash2,
+  Edit,
+  Sparkles,
+  Layers,
+  ArrowRight,
+  ShieldCheck,
+  RefreshCw,
+} from 'lucide-react';
 import { formatDateTime } from '@/lib/utils';
-import { useState } from 'react';
 import { toast } from '@/hooks/use-toast';
+import type { LegalSource } from '@/lib/api';
 
 const STATUS_OPTIONS = [
   { value: '', label: 'Tous les statuts' },
@@ -23,183 +59,355 @@ const STATUS_OPTIONS = [
   { value: 'unofficial', label: 'Non officielle' },
 ];
 
-const LEVEL_OPTIONS = [
-  { value: '', label: 'Tous les niveaux' },
-  { value: 'loi', label: 'Loi' },
-  { value: 'décret', label: 'Décret' },
-  { value: 'règlement', label: 'Règlement' },
-  { value: 'directive', label: 'Directive' },
-  { value: 'acte', label: 'Acte' },
-  { value: 'instruction', label: 'Instruction' },
-  { value: 'décision', label: 'Décision' },
-  { value: 'recommandation', label: 'Recommandation' },
-  { value: 'formulaire', label: 'Formulaire' },
-  { value: 'guide', label: 'Guide' },
-];
-
 const COUNTRY_OPTIONS = [
-  { value: '', label: 'Tous les pays' },
-  { value: 'BJ', label: 'Bénin' },
-  { value: 'SN', label: 'Sénégal' },
-  { value: 'CI', label: "Côte d'Ivoire" },
-  { value: 'TG', label: 'Togo' },
-  { value: 'BF', label: 'Burkina Faso' },
-  { value: 'NE', label: 'Niger' },
-  { value: 'ML', label: 'Mali' },
-  { value: 'GN', label: 'Guinée' },
-  { value: 'GW', label: 'Guinée-Bissau' },
-  { value: 'CV', label: 'Cap-Vert' },
-  { value: 'GH', label: 'Ghana' },
-  { value: 'NG', label: 'Nigéria' },
-  { value: 'LR', label: 'Libéria' },
-  { value: 'SL', label: 'Sierra Leone' },
-  { value: 'GM', label: 'Gambie' },
+  { value: '', label: 'Toutes les juridictions' },
+  { value: 'BJ', label: 'Bénin (BJ)' },
+  { value: 'SN', label: 'Sénégal (SN)' },
+  { value: 'CI', label: "Côte d'Ivoire (CI)" },
+  { value: 'TG', label: 'Togo (TG)' },
+  { value: 'BF', label: 'Burkina Faso (BF)' },
+  { value: 'NE', label: 'Niger (NE)' },
+  { value: 'ML', label: 'Mali (ML)' },
+  { value: 'GN', label: 'Guinée (GN)' },
+  { value: 'GW', label: 'Guinée-Bissau (GW)' },
+  { value: 'CV', label: 'Cap-Vert (CV)' },
+  { value: 'GH', label: 'Ghana (GH)' },
+  { value: 'NG', label: 'Nigéria (NG)' },
+  { value: 'LR', label: 'Libéria (LR)' },
+  { value: 'SL', label: 'Sierra Leone (SL)' },
+  { value: 'GM', label: 'Gambie (GM)' },
 ];
 
 export default function AdminSourcesPage() {
   const { data: sources, isLoading, refetch } = useAdminSources();
   const createSource = useCreateSource();
   const updateSource = useUpdateSource();
+  const deleteSource = useDeleteSource();
   const collectSource = useCollectSource();
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [historySourceId, setHistorySourceId] = useState<string | undefined>();
-  const [editData, setEditData] = useState<Record<string, any>>({});
-  const [filters, setFilters] = useState({
+
+  // Modals state
+  const [isCreateOpen, setIsCreateOpen] = React.useState(false);
+  const [editingSource, setEditingSource] = React.useState<LegalSource | null>(null);
+  const [historySourceId, setHistorySourceId] = React.useState<string | undefined>();
+  const [collectingSource, setCollectingSource] = React.useState<LegalSource | null>(null);
+  const [crawlDepth, setCrawlDepth] = React.useState<number>(2);
+
+  // Filters state
+  const [filters, setFilters] = React.useState({
     status: '',
     country_code: '',
-    level: '',
     search: '',
   });
+
+  // History query
   const { data: collectionRuns, isLoading: isHistoryLoading } = useAdminSourceCollections(historySourceId);
 
-  const filteredSources = sources?.filter(s => {
-    const matchesStatus = !filters.status || s.status === filters.status;
-    const matchesCountry = !filters.country_code || s.country_code === filters.country_code;
-    const matchesLevel = !filters.level || s.level === filters.level;
-    const matchesSearch = !filters.search || 
-      s.title.toLowerCase().includes(filters.search.toLowerCase()) ||
-      s.authority.toLowerCase().includes(filters.search.toLowerCase()) ||
-      s.article_ref.toLowerCase().includes(filters.search.toLowerCase());
-    return matchesStatus && matchesCountry && matchesLevel && matchesSearch;
-  }) || [];
+  // Form state
+  const [formData, setFormData] = React.useState({
+    title: '',
+    authority: '',
+    country_code: 'BJ',
+    level: 'loi',
+    url_official: '',
+    crawl_depth: 2,
+    collection_enabled: true,
+  });
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'verified': return <Badge variant="conforme"><CheckCircle className="h-3 w-3 mr-1" />Vérifiée</Badge>;
-      case 'to_verify': return <Badge variant="a_surveiller"><Clock className="h-3 w-3 mr-1" />À vérifier</Badge>;
-      case 'replaced': return <Badge variant="modere">Remplacée</Badge>;
-      case 'archived': return <Badge variant="secondary">Archivée</Badge>;
-      case 'disputed': return <Badge variant="critique">Contestée</Badge>;
-      case 'unofficial': return <Badge variant="warning">Non officielle</Badge>;
-      default: return <Badge variant="secondary">{status}</Badge>;
+  const handleOpenCreate = () => {
+    setFormData({
+      title: '',
+      authority: '',
+      country_code: 'BJ',
+      level: 'loi',
+      url_official: '',
+      crawl_depth: 2,
+      collection_enabled: true,
+    });
+    setIsCreateOpen(true);
+  };
+
+  const handleOpenEdit = (source: LegalSource) => {
+    setEditingSource(source);
+    setFormData({
+      title: source.title,
+      authority: source.authority,
+      country_code: source.country_code || '',
+      level: source.level || 'loi',
+      url_official: source.url_official,
+      crawl_depth: source.crawl_depth || 2,
+      collection_enabled: Boolean(source.collection_enabled),
+    });
+  };
+
+  const handleSaveForm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      if (editingSource) {
+        await updateSource.mutateAsync({
+          id: editingSource.id,
+          data: {
+            title: formData.title,
+            authority: formData.authority,
+            country_code: formData.country_code || null,
+            level: formData.level,
+            url_official: formData.url_official,
+            crawl_depth: formData.crawl_depth,
+            collection_enabled: formData.collection_enabled,
+          },
+        });
+        toast({ title: 'Portail mis à jour', description: 'Les paramètres du portail ont été modifiés.' });
+        setEditingSource(null);
+      } else {
+        await createSource.mutateAsync({
+          title: formData.title,
+          authority: formData.authority,
+          country_code: formData.country_code || null,
+          level: formData.level,
+          url_official: formData.url_official,
+          crawl_depth: formData.crawl_depth,
+          collection_enabled: formData.collection_enabled,
+          is_portal: true,
+          article_ref: 'Portail officiel',
+          content_text: `Portail institutionnel officiel : ${formData.title} (${formData.authority})`,
+        });
+        toast({ title: 'Nouveau portail configuré', description: 'Le portail a été enregistré avec succès.' });
+        setIsCreateOpen(false);
+      }
+      refetch();
+    } catch (error: any) {
+      toast({
+        title: 'Erreur',
+        description: error?.response?.data?.detail || 'Impossible d’enregistrer le portail.',
+        variant: 'destructive',
+      });
     }
   };
 
-  const getLevelBadge = (level: string) => {
-    return <Badge variant="outline" className="text-xs">{level}</Badge>;
-  };
-
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!String(editData.content_text || '').trim() && !editData.collection_enabled) {
-      toast({ title: 'Contenu manquant', description: 'Collez un texte initial ou activez la collecte depuis l’URL officielle.', variant: 'destructive' });
+  const handleDelete = async (source: LegalSource) => {
+    if (!confirm(`Supprimer le portail "${source.title}" et tous ses textes indexés ? Cette action est irréversible.`)) {
       return;
     }
     try {
-      await createSource.mutateAsync(editData);
-      setIsCreateOpen(false);
-      setEditData({});
+      await deleteSource.mutateAsync(source.id);
+      toast({ title: 'Portail supprimé', description: 'Le portail et ses documents associés ont été retirés.' });
       refetch();
-    } catch (err) {
-      toast({ title: 'Création impossible', description: 'La source juridique n’a pas pu être créée.', variant: 'destructive' });
+    } catch (err: any) {
+      toast({
+        title: 'Erreur de suppression',
+        description: err?.response?.data?.detail || 'Impossible de supprimer cette source.',
+        variant: 'destructive',
+      });
     }
   };
 
-  const handleUpdate = async (id: string) => {
+  const handleTriggerCollect = async () => {
+    if (!collectingSource) return;
     try {
-      await updateSource.mutateAsync({ id, data: editData });
-      setEditingId(null);
-      setEditData({});
+      await collectSource.mutateAsync({
+        id: collectingSource.id,
+        depth: crawlDepth,
+      });
+      toast({
+        title: 'Collecte IA initiée',
+        description: `Le robot explore "${collectingSource.title}" à profondeur ${crawlDepth}. Les PDF trouvés seront analysés par l'IA.`,
+      });
+      setCollectingSource(null);
       refetch();
-    } catch (err) {
-      toast({ title: 'Mise à jour impossible', description: 'La source juridique n’a pas pu être modifiée.', variant: 'destructive' });
+    } catch (error: any) {
+      toast({
+        title: 'Échec de lancement',
+        description: error?.response?.data?.detail || 'Une collecte est déjà en cours ou une erreur est survenue.',
+        variant: 'destructive',
+      });
     }
   };
 
-  const handleCollect = async (id: string) => {
-    try {
-      await collectSource.mutateAsync(id);
-      setHistorySourceId(id);
-      toast({ title: 'Collecte démarrée', description: 'Consultez l’historique pour son résultat.' });
-      refetch();
-    } catch (err) {
-      toast({ title: 'Collecte impossible', description: 'Vérifiez que l’URL pointe vers un document HTML ou PDF public en HTTPS.', variant: 'destructive' });
+  const filteredSources = React.useMemo(() => {
+    return (
+      sources?.filter((s) => {
+        const matchesStatus = !filters.status || s.status === filters.status;
+        const matchesCountry = !filters.country_code || s.country_code === filters.country_code;
+        const matchesSearch =
+          !filters.search ||
+          s.title.toLowerCase().includes(filters.search.toLowerCase()) ||
+          s.authority.toLowerCase().includes(filters.search.toLowerCase()) ||
+          s.url_official.toLowerCase().includes(filters.search.toLowerCase());
+        return matchesStatus && matchesCountry && matchesSearch;
+      }) || []
+    );
+  }, [sources, filters]);
+
+  const totalDocumentsDiscovered = React.useMemo(() => {
+    return sources?.reduce((acc, s) => acc + (s.child_documents_count || 0), 0) || 0;
+  }, [sources]);
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'verified':
+        return (
+          <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs">
+            <CheckCircle className="h-3 w-3 mr-1 text-emerald-600" />
+            Vérifiée
+          </Badge>
+        );
+      case 'to_verify':
+        return (
+          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-xs">
+            <Clock className="h-3 w-3 mr-1 text-amber-600" />
+            À vérifier
+          </Badge>
+        );
+      case 'disputed':
+        return (
+          <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200 text-xs">
+            <AlertTriangle className="h-3 w-3 mr-1 text-rose-600" />
+            Contestée
+          </Badge>
+        );
+      default:
+        return (
+          <Badge variant="secondary" className="text-xs">
+            {status}
+          </Badge>
+        );
     }
   };
 
-  const collectionBadge = (status?: string | null) => {
-    if (status === 'running' || status === 'queued') return <Badge variant="a_surveiller">{status === 'queued' ? 'En attente' : 'En cours'}</Badge>;
-    if (status === 'succeeded') return <Badge variant="conforme">Mis à jour</Badge>;
-    if (status === 'unchanged') return <Badge variant="secondary">Inchangée</Badge>;
-    if (status === 'failed') return <Badge variant="critique">Échec</Badge>;
-    return <span className="text-slate-400">Jamais collectée</span>;
+  const getRunBadge = (status?: string | null) => {
+    switch (status) {
+      case 'succeeded':
+        return <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-100 text-emerald-800">Succès</span>;
+      case 'running':
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-blue-100 text-blue-800">
+            <Loader2 className="w-2.5 h-2.5 mr-1 animate-spin" />
+            En cours
+          </span>
+        );
+      case 'queued':
+        return <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-purple-100 text-purple-800">En attente</span>;
+      case 'failed':
+        return <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-rose-100 text-rose-800">Échec</span>;
+      default:
+        return <span className="text-xs text-slate-400">Aucune</span>;
+    }
   };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      {/* Navigation Tabs Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
         <div>
-          <h1 className="page-title">Sources juridiques</h1>
-          <p className="page-subtitle">Gérez le corpus juridique : validation, obsolescence, intégrité</p>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Portails institutionnels & Collecte IA</h1>
+          <p className="text-sm text-slate-500 mt-1">
+            Gérez les URLs d'autorités nationales et orchestrez le crawler intelligent avec extraction de PDF et de règles juridiques.
+          </p>
         </div>
-        <Button onClick={() => { setEditData({}); setIsCreateOpen(true); }}>
-          <Plus className="h-4 w-4 mr-2" />
-          Ajouter une source
-        </Button>
+        <div className="flex items-center gap-2">
+          <Link href="/dashboard/admin/sources/documents">
+            <Button variant="outline" className="gap-2 border-slate-200 hover:bg-slate-50">
+              <FileText className="w-4 h-4 text-sovereign-600" />
+              <span>Voir les textes extraits</span>
+              <Badge variant="secondary" className="ml-1 text-xs px-1.5 py-0">
+                {totalDocumentsDiscovered}
+              </Badge>
+              <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
+            </Button>
+          </Link>
+          <Button onClick={handleOpenCreate} className="gap-2 bg-sovereign-600 hover:bg-sovereign-700 text-white">
+            <Plus className="w-4 h-4" />
+            <span>Nouveau portail</span>
+          </Button>
+        </div>
       </div>
 
-      {/* Filters */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+      {/* KPI Stats Bar */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="bg-white border-slate-200 shadow-xs">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Portails configurés</p>
+              <h3 className="text-2xl font-bold text-slate-900 mt-1">{sources?.length || 0}</h3>
+              <p className="text-xs text-slate-400 mt-0.5">Autorités de régulation & ministères</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
+              <Globe className="w-6 h-6" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-white border-slate-200 shadow-xs">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Documents & Lois découverts</p>
+              <h3 className="text-2xl font-bold text-slate-900 mt-1">{totalDocumentsDiscovered}</h3>
+              <p className="text-xs text-emerald-600 font-medium mt-0.5 flex items-center gap-1">
+                <Sparkles className="w-3 h-3" /> Extraits & analysés par IA
+              </p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
+              <FileText className="w-6 h-6" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-white border-slate-200 shadow-xs">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Moteur de collecte</p>
+              <h3 className="text-base font-bold text-slate-900 mt-1 flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                Crawler & IA actifs
+              </h3>
+              <p className="text-xs text-slate-400 mt-0.5">Exploration multi-niveaux & MinIO S3</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600">
+              <Layers className="w-6 h-6" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Filters Card */}
+      <Card className="bg-white border-slate-200 shadow-xs">
+        <CardContent className="p-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
               <Input
-                placeholder="Rechercher par titre, autorité, article..."
+                placeholder="Rechercher par autorité, titre, URL..."
                 value={filters.search}
                 onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-                className="pl-10"
+                className="pl-9 text-sm"
               />
             </div>
-            <Select value={filters.status} onValueChange={(v) => setFilters({ ...filters, status: v })}>
-              <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue placeholder="Statut" />
+            <Select
+              value={filters.country_code}
+              onValueChange={(val) => setFilters({ ...filters, country_code: val })}
+            >
+              <SelectTrigger className="text-sm">
+                <SelectValue placeholder="Toutes les juridictions" />
               </SelectTrigger>
               <SelectContent>
-                {STATUS_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                {COUNTRY_OPTIONS.map((c) => (
+                  <SelectItem key={c.value} value={c.value}>
+                    {c.label}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            <Select value={filters.country_code} onValueChange={(v) => setFilters({ ...filters, country_code: v })}>
-              <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue placeholder="Pays" />
+            <Select
+              value={filters.status}
+              onValueChange={(val) => setFilters({ ...filters, status: val })}
+            >
+              <SelectTrigger className="text-sm">
+                <SelectValue placeholder="Tous les statuts" />
               </SelectTrigger>
               <SelectContent>
-                {COUNTRY_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={filters.level} onValueChange={(v) => setFilters({ ...filters, level: v })}>
-              <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue placeholder="Niveau" />
-              </SelectTrigger>
-              <SelectContent>
-                {LEVEL_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                {STATUS_OPTIONS.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>
+                    {s.label}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -207,304 +415,405 @@ export default function AdminSourcesPage() {
         </CardContent>
       </Card>
 
-      {/* Sources Table */}
-      <Card>
-        <CardContent>
+      {/* Portals Table */}
+      <Card className="bg-white border-slate-200 shadow-xs">
+        <CardContent className="p-0">
           {isLoading ? (
-            <div className="flex justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sovereign-500" />
+            <div className="flex flex-col items-center justify-center py-12 gap-3">
+              <Loader2 className="w-8 h-8 text-sovereign-600 animate-spin" />
+              <p className="text-sm text-slate-500">Chargement des portails officiels...</p>
             </div>
           ) : filteredSources.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Titre</TableHead>
-                  <TableHead>Autorité</TableHead>
-                  <TableHead>Pays</TableHead>
-                  <TableHead>Niveau</TableHead>
-                  <TableHead>Article</TableHead>
-                  <TableHead>Statut</TableHead>
-                  <TableHead>Dernière collecte</TableHead>
-                  <TableHead>Hash</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredSources.map((source) => (
-                  <TableRow key={source.id}>
-                    <TableCell className="max-w-[300px] truncate">
-                      {editingId === source.id ? (
-                        <Input
-                          value={editData.title || source.title}
-                          onChange={(e) => setEditData({ ...editData, title: e.target.value })}
-                          className="text-sm"
-                        />
-                      ) : (
-                        <span className="font-medium text-slate-900 truncate block">{source.title}</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {editingId === source.id ? (
-                        <Input
-                          value={editData.authority || source.authority}
-                          onChange={(e) => setEditData({ ...editData, authority: e.target.value })}
-                          className="text-sm"
-                        />
-                      ) : (
-                        source.authority
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {source.country_code ? (
-                        <Badge variant="default">{source.country_code.toUpperCase()}</Badge>
-                      ) : (
-                        <Badge variant="secondary">Supranational</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell>{getLevelBadge(source.level)}</TableCell>
-                    <TableCell>
-                      {editingId === source.id ? (
-                        <Input
-                          value={editData.article_ref || source.article_ref}
-                          onChange={(e) => setEditData({ ...editData, article_ref: e.target.value })}
-                          className="text-sm"
-                        />
-                      ) : (
-                        <span className="font-mono text-sm">{source.article_ref}</span>
-                      )}
-                    </TableCell>
-                    <TableCell>{getStatusBadge(source.status)}</TableCell>
-                    <TableCell className="text-sm text-slate-500">
-                      <div>{source.last_collection_at ? formatDateTime(source.last_collection_at) : 'Jamais'}</div>
-                      <div className="mt-1">{collectionBadge(source.last_collection_status)}</div>
-                      {source.collection_enabled && <div className="mt-1 text-xs text-slate-400">Hebdomadaire activée</div>}
-                    </TableCell>
-                    <TableCell className="font-mono text-xs text-slate-500 max-w-[100px] truncate">
-                      {source.content_hash.slice(0, 16)}...
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        {editingId === source.id ? (
-                          <>
-                            <Button variant="ghost" size="icon" onClick={() => handleUpdate(source.id)}>
-                              <CheckCircle className="h-4 w-4 text-success-600" />
-                            </Button>
-                            <Button variant="ghost" size="icon" onClick={() => { setEditingId(null); setEditData({}); }}>
-                              <AlertTriangle className="h-4 w-4 text-slate-400" />
-                            </Button>
-                          </>
-                        ) : (
-                          <>
-                            <Button variant="ghost" size="icon" onClick={() => { setEditingId(source.id); setEditData({ ...source }); }}>
-                              <ExternalLink className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" title="Collecter maintenant" onClick={() => handleCollect(source.id)} disabled={collectSource.isPending}>
-                              {collectSource.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-                            </Button>
-                            <Button variant="ghost" size="icon" title="Historique des collectes" onClick={() => setHistorySourceId(source.id)}>
-                              <History className="h-4 w-4" />
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-slate-50/70 border-b border-slate-200">
+                    <TableHead className="font-semibold text-slate-700">Portail & Autorité</TableHead>
+                    <TableHead className="font-semibold text-slate-700">Juridiction</TableHead>
+                    <TableHead className="font-semibold text-slate-700">URL Officielle</TableHead>
+                    <TableHead className="font-semibold text-slate-700 text-center">Profondeur</TableHead>
+                    <TableHead className="font-semibold text-slate-700 text-center">Documents extraits</TableHead>
+                    <TableHead className="font-semibold text-slate-700">Dernière collecte</TableHead>
+                    <TableHead className="font-semibold text-slate-700">Statut</TableHead>
+                    <TableHead className="text-right font-semibold text-slate-700">Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {filteredSources.map((source) => (
+                    <TableRow key={source.id} className="hover:bg-slate-50/60 border-b border-slate-100">
+                      <TableCell className="py-3.5">
+                        <div className="flex items-start gap-2.5">
+                          <div className="w-8 h-8 rounded-lg bg-sovereign-50 flex items-center justify-center text-sovereign-700 shrink-0 mt-0.5 border border-sovereign-100">
+                            <Globe className="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <span className="font-semibold text-slate-900 text-sm block truncate max-w-[240px]">
+                              {source.title}
+                            </span>
+                            <span className="text-xs text-slate-500 block truncate max-w-[240px]">
+                              {source.authority}
+                            </span>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-3.5">
+                        {source.country_code ? (
+                          <Badge variant="outline" className="font-mono text-xs font-semibold bg-slate-50 text-slate-700 border-slate-200">
+                            {source.country_code.toUpperCase()}
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary" className="text-xs">
+                            Supranational
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="py-3.5">
+                        <a
+                          href={source.url_official}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 text-xs text-sovereign-600 hover:text-sovereign-800 hover:underline max-w-[220px] truncate font-mono"
+                        >
+                          <span className="truncate">{source.url_official}</span>
+                          <ExternalLink className="w-3 h-3 shrink-0" />
+                        </a>
+                      </TableCell>
+                      <TableCell className="py-3.5 text-center">
+                        <span className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-700 font-mono">
+                          Niveau {source.crawl_depth || 2}
+                        </span>
+                      </TableCell>
+                      <TableCell className="py-3.5 text-center">
+                        <Link href={`/dashboard/admin/sources/documents?parent_id=${source.id}`}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 gap-1.5 text-xs font-semibold text-sovereign-700 hover:bg-sovereign-50"
+                          >
+                            <FileText className="w-3.5 h-3.5 text-sovereign-600" />
+                            <span>{source.child_documents_count || 0} docs</span>
+                            <ArrowRight className="w-3 h-3 opacity-60" />
+                          </Button>
+                        </Link>
+                      </TableCell>
+                      <TableCell className="py-3.5 text-xs text-slate-600">
+                        <div className="flex flex-col gap-1">
+                          <span className="text-slate-700">
+                            {source.last_collection_at ? formatDateTime(source.last_collection_at) : 'Jamais'}
+                          </span>
+                          <div>{getRunBadge(source.last_collection_status)}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-3.5">{getStatusBadge(source.status)}</TableCell>
+                      <TableCell className="py-3.5 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="default"
+                            size="sm"
+                            className="h-8 px-2.5 gap-1.5 bg-sovereign-600 hover:bg-sovereign-700 text-white text-xs"
+                            onClick={() => {
+                              setCollectingSource(source);
+                              setCrawlDepth(source.crawl_depth || 2);
+                            }}
+                            title="Lancer la collecte IA"
+                          >
+                            <Play className="w-3.5 h-3.5 fill-current" />
+                            <span>Collecter</span>
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8 text-slate-600 border-slate-200 hover:bg-slate-50"
+                            title="Historique des runs"
+                            onClick={() => setHistorySourceId(source.id)}
+                          >
+                            <History className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8 text-slate-600 border-slate-200 hover:bg-slate-50"
+                            title="Modifier"
+                            onClick={() => handleOpenEdit(source)}
+                          >
+                            <Edit className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-rose-600 hover:bg-rose-50"
+                            title="Supprimer"
+                            onClick={() => handleDelete(source)}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           ) : (
-            <div className="text-center py-12">
-              <div className="h-12 w-12 text-slate-300 mx-auto mb-4">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-medium text-slate-900 mb-2">Aucune source</h3>
-              <p className="text-slate-500 mb-4">Ajoutez votre première source juridique au corpus.</p>
-              <Button onClick={() => { setEditData({}); setIsCreateOpen(true); }}>
-                <Plus className="h-4 w-4 mr-2" />
-                Ajouter une source
-              </Button>
+            <div className="text-center py-12 px-4">
+              <Globe className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+              <h3 className="text-base font-semibold text-slate-900">Aucun portail trouvé</h3>
+              <p className="text-sm text-slate-500 mt-1 max-w-md mx-auto">
+                Aucun portail ne correspond à vos filtres. Cliquez sur "Nouveau portail" pour configurer une autorité de régulation.
+              </p>
             </div>
           )}
         </CardContent>
       </Card>
 
-      {historySourceId && (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-lg">Historique des collectes — {sources?.find((item) => item.id === historySourceId)?.title}</CardTitle>
-            <Button variant="ghost" size="sm" onClick={() => setHistorySourceId(undefined)}>Fermer</Button>
-          </CardHeader>
-          <CardContent>
-            {isHistoryLoading ? <div className="py-4 text-sm text-slate-500">Chargement de l’historique…</div> : !collectionRuns?.length ? (
-              <p className="py-4 text-sm text-slate-500">Aucune collecte enregistrée.</p>
-            ) : (
-              <div className="space-y-3">
-                {collectionRuns.map((run) => (
-                  <div key={run.id} className="rounded-lg border border-slate-200 p-4 text-sm">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">{collectionBadge(run.status)}<span>{run.trigger_type === 'scheduled' ? 'Automatique' : 'Manuelle'}</span></div>
-                      <span className="text-slate-500">Demandée le {formatDateTime(run.requested_at)}</span>
-                    </div>
-                    {run.started_at && <p className="mt-1 text-xs text-slate-500">Démarrée le {formatDateTime(run.started_at)}{run.finished_at ? ` · terminée le ${formatDateTime(run.finished_at)}` : ''}</p>}
-                    <p className="mt-2 text-slate-600">{run.changed === true ? 'Le texte a changé; l’embedding a été recalculé.' : run.changed === false ? 'Le texte est inchangé; aucun embedding recalculé.' : 'Résultat non disponible.'}</p>
-                    {(run.previous_hash || run.collected_hash) && <p className="mt-1 break-all font-mono text-xs text-slate-500">Hash : {run.previous_hash?.slice(0, 12) || '—'} → {run.collected_hash?.slice(0, 12) || '—'}</p>}
-                    {run.http_status_code && <p className="mt-1 text-xs text-slate-500">Réponse HTTP {run.http_status_code}</p>}
-                    {run.error_message && <p role="alert" className="mt-2 rounded bg-rose-50 p-2 text-rose-800">{run.error_message}</p>}
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+      {/* Modal: Create / Edit Portal */}
+      <Dialog open={isCreateOpen || Boolean(editingSource)} onOpenChange={(open) => {
+        if (!open) {
+          setIsCreateOpen(false);
+          setEditingSource(null);
+        }
+      }}>
+        <DialogContent className="max-w-lg">
+          <form onSubmit={handleSaveForm} className="space-y-4">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-bold text-slate-900">
+                {editingSource ? 'Modifier le portail officiel' : 'Ajouter un portail officiel'}
+              </DialogTitle>
+              <DialogDescription className="text-sm text-slate-500">
+                Configurez l'autorité juridique et l'URL racine que le crawler IA explorera pour télécharger et structurer les textes de loi.
+              </DialogDescription>
+            </DialogHeader>
 
-      {/* Create/Edit Modal */}
-      {(isCreateOpen || editingId) && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => { setIsCreateOpen(false); setEditingId(null); setEditData({}); }}>
-          <div className="bg-white rounded-xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 border-b border-slate-200 flex items-center justify-between">
-              <h2 className="text-xl font-semibold">{editingId ? 'Modifier la source' : 'Nouvelle source juridique'}</h2>
-              <button onClick={() => { setIsCreateOpen(false); setEditingId(null); setEditData({}); }} className="text-slate-400 hover:text-slate-600">
-                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
-            </div>
-            <form onSubmit={editingId ? () => handleUpdate(editingId) : handleCreate} className="p-6 space-y-6">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <Label htmlFor="title">Titre *</Label>
-                  <Input
-                    id="title"
-                    value={editData.title || ''}
-                    onChange={(e) => setEditData({ ...editData, title: e.target.value })}
-                    placeholder="ex: Loi n°2017-20 portant Code du numérique"
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="authority">Autorité émettrice *</Label>
+            <div className="space-y-3.5 py-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="title" className="text-xs font-semibold text-slate-700">Nom du portail / Institution</Label>
+                <Input
+                  id="title"
+                  placeholder="ex: APDP Bénin - Protection des Données"
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="authority" className="text-xs font-semibold text-slate-700">Autorité de régulation</Label>
                   <Input
                     id="authority"
-                    value={editData.authority || ''}
-                    onChange={(e) => setEditData({ ...editData, authority: e.target.value })}
-                    placeholder="ex: Assemblée nationale du Bénin"
+                    placeholder="ex: APDP Bénin"
+                    value={formData.authority}
+                    onChange={(e) => setFormData({ ...formData, authority: e.target.value })}
                     required
                   />
                 </div>
-                <div>
-                  <Label htmlFor="country_code">Pays</Label>
-                  <Select value={editData.country_code || ''} onValueChange={(v) => setEditData({ ...editData, country_code: v })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sélectionnez (vide = supranational)" />
+                <div className="space-y-1.5">
+                  <Label htmlFor="country" className="text-xs font-semibold text-slate-700">Juridiction / Pays</Label>
+                  <Select
+                    value={formData.country_code}
+                    onValueChange={(val) => setFormData({ ...formData, country_code: val })}
+                  >
+                    <SelectTrigger id="country">
+                      <SelectValue placeholder="Choisir un pays" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Supranational (CEDEAO, UEMOA, OHADA, BCEAO)</SelectItem>
-                      {COUNTRY_OPTIONS.filter(o => o.value).map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                      {COUNTRY_OPTIONS.filter((c) => c.value).map((c) => (
+                        <SelectItem key={c.value} value={c.value}>
+                          {c.label}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
-                  <Label htmlFor="level">Niveau juridique *</Label>
-                  <Select value={editData.level || ''} onValueChange={(v) => setEditData({ ...editData, level: v })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sélectionnez" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {LEVEL_OPTIONS.filter(o => o.value).map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="article_ref">Référence d'article *</Label>
-                  <Input
-                    id="article_ref"
-                    value={editData.article_ref || ''}
-                    onChange={(e) => setEditData({ ...editData, article_ref: e.target.value })}
-                    placeholder="ex: Articles 1-25"
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="url_official">URL officielle *</Label>
-                  <Input
-                    id="url_official"
-                    type="url"
-                    value={editData.url_official || ''}
-                    onChange={(e) => setEditData({ ...editData, url_official: e.target.value })}
-                    placeholder="https://..."
-                    required
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <Label htmlFor="content_text">Texte de référence initial (facultatif si la collecte est activée)</Label>
-                  <textarea
-                    id="content_text"
-                    value={editData.content_text || ''}
-                    onChange={(e) => setEditData({ ...editData, content_text: e.target.value })}
-                    placeholder="Collez le texte ou laissez vide pour le récupérer depuis l’URL officielle..."
-                    className="input min-h-[200px] font-mono text-sm"
-                  />
-                  <p className="mt-1 text-xs text-slate-500">L’URL doit pointer directement vers une page HTML ou un PDF public en HTTPS; les autres pages du site ne sont pas explorées.</p>
-                </div>
-                <div className="md:col-span-2 rounded-lg border border-slate-200 p-4">
-                  <label className="flex items-start gap-3 text-sm font-medium text-slate-800">
-                    <input type="checkbox" checked={Boolean(editData.collection_enabled)} onChange={(e) => setEditData({ ...editData, collection_enabled: e.target.checked })} className="mt-1" />
-                    Activer la collecte automatique hebdomadaire
-                  </label>
-                  <p className="ml-6 mt-1 text-xs text-slate-500">Les URL activées sont vérifiées chaque lundi à 03 h, heure du Bénin. Vous pouvez aussi lancer une collecte manuelle depuis la liste.</p>
-                </div>
-                <div>
-                  <Label htmlFor="status">Statut</Label>
-                  <Select value={editData.status || 'to_verify'} onValueChange={(v) => setEditData({ ...editData, status: v })}>
-                    <SelectTrigger>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="url_official" className="text-xs font-semibold text-slate-700">URL officielle de départ</Label>
+                <Input
+                  id="url_official"
+                  type="url"
+                  placeholder="https://service.apdp.bj/"
+                  value={formData.url_official}
+                  onChange={(e) => setFormData({ ...formData, url_official: e.target.value })}
+                  required
+                />
+                <p className="text-[11px] text-slate-400">Le robot naviguera sur ce domaine et découvrira les sections documentation, lois et PDF.</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="crawl_depth" className="text-xs font-semibold text-slate-700">Profondeur de crawl</Label>
+                  <Select
+                    value={String(formData.crawl_depth)}
+                    onValueChange={(val) => setFormData({ ...formData, crawl_depth: Number(val) })}
+                  >
+                    <SelectTrigger id="crawl_depth">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {STATUS_OPTIONS.filter(o => o.value).map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                      ))}
+                      <SelectItem value="1">Niveau 1 (Page seule)</SelectItem>
+                      <SelectItem value="2">Niveau 2 (Recommandé - Liens directs)</SelectItem>
+                      <SelectItem value="3">Niveau 3 (Exploration approfondie)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
-                  <Label htmlFor="effective_date">Date d'entrée en vigueur</Label>
-                  <Input
-                    id="effective_date"
-                    type="date"
-                    value={editData.effective_date ? editData.effective_date.split('T')[0] : ''}
-                    onChange={(e) => setEditData({ ...editData, effective_date: e.target.value })}
-                    className="input"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="abrogated_date">Date d'abrogation (si applicable)</Label>
-                  <Input
-                    id="abrogated_date"
-                    type="date"
-                    value={editData.abrogated_date ? editData.abrogated_date.split('T')[0] : ''}
-                    onChange={(e) => setEditData({ ...editData, abrogated_date: e.target.value })}
-                    className="input"
-                  />
+                <div className="space-y-1.5">
+                  <Label htmlFor="level" className="text-xs font-semibold text-slate-700">Niveau normatif par défaut</Label>
+                  <Select
+                    value={formData.level}
+                    onValueChange={(val) => setFormData({ ...formData, level: val })}
+                  >
+                    <SelectTrigger id="level">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="loi">Loi</SelectItem>
+                      <SelectItem value="décret">Décret</SelectItem>
+                      <SelectItem value="règlement">Règlement</SelectItem>
+                      <SelectItem value="décision">Décision</SelectItem>
+                      <SelectItem value="guide">Guide</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
+            </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
-                <Button type="button" variant="secondary" onClick={() => { setIsCreateOpen(false); setEditingId(null); setEditData({}); }}>
-                  Annuler
-                </Button>
-                <Button type="submit" disabled={createSource.isPending || updateSource.isPending}>
-                  {createSource.isPending || updateSource.isPending ? 'Enregistrement...' : editingId ? 'Enregistrer' : 'Créer'}
-                </Button>
-              </div>
-            </form>
+            <DialogFooter className="pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setIsCreateOpen(false);
+                  setEditingSource(null);
+                }}
+              >
+                Annuler
+              </Button>
+              <Button type="submit" className="bg-sovereign-600 hover:bg-sovereign-700 text-white">
+                {editingSource ? 'Mettre à jour' : 'Enregistrer le portail'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal: Confirm Trigger Collect */}
+      <Dialog open={Boolean(collectingSource)} onOpenChange={(open) => !open && setCollectingSource(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-sovereign-600" />
+              Lancer la collecte intelligente
+            </DialogTitle>
+            <DialogDescription className="text-sm text-slate-500">
+              Le robot va explorer <strong className="text-slate-800">{collectingSource?.title}</strong>, télécharger les PDF officiels, les stocker dans le bucket MinIO S3 et faire extraire les articles et sanctions par l'IA.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            <Label htmlFor="collect_depth" className="text-xs font-semibold text-slate-700">
+              Sélectionnez la profondeur d'exploration :
+            </Label>
+            <Select value={String(crawlDepth)} onValueChange={(val) => setCrawlDepth(Number(val))}>
+              <SelectTrigger id="collect_depth">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">Niveau 1 : Page racine seulement</SelectItem>
+                <SelectItem value="2">Niveau 2 : Page racine + sous-menus / documentation (Recommandé)</SelectItem>
+                <SelectItem value="3">Niveau 3 : Exploration profonde du portail</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-slate-400 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+              Tous les fichiers PDF découverts seront automatiquement rattachés à ce portail et consultables dans la bibliothèque juridique avec leur nom de fichier d'origine.
+            </p>
           </div>
-        </div>
-      )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCollectingSource(null)}>
+              Annuler
+            </Button>
+            <Button
+              onClick={handleTriggerCollect}
+              disabled={collectSource.isPending}
+              className="bg-sovereign-600 hover:bg-sovereign-700 text-white gap-2"
+            >
+              {collectSource.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-current" />}
+              Démarrer le crawl
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal: Collection History */}
+      <Dialog open={Boolean(historySourceId)} onOpenChange={(open) => !open && setHistorySourceId(undefined)}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <History className="w-5 h-5 text-slate-600" />
+              Historique des collectes robotisées
+            </DialogTitle>
+            <DialogDescription className="text-sm text-slate-500">
+              Traçabilité des explorations web, des téléchargements et des analyses IA réalisées.
+            </DialogDescription>
+          </DialogHeader>
+
+          {isHistoryLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-sovereign-600" />
+            </div>
+          ) : collectionRuns && collectionRuns.length > 0 ? (
+            <div className="space-y-3">
+              {collectionRuns.map((run) => (
+                <div key={run.id} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      {getRunBadge(run.status)}
+                      <span className="text-xs text-slate-500 font-mono">
+                        {run.started_at ? formatDateTime(run.started_at) : formatDateTime(run.requested_at)}
+                      </span>
+                    </div>
+                    <span className="text-xs text-slate-400 capitalize">
+                      Déclenchement: {run.trigger_type}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 pt-1 text-xs">
+                    <div className="bg-white p-2 rounded border border-slate-100">
+                      <span className="text-slate-400 block">URLs scannées</span>
+                      <span className="font-semibold text-slate-800">{run.discovered_urls_count || 0}</span>
+                    </div>
+                    <div className="bg-white p-2 rounded border border-slate-100">
+                      <span className="text-slate-400 block">PDF téléchargés</span>
+                      <span className="font-semibold text-emerald-700">{run.downloaded_files_count || 0}</span>
+                    </div>
+                    <div className="bg-white p-2 rounded border border-slate-100">
+                      <span className="text-slate-400 block">Analysés par IA</span>
+                      <span className="font-semibold text-purple-700">{run.ai_processed_count || 0}</span>
+                    </div>
+                  </div>
+
+                  {run.error_message && (
+                    <p className="text-xs text-rose-600 bg-rose-50 p-2 rounded border border-rose-200">
+                      {run.error_message}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-sm text-slate-500">
+              Aucune collecte n'a encore été effectuée pour ce portail.
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setHistorySourceId(undefined)}>
+              Fermer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Response
+from fastapi.responses import StreamingResponse
+import io
 from sqlmodel import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
@@ -30,6 +32,7 @@ from app.schemas.legal import (
     SourceCollectionRunRead, SourceVerificationResult,
 )
 from app.services.llm_client import get_llm_client
+from app.services.minio_client import get_minio_client, download_file
 from app.services.llm_registry import (
     get_provider,
     list_provider_availability,
@@ -47,14 +50,18 @@ async def list_legal_sources(
     status_filter: Optional[SourceStatus] = Query(None),
     country_code: Optional[str] = Query(None),
     level: Optional[LegalLevel] = Query(None),
+    only_portals: bool = Query(True),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, le=200),
     current_user: User = Depends(get_current_active_user),
     session: AsyncSession = Depends(get_async_session),
 ):
-    """List legal sources with filters."""
+    """List legal sources/portals with filters and child document counts."""
     query = select(LegalSource)
     
+    if only_portals:
+        # Show top-level portals (or sources with no parent)
+        query = query.where(LegalSource.parent_source_id.is_(None))
     if status_filter:
         query = query.where(LegalSource.status == status_filter)
     if country_code:
@@ -66,8 +73,94 @@ async def list_legal_sources(
     
     result = await session.execute(query)
     sources = result.scalars().all()
+
+    # Compute child document counts for each source
+    source_ids = [s.id for s in sources]
+    counts_map = {}
+    if source_ids:
+        count_q = select(
+            LegalSource.parent_source_id,
+            func.count(LegalSource.id)
+        ).where(
+            LegalSource.parent_source_id.in_(source_ids)
+        ).group_by(LegalSource.parent_source_id)
+        count_res = await session.execute(count_q)
+        counts_map = {row[0]: row[1] for row in count_res.all()}
+
+    # Assign count
+    output = []
+    for s in sources:
+        s_data = LegalSourceRead.model_validate(s)
+        s_data.child_documents_count = counts_map.get(s.id, 0)
+        output.append(s_data)
     
-    return sources
+    return output
+
+
+@router.get("/sources/documents", response_model=List[LegalSourceRead])
+async def list_extracted_documents(
+    parent_id: Optional[UUID] = Query(None),
+    country_code: Optional[str] = Query(None),
+    level: Optional[LegalLevel] = Query(None),
+    search: Optional[str] = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, le=200),
+    current_user: User = Depends(get_current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """List extracted legal documents and normative texts constructed from crawls."""
+    query = select(LegalSource).where(
+        (LegalSource.parent_source_id.is_not(None)) | (LegalSource.is_portal.is_(False))
+    )
+    if parent_id:
+        query = query.where(LegalSource.parent_source_id == parent_id)
+    if country_code:
+        query = query.where(LegalSource.country_code == country_code.upper())
+    if level:
+        query = query.where(LegalSource.level == level)
+    if search:
+        search_pattern = f"%{search.strip()}%"
+        query = query.where(
+            (LegalSource.title.ilike(search_pattern)) |
+            (LegalSource.article_ref.ilike(search_pattern)) |
+            (LegalSource.original_filename.ilike(search_pattern)) |
+            (LegalSource.authority.ilike(search_pattern))
+        )
+    query = query.order_by(LegalSource.updated_at.desc()).offset(skip).limit(limit)
+    result = await session.execute(query)
+    return result.scalars().all()
+
+
+@router.get("/sources/{source_id}/download")
+async def download_source_document(
+    source_id: UUID,
+    current_user: User = Depends(get_current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Stream original archived document (PDF) directly from MinIO."""
+    source = await session.get(LegalSource, source_id)
+    if not source:
+        raise HTTPException(status_code=404, detail="Source not found")
+    if not source.minio_object_path:
+        raise HTTPException(status_code=404, detail="Aucun document archivé disponible pour cette source.")
+
+    # Path format: "legal-sources/bj/filename.pdf"
+    parts = source.minio_object_path.split("/", 1)
+    bucket = parts[0]
+    object_name = parts[1] if len(parts) > 1 else parts[0]
+
+    try:
+        minio_client = get_minio_client()
+        file_bytes = download_file(minio_client, bucket, object_name)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Erreur de récupération du fichier dans MinIO: {str(exc)}")
+
+    filename = source.original_filename or f"document_{str(source_id)[:8]}.pdf"
+    return Response(
+        content=file_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )
 
 
 @router.post("/sources", response_model=LegalSourceRead, status_code=status.HTTP_201_CREATED)
@@ -182,6 +275,7 @@ async def update_legal_source(
 )
 async def collect_legal_source(
     source_id: UUID,
+    depth: Optional[int] = Query(None, ge=1, le=3),
     current_user: User = Depends(get_current_active_user),
     session: AsyncSession = Depends(get_async_session),
 ):
@@ -189,6 +283,9 @@ async def collect_legal_source(
     source = await session.get(LegalSource, source_id)
     if not source:
         raise HTTPException(status_code=404, detail="Source not found")
+
+    if depth is not None:
+        source.crawl_depth = depth
 
     active = await session.execute(
         select(SourceCollectionRun).where(
@@ -583,5 +680,3 @@ async def list_audit_logs(
     result = await session.execute(query)
     return result.scalars().all()
 
-
-import hashlib

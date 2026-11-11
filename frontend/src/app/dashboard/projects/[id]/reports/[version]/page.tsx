@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { formatDateTime, getRiskBadgeClass, getConfidenceBadgeClass, getRiskEmoji, getConfidenceEmoji } from '@/lib/utils';
-import { AlertTriangle, CheckCircle, FileText, Search, Plus, Download, ArrowLeft } from 'lucide-react';
+import { AlertTriangle, CheckCircle, FileText, Search, Plus, Download, ArrowLeft, Loader2, Scale, ExternalLink, FileCode } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import { toast } from '@/hooks/use-toast';
@@ -21,13 +21,18 @@ export default function ReportDetailPage() {
   const { data: findings } = useReportFindings(versionId);
   const addContextMutation = useAddContext();
   const downloadMutation = useDownloadReport();
+  const [downloadingType, setDownloadingType] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'findings' | 'sources' | 'recommendations'>('findings');
   const [showContextModal, setShowContextModal] = useState(false);
 
   const downloadReport = (reportType: 'report1' | 'report2', format: 'pdf' | 'markdown') => {
+    setDownloadingType(`${reportType}-${format}`);
     downloadMutation.mutate(
       { versionId, reportType, format },
-      { onError: () => toast({ title: 'Export impossible', description: 'Le fichier du rapport n’a pas pu être téléchargé. Réessayez après la fin de sa génération.', variant: 'destructive' }) },
+      {
+        onSettled: () => setDownloadingType(null),
+        onError: () => toast({ title: 'Export impossible', description: 'Le fichier du rapport n’a pas pu être téléchargé. Réessayez après la fin de sa génération.', variant: 'destructive' })
+      },
     );
   };
 
@@ -192,11 +197,23 @@ export default function ReportDetailPage() {
       </Tabs>
 
       {/* Export Buttons */}
-      <div className="flex justify-end gap-3">
-        <Button variant="outline" onClick={() => downloadReport('report1', 'pdf')} disabled={downloadMutation.isPending}><Download className="mr-2 h-4 w-4" />Exporter Rapport 1 (PDF)</Button>
-        <Button variant="outline" onClick={() => downloadReport('report2', 'pdf')} disabled={downloadMutation.isPending}><Download className="mr-2 h-4 w-4" />Exporter Rapport 2 (PDF)</Button>
-        <Button variant="outline" onClick={() => downloadReport('report1', 'markdown')} disabled={downloadMutation.isPending}><FileText className="mr-2 h-4 w-4" />Exporter Rapport 1 (MD)</Button>
-        <Button variant="outline" onClick={() => downloadReport('report2', 'markdown')} disabled={downloadMutation.isPending}><FileText className="mr-2 h-4 w-4" />Exporter Rapport 2 (MD)</Button>
+      <div className="flex flex-wrap justify-end gap-3">
+        <Button variant="outline" onClick={() => downloadReport('report1', 'pdf')} disabled={downloadMutation.isPending}>
+          {downloadingType === 'report1-pdf' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+          Exporter Rapport 1 (PDF)
+        </Button>
+        <Button variant="outline" onClick={() => downloadReport('report2', 'pdf')} disabled={downloadMutation.isPending}>
+          {downloadingType === 'report2-pdf' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+          Exporter Rapport 2 (PDF)
+        </Button>
+        <Button variant="outline" onClick={() => downloadReport('report1', 'markdown')} disabled={downloadMutation.isPending}>
+          {downloadingType === 'report1-markdown' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
+          Exporter Rapport 1 (MD)
+        </Button>
+        <Button variant="outline" onClick={() => downloadReport('report2', 'markdown')} disabled={downloadMutation.isPending}>
+          {downloadingType === 'report2-markdown' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
+          Exporter Rapport 2 (MD)
+        </Button>
         <Button variant="outline" asChild>
           <Link href={`/dashboard/projects/${projectId}/reports/${versionId}/diff?compare=${reportVersion.parent_version_id || ''}`}>
             <Search className="h-4 w-4 mr-2" />
@@ -243,18 +260,35 @@ function FindingCard({ finding }: { finding: any }) {
             </div>
             <p className="font-medium text-slate-900 mb-1">{finding.clause_ref}</p>
             <p className="text-slate-700 mb-3">{finding.finding_text}</p>
-            <div className="flex items-center gap-2 text-sm text-slate-600">
-              {finding.matched_sources && finding.matched_sources.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+              {finding.sources_details && finding.sources_details.length > 0 ? (
                 <>
-                  <span>Sources: </span>
+                  <span className="font-semibold text-slate-700">Sources juridiques :</span>
+                  {finding.sources_details.map((src: any) => (
+                    <span
+                      key={src.id}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-200"
+                      title={`${src.title} (${src.authority})`}
+                    >
+                      <Scale className="w-3 h-3 text-sovereign-600 shrink-0" />
+                      <span className="truncate max-w-[180px]">{src.title}</span>
+                      {src.original_filename && (
+                        <span className="text-[10px] text-slate-500 font-mono">({src.original_filename})</span>
+                      )}
+                    </span>
+                  ))}
+                </>
+              ) : finding.matched_sources && finding.matched_sources.length > 0 ? (
+                <>
+                  <span>Sources : </span>
                   {finding.matched_sources.slice(0, 3).map((sid: string, i: number) => (
-                    <Badge key={i} variant="outline" className="text-xs">{sid.slice(0, 8)}...</Badge>
+                    <Badge key={i} variant="outline" className="text-xs font-mono">{sid.slice(0, 8)}...</Badge>
                   ))}
                   {finding.matched_sources.length > 3 && (
                     <Badge variant="outline" className="text-xs">+{finding.matched_sources.length - 3} autres</Badge>
                   )}
                 </>
-              )}
+              ) : null}
             </div>
           </div>
         </div>
@@ -268,15 +302,48 @@ function FindingCard({ finding }: { finding: any }) {
 }
 
 function SourceCard({ finding }: { finding: any }) {
+  const sources = finding.sources_details && finding.sources_details.length > 0
+    ? finding.sources_details
+    : (finding.matched_sources || []).map((sid: string) => ({ id: sid, title: `Source ${sid.slice(0, 8)}...`, authority: 'Autorité officielle' }));
+
   return (
-    <Card>
-      <CardContent className="p-6">
-        <p className="font-medium text-slate-900 mb-3">{finding.clause_ref} — {finding.risk_level.toUpperCase()}</p>
+    <Card className="border border-slate-200 shadow-2xs">
+      <CardContent className="p-5">
+        <div className="flex items-center justify-between mb-3">
+          <p className="font-semibold text-slate-900 text-sm">{finding.clause_ref}</p>
+          <Badge variant={finding.risk_level} className="text-xs">
+            {finding.risk_level.toUpperCase()}
+          </Badge>
+        </div>
+        <p className="text-xs text-slate-600 mb-3">{finding.finding_text}</p>
         <div className="space-y-2">
-          {finding.matched_sources?.map((sid: string) => (
-            <div key={sid} className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-              <p className="font-mono text-sm">{sid}</p>
-              <p className="text-xs text-slate-500">Source correspondante pour ce constat</p>
+          {sources.map((src: any) => (
+            <div key={src.id} className="p-3 bg-slate-50 rounded-lg border border-slate-200 flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-semibold text-xs text-slate-900 truncate">{src.title}</p>
+                <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-500">
+                  <span>{src.authority}</span>
+                  {src.level && <span>• {src.level}</span>}
+                  {src.article_ref && <span>• {src.article_ref}</span>}
+                </div>
+                {src.original_filename && (
+                  <div className="mt-1 inline-flex items-center gap-1 text-[11px] font-mono text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                    <FileCode className="w-3 h-3 text-emerald-600" />
+                    <span>{src.original_filename}</span>
+                  </div>
+                )}
+              </div>
+              {src.download_url && (
+                <a
+                  href={src.download_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="shrink-0 p-1.5 rounded border border-slate-200 text-slate-600 hover:text-sovereign-600 hover:bg-white transition-colors"
+                  title="Télécharger / Consulter la source officielle"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              )}
             </div>
           ))}
         </div>

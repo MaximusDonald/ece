@@ -202,12 +202,15 @@ export default function AdminRulesPage() {
                 </div>
                 <div>
                   <Label htmlFor="country_code">Pays (vide = global)</Label>
-                  <Select value={formData.country_code} onValueChange={(v) => setFormData({ ...formData, country_code: v })}>
+                  <Select
+                    value={formData.country_code || 'all'}
+                    onValueChange={(v) => setFormData({ ...formData, country_code: v === 'all' ? '' : v })}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Global" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Global</SelectItem>
+                      <SelectItem value="all">Global</SelectItem>
                       <SelectItem value="BJ">Bénin</SelectItem>
                       <SelectItem value="SN">Sénégal</SelectItem>
                       <SelectItem value="CI">Côte d'Ivoire</SelectItem>

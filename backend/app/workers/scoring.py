@@ -6,6 +6,7 @@ from uuid import UUID
 from datetime import datetime
 
 from app.core.config import get_settings
+from app.core.utils import ensure_uuid
 from app.models.legal import RiskFinding, ReportVersion, RiskLevel, ConfidenceLevel
 from app.models.admin import ScoringRule
 from app.workers.celery_app import celery_app
@@ -44,11 +45,11 @@ async def run_scoring(report_version_id: UUID) -> None:
         )
         findings = findings.scalars().all()
         
-        # Get applicable scoring rules
+        # Get applicable scoring rules (country-specific first, then global)
         rules = await session.execute(
             select(ScoringRule).where(
                 ScoringRule.is_active == True
-            ).order_by(ScoringRule.country_code.is_(None).desc())  # Global first, then country-specific
+            ).order_by(ScoringRule.country_code.is_(None).asc())  # Country-specific first (False), then global (True)
         )
         rules = rules.scalars().all()
         
@@ -63,21 +64,14 @@ async def run_scoring(report_version_id: UUID) -> None:
             if applicable_rules:
                 rule = applicable_rules[0]  # Most specific rule
                 
-                # Adjust confidence based on thresholds
-                if finding.confidence == ConfidenceLevel.HIGH:
-                    # High confidence findings keep their level
-                    pass
-                elif finding.confidence == ConfidenceLevel.MEDIUM:
-                    if rule.confidence_threshold_high > 0.7:
-                        pass  # Keep medium
-                elif finding.confidence == ConfidenceLevel.LOW:
-                    # Low confidence findings downgraded
-                    if finding.risk_level in [RiskLevel.ELEVE, RiskLevel.CRITIQUE]:
-                        # Downgrade high-severity low-confidence findings
-                        if finding.risk_level == RiskLevel.CRITIQUE:
-                            finding.risk_level = RiskLevel.ELEVE
-                        elif finding.risk_level == RiskLevel.ELEVE:
-                            finding.risk_level = RiskLevel.MODERE
+                # Check confidence levels: In legal compliance, a CRITICAL risk must NEVER
+                # be silenced or downgraded to moderate; it must stay critical with a human review notice.
+                if finding.confidence == ConfidenceLevel.LOW:
+                    if finding.risk_level == RiskLevel.CRITIQUE:
+                        if not finding.recommendation.startswith("[Vérification humaine prioritaire]"):
+                            finding.recommendation = f"[Vérification humaine prioritaire] {finding.recommendation}"
+                    elif finding.risk_level == RiskLevel.ELEVE:
+                        finding.risk_level = RiskLevel.MODERE
         
         # Recalculate global score
         severity_counts = {"critique": 0, "eleve": 0, "modere": 0, "a_surveiller": 0, "conforme": 0}
@@ -86,6 +80,7 @@ async def run_scoring(report_version_id: UUID) -> None:
         
         weights = {"critique": 25, "eleve": 15, "modere": 10, "a_surveiller": 5, "conforme": 0}
         raw_score = sum(weights.get(level, 0) * count for level, count in severity_counts.items())
+        # Normalized score: 0 to 100 representing risk severity
         global_score = min(100, raw_score)
         
         # Determine global confidence
@@ -118,14 +113,14 @@ async def run_scoring(report_version_id: UUID) -> None:
 
 
 @celery_app.task(bind=True, max_retries=2)
-def scoring_task(self, report_version_id: str):
+def scoring_task(self, report_version_id):
     """Celery task for scoring."""
     try:
-        run_async_task(run_scoring(UUID(report_version_id)), async_engine)
+        run_async_task(run_scoring(ensure_uuid(report_version_id)), async_engine)
     except Exception as exc:
-        document_id = get_document_for_report(report_version_id)
+        document_id = get_document_for_report(str(report_version_id))
         if document_id:
-            fail_step(document_id, 4, retrying=self.request.retries < self.max_retries)
+            fail_step(str(document_id), 4, retrying=self.request.retries < self.max_retries)
         self.retry(exc=exc, countdown=60)
 
 

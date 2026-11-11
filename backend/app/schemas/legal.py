@@ -1,6 +1,6 @@
 from uuid import UUID
-from datetime import datetime
-from typing import Optional, List, Dict, Any
+from datetime import datetime, date
+from typing import Optional, List, Dict, Any, Union
 from pydantic import BaseModel, Field
 from app.models.legal import RiskLevel, ConfidenceLevel, LegalLevel, SourceStatus, SourceCollectionRunStatus
 
@@ -16,8 +16,17 @@ class LegalSourceBase(BaseModel):
     content_hash: str = Field(max_length=64)
     content_text: str
     status: SourceStatus = SourceStatus.TO_VERIFY
-    effective_date: Optional[datetime] = None
-    abrogated_date: Optional[datetime] = None
+    effective_date: Optional[Union[datetime, date]] = None
+    abrogated_date: Optional[Union[datetime, date]] = None
+    is_portal: bool = False
+    parent_source_id: Optional[UUID] = None
+    original_filename: Optional[str] = None
+    download_url: Optional[str] = None
+    minio_object_path: Optional[str] = None
+    legal_terms: Optional[Dict[str, Any]] = None
+    extracted_articles: Optional[List[Dict[str, Any]]] = None
+    summary: Optional[str] = None
+    crawl_depth: int = 2
 
 
 class LegalSourceCreate(LegalSourceBase):
@@ -35,9 +44,11 @@ class LegalSourceUpdate(BaseModel):
     url_official: Optional[str] = Field(default=None, max_length=1000)
     content_text: Optional[str] = None
     status: Optional[SourceStatus] = None
-    abrogated_date: Optional[datetime] = None
+    abrogated_date: Optional[Union[datetime, date]] = None
     replacement_source_id: Optional[UUID] = None
     collection_enabled: Optional[bool] = None
+    is_portal: Optional[bool] = None
+    crawl_depth: Optional[int] = None
 
 
 class LegalSourceRead(LegalSourceBase):
@@ -50,6 +61,7 @@ class LegalSourceRead(LegalSourceBase):
     last_collection_run_id: Optional[UUID] = None
     source_etag: Optional[str] = None
     source_last_modified: Optional[str] = None
+    child_documents_count: Optional[int] = 0
     created_at: datetime
     updated_at: datetime
     
@@ -70,6 +82,9 @@ class SourceCollectionRunRead(BaseModel):
     previous_hash: Optional[str] = None
     collected_hash: Optional[str] = None
     changed: Optional[bool] = None
+    discovered_urls_count: int = 0
+    downloaded_files_count: int = 0
+    ai_processed_count: int = 0
     error_message: Optional[str] = None
 
     class Config:
@@ -82,6 +97,16 @@ class SourceVerificationResult(BaseModel):
 
 
 # Risk Finding Schemas
+class MatchedSourceDetail(BaseModel):
+    id: UUID
+    title: str
+    authority: str
+    original_filename: Optional[str] = None
+    download_url: Optional[str] = None
+    level: Optional[str] = None
+    article_ref: Optional[str] = None
+
+
 class RiskFindingBase(BaseModel):
     clause_ref: str
     finding_text: str
@@ -98,6 +123,7 @@ class RiskFindingRead(RiskFindingBase):
     id: UUID
     report_version_id: UUID
     created_at: datetime
+    sources_details: List[MatchedSourceDetail] = []
     
     class Config:
         from_attributes = True

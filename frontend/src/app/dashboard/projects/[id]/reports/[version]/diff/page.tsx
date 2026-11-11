@@ -24,7 +24,7 @@ export default function ReportDiffPage() {
   const searchParams = useSearchParams();
   const versionId = params.version as string;
   const projectId = params.id as string;
-  const compareWith = searchParams.get('compare_with') || '';
+  const compareWith = searchParams.get('compare_with') || searchParams.get('compare') || '';
   const reportType = (searchParams.get('report_type') as 'report1' | 'report2') || 'report1';
 
   const { data: diffData } = useReportDiff(versionId, compareWith, reportType);

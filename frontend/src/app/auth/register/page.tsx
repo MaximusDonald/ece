@@ -14,10 +14,21 @@ import { useRegister } from '@/hooks/useApi';
 import { Shield, Mail, Lock, Loader2, Eye, EyeOff } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { getApiErrorMessage } from '@/lib/utils';
+import { passwordStrengthColor, passwordStrengthLabel, passwordStrengthScore } from '@/lib/password-strength';
+
+const MIN_PASSWORD_STRENGTH = 7;
 
 const registerSchema = z.object({
   email: z.string().email('Email invalide'),
-  password: z.string().min(8, 'Le mot de passe doit contenir au moins 8 caractères'),
+  password: z.string()
+    .min(8, 'Le mot de passe doit contenir au moins 8 caractères')
+    .refine((password) => new TextEncoder().encode(password).length <= 72, 'Le mot de passe ne peut pas dépasser 72 octets.')
+    .refine(
+      (password) => passwordStrengthScore(password) >= MIN_PASSWORD_STRENGTH,
+      (password) => ({
+        message: `Le mot de passe doit atteindre au moins 7/10 (score actuel : ${passwordStrengthScore(password)}/10).`,
+      }),
+    ),
   confirmPassword: z.string(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: 'Les mots de passe ne correspondent pas',
@@ -31,9 +42,13 @@ export default function RegisterPage() {
   const registerMutation = useRegister();
   const [showPassword, setShowPassword] = useState(false);
 
-  const { register, handleSubmit, formState: { errors } } = useForm<RegisterForm>({
+  const { register, handleSubmit, watch, formState: { errors, isValid } } = useForm<RegisterForm>({
     resolver: zodResolver(registerSchema),
+    mode: 'onChange',
   });
+  const password = watch('password', '');
+  const passwordScore = passwordStrengthScore(password);
+  const passwordColor = passwordStrengthColor(passwordScore);
 
   const onSubmit = async (data: RegisterForm) => {
     try {
@@ -117,6 +132,27 @@ export default function RegisterPage() {
                 {errors.password && (
                   <p className="mt-1 text-sm text-danger-600">{errors.password.message}</p>
                 )}
+                <div className="mt-2" aria-live="polite">
+                  <div className="flex items-center justify-between text-xs text-slate-600">
+                    <span>Force : {passwordStrengthLabel(passwordScore)}</span>
+                    <span>{passwordScore}/10 · minimum 7/10</span>
+                  </div>
+                  <div
+                    className="mt-1 flex gap-1"
+                    role="progressbar"
+                    aria-label="Force du mot de passe"
+                    aria-valuemin={0}
+                    aria-valuemax={10}
+                    aria-valuenow={passwordScore}
+                  >
+                    {Array.from({ length: 10 }, (_, index) => (
+                      <span
+                        key={index}
+                        className={`h-1.5 flex-1 rounded-full ${index < passwordScore ? passwordColor : 'bg-slate-200'}`}
+                      />
+                    ))}
+                  </div>
+                </div>
               </div>
 
               <div>
@@ -137,7 +173,7 @@ export default function RegisterPage() {
                 )}
               </div>
 
-              <Button type="submit" className="w-full" disabled={registerMutation.isPending}>
+              <Button type="submit" className="w-full" disabled={registerMutation.isPending || !isValid}>
                 {registerMutation.isPending ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />

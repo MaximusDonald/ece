@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { useDocuments, useDocumentAnalysis, useUploadDocument, useDownloadDocument } from '@/hooks/useApi';
+import { useDocuments, useDocumentAnalysis, useUploadDocument, useDownloadDocument, useDeleteDocument } from '@/hooks/useApi';
 import { Upload, FileText, Download, Trash2, Eye, CheckCircle, Loader2, AlertCircle } from 'lucide-react';
 import { formatDateTime, formatDate } from '@/lib/utils';
 import { useState } from 'react';
@@ -15,9 +15,11 @@ export function ProjectWorkspaceDocuments({ projectId }: { projectId: string }) 
   const { data: documents, isLoading, refetch } = useDocuments(projectId);
   const uploadMutation = useUploadDocument();
   const downloadMutation = useDownloadDocument();
+  const deleteMutation = useDeleteDocument();
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [documentType, setDocumentType] = useState('');
+  const [documentToDelete, setDocumentToDelete] = useState<{ id: string; filename: string } | null>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -129,7 +131,13 @@ export function ProjectWorkspaceDocuments({ projectId }: { projectId: string }) 
                             </Button>
                           </>
                         )}
-                        <Button variant="ghost" size="icon" className="text-danger-600 hover:text-danger-700">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-danger-600 hover:text-danger-700"
+                          disabled={deleteMutation.isPending}
+                          onClick={() => setDocumentToDelete({ id: doc.id, filename: doc.filename })}
+                        >
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
@@ -212,6 +220,45 @@ export function ProjectWorkspaceDocuments({ projectId }: { projectId: string }) 
                   {uploadMutation.isPending ? 'Téléversement...' : 'Téléverser'}
                 </Button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {documentToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setDocumentToDelete(null)}>
+          <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 text-danger-600">
+              <AlertCircle className="h-6 w-6" />
+              <h3 className="text-lg font-semibold text-slate-900">Supprimer le document ?</h3>
+            </div>
+            <p className="text-sm text-slate-600">
+              Êtes-vous sûr de vouloir supprimer <span className="font-semibold text-slate-800">{documentToDelete.filename}</span> ? Cette action effacera également les extractions et analyses associées.
+            </p>
+            <div className="flex justify-end gap-3 pt-3">
+              <Button
+                variant="secondary"
+                onClick={() => setDocumentToDelete(null)}
+                disabled={deleteMutation.isPending}
+              >
+                Annuler
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={deleteMutation.isPending}
+                onClick={async () => {
+                  try {
+                    await deleteMutation.mutateAsync({ projectId, documentId: documentToDelete.id });
+                    toast({ title: 'Document supprimé', description: 'Le document et ses analyses ont été retirés.' });
+                    setDocumentToDelete(null);
+                  } catch {
+                    toast({ title: 'Erreur', description: 'Impossible de supprimer le document.', variant: 'destructive' });
+                  }
+                }}
+              >
+                {deleteMutation.isPending ? 'Suppression...' : 'Supprimer'}
+              </Button>
             </div>
           </div>
         </div>
