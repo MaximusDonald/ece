@@ -5,7 +5,7 @@ from sqlalchemy.orm import selectinload, sessionmaker
 from sqlalchemy import text
 from uuid import UUID
 from datetime import datetime
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
 import json
 
 from app.core.config import get_settings
