@@ -9,7 +9,7 @@ from datetime import datetime
 from minio.error import S3Error
 
 from app.core.database import get_async_session
-from app.core.security import get_current_active_user, require_role
+from app.core.security import get_current_active_user, get_current_workspace_user, require_role
 from app.models.user import User, UserRole
 from app.models.legal import (
     ReportVersion, RiskFinding, LegalSource,
@@ -36,7 +36,7 @@ router = APIRouter(prefix="/reports", tags=["reports"])
 @router.get("/projects/{project_id}", response_model=List[ReportVersionListItem])
 async def list_report_versions(
     project_id: UUID,
-    current_user = Depends(get_current_active_user),
+    current_user = Depends(get_current_workspace_user),
     session: AsyncSession = Depends(get_async_session),
 ):
     """List all report versions for a project."""
@@ -58,7 +58,7 @@ async def list_report_versions(
 @router.get("/{report_version_id}", response_model=ReportVersionRead)
 async def get_report_version(
     report_version_id: UUID,
-    current_user = Depends(get_current_active_user),
+    current_user = Depends(get_current_workspace_user),
     session: AsyncSession = Depends(get_async_session),
 ):
     """Get full report version with findings."""
@@ -90,7 +90,7 @@ async def get_report_findings(
     report_version_id: UUID,
     risk_level: Optional[RiskLevel] = Query(None),
     confidence: Optional[ConfidenceLevel] = Query(None),
-    current_user = Depends(get_current_active_user),
+    current_user = Depends(get_current_workspace_user),
     session: AsyncSession = Depends(get_async_session),
 ):
     """Get findings for a report version with filters."""
@@ -199,7 +199,7 @@ async def get_report_findings(
 async def add_complementary_context(
     report_version_id: UUID,
     context_data: dict,
-    current_user = Depends(get_current_active_user),
+    current_user = Depends(get_current_workspace_user),
     session: AsyncSession = Depends(get_async_session),
 ):
     """Add complementary context to trigger incremental update."""
@@ -228,7 +228,7 @@ async def get_report_diff(
     report_version_id: UUID,
     compare_with: UUID = Query(..., description="Version ID to compare with"),
     report_type: str = Query("report1", pattern="^(report1|report2)$"),
-    current_user = Depends(get_current_active_user),
+    current_user = Depends(get_current_workspace_user),
     session: AsyncSession = Depends(get_async_session),
 ):
     """Get diff between two report versions."""
@@ -264,7 +264,7 @@ async def export_report(
     report_version_id: UUID,
     format: str = Query("pdf", pattern="^(pdf|markdown)$"),
     type: str = Query("report1", pattern="^(report1|report2)$"),
-    current_user = Depends(get_current_active_user),
+    current_user = Depends(get_current_workspace_user),
     session: AsyncSession = Depends(get_async_session),
 ):
     """Export report as PDF or Markdown."""
@@ -303,7 +303,7 @@ async def export_report(
 async def download_report_pdf(
     report_version_id: UUID,
     type: str = Query("report1", pattern="^(report1|report2)$"),
-    current_user = Depends(get_current_active_user),
+    current_user = Depends(get_current_workspace_user),
     session: AsyncSession = Depends(get_async_session),
 ):
     """Stream a report PDF through the authenticated API, not an internal MinIO URL."""

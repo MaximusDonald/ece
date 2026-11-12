@@ -8,7 +8,7 @@ from typing import List, Optional
 from datetime import datetime
 
 from app.core.database import get_async_session
-from app.core.security import get_current_active_user, get_password_hash, require_role
+from app.core.security import get_current_active_user, get_current_workspace_user, get_password_hash, require_role
 from app.models.user import User, Organization, Project, ProjectStatus, UserRole
 from app.schemas.project import (
     ProjectCreate, ProjectUpdate, ProjectRead, ProjectListItem,
@@ -20,10 +20,10 @@ router = APIRouter(prefix="/projects", tags=["projects"])
 
 
 async def get_organization_admin(
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_workspace_user),
 ) -> User:
-    if current_user.role not in (UserRole.ORG_ADMIN, UserRole.PLATFORM_ADMIN) and not current_user.is_superuser:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Seul un administrateur peut gérer l’organisation.")
+    if current_user.role != UserRole.ORG_ADMIN:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Seul un administrateur d'organisation peut gérer l’organisation.")
     return current_user
 
 
@@ -31,7 +31,7 @@ async def get_organization_admin(
 @router.post("/organization", response_model=OrganizationRead, status_code=status.HTTP_201_CREATED)
 async def create_organization(
     org_data: OrganizationCreate,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_workspace_user),
     session: AsyncSession = Depends(get_async_session),
 ):
     """Create organization for the current user."""
@@ -58,7 +58,7 @@ async def create_organization(
 
 @router.get("/organization/me", response_model=OrganizationRead)
 async def get_my_organization(
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_workspace_user),
     session: AsyncSession = Depends(get_async_session),
 ):
     """Get current user's organization."""
@@ -145,7 +145,7 @@ async def create_organization_member(
 @router.post("", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
 async def create_project(
     project_data: ProjectCreate,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_workspace_user),
     session: AsyncSession = Depends(get_async_session),
 ):
     """Create a new project."""
@@ -172,7 +172,7 @@ async def create_project(
 @router.get("", response_model=List[ProjectListItem])
 async def list_projects(
     status_filter: Optional[ProjectStatus] = Query(None, alias="status"),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_workspace_user),
     session: AsyncSession = Depends(get_async_session),
 ):
     """List projects for current user's organization."""
@@ -216,7 +216,7 @@ async def list_projects(
 @router.get("/{project_id}", response_model=ProjectRead)
 async def get_project(
     project_id: UUID,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_workspace_user),
     session: AsyncSession = Depends(get_async_session),
 ):
     """Get project details."""
@@ -234,7 +234,7 @@ async def get_project(
 async def update_project(
     project_id: UUID,
     project_data: ProjectUpdate,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_workspace_user),
     session: AsyncSession = Depends(get_async_session),
 ):
     """Update project."""

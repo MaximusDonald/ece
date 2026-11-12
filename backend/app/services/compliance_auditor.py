@@ -12,6 +12,8 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.admin import ScoringRule
+from app.models.corpus import LegalArticle
 from app.models.document import Document, DocumentAnalysis, DocumentExtraction
 from app.models.legal import ConfidenceLevel, ReportVersion, RiskFinding, RiskLevel
 from app.models.user import Project
@@ -864,10 +866,63 @@ async def run_holistic_compliance_audit(
     )
 
 
+async def resolve_applicable_scoring_rule(
+    session: AsyncSession,
+    *,
+    country_code: Optional[str] = None,
+    sector: Optional[str] = None,
+    treatments: Optional[Sequence[str]] = None,
+) -> Optional[ScoringRule]:
+    """Fetch the most specific active ScoringRule for the project's jurisdiction and sector."""
+    stmt = select(ScoringRule).where(ScoringRule.is_active == True)
+    res = await session.execute(stmt)
+    all_rules = list(res.scalars().all())
+    if not all_rules:
+        return None
+
+    treatments_set = set(t.lower() for t in (treatments or []))
+    if sector:
+        treatments_set.add(sector.lower())
+
+    def rule_priority(r: ScoringRule) -> int:
+        score = 0
+        if country_code and r.country_code and r.country_code.upper() == country_code.upper():
+            score += 10
+        elif r.country_code is None:
+            score += 2
+        else:
+            return -1  # Rule specifically for a different country
+
+        domain_lower = (r.domain or "").lower()
+        if domain_lower in treatments_set or (sector and domain_lower == sector.lower()):
+            score += 5
+        elif domain_lower == "global":
+            score += 1
+        return score
+
+    eligible = [(rule_priority(r), r) for r in all_rules if rule_priority(r) >= 0]
+    if not eligible:
+        return None
+    eligible.sort(key=lambda x: x[0], reverse=True)
+    return eligible[0][1]
+
+
 def compute_initial_severity_and_score(
     findings: Sequence[Dict[str, Any]],
+    *,
+    rule: Optional[ScoringRule] = None,
+    articles_map: Optional[Dict[UUID, Any]] = None,
 ) -> tuple[Dict[str, int], int, ConfidenceLevel]:
-    """Compute severity distribution, bounded score, and aggregate confidence."""
+    """Compute severity distribution, rule-calibrated bounded score, and aggregate confidence.
+
+    Politique de scoring juridique ECE :
+    - Non-hasardeux : piloté par ScoringRule (weights par domaine & juridiction).
+    - Sanctions légales : majoration proportionnée si l'article enfreint comporte une
+      sanction pénale (+8 pts) ou amende administrative (+4 pts).
+    - Principe de précaution : si un risque critique subsiste (non-mitigé), le score global
+      est plancher à 50/100 au minimum.
+    - Zéro risque si tout est conforme : score de 0/100.
+    """
     severity_counts = {
         "critique": 0,
         "eleve": 0,
@@ -875,25 +930,80 @@ def compute_initial_severity_and_score(
         "a_surveiller": 0,
         "conforme": 0,
     }
-    weights = {"critique": 25, "eleve": 15, "modere": 10, "a_surveiller": 5, "conforme": 0}
-    raw_score = 0
+
+    w_critique = (rule.weight_critique * 25.0) if rule else 25.0
+    w_eleve = (rule.weight_eleve * 20.0) if rule else 15.0
+    w_modere = (rule.weight_modere * 12.0) if rule else 10.0
+    w_surveiller = (rule.weight_a_surveiller * 5.0) if rule else 5.0
+    w_conforme = (rule.weight_conforme * 0.0) if rule else 0.0
+
+    raw_score = 0.0
     conf_scores = {ConfidenceLevel.HIGH: 3, ConfidenceLevel.MEDIUM: 2, ConfidenceLevel.LOW: 1}
     total_conf = 0
+    has_unmitigated_critical = False
+    has_non_conforme = False
+    sanction_penalty = 0.0
 
     for f in findings:
         rl = f["risk_level"].value if isinstance(f["risk_level"], RiskLevel) else str(f["risk_level"])
         conf = f["confidence"] if isinstance(f["confidence"], ConfidenceLevel) else ConfidenceLevel(str(f["confidence"]))
         severity_counts[rl] = severity_counts.get(rl, 0) + 1
-        raw_score += weights.get(rl, 0)
         total_conf += conf_scores.get(conf, 2)
 
-    global_score = min(100, raw_score)
+        if rl == "critique":
+            raw_score += w_critique
+            has_unmitigated_critical = True
+            has_non_conforme = True
+        elif rl == "eleve":
+            raw_score += w_eleve
+            has_non_conforme = True
+        elif rl == "modere":
+            raw_score += w_modere
+            has_non_conforme = True
+        elif rl == "a_surveiller":
+            raw_score += w_surveiller
+            has_non_conforme = True
+        elif rl == "conforme":
+            raw_score += w_conforme
+
+        # Evaluation des sanctions légales réelles attachées aux articles
+        if rl != "conforme" and articles_map:
+            for uid in (f.get("matched_articles") or []):
+                try:
+                    uuid_obj = uid if isinstance(uid, UUID) else UUID(str(uid))
+                    art = articles_map.get(uuid_obj)
+                    if art and getattr(art, "has_sanction", False):
+                        nature = str(getattr(art, "sanction_nature", "") or "").lower()
+                        if "penale" in nature or "prison" in nature:
+                            sanction_penalty += 8.0
+                        else:
+                            sanction_penalty += 4.0
+                        break
+                except Exception:
+                    pass
+
+    # Plafonnement du malus de sanction légale à +25 max
+    raw_score += min(25.0, sanction_penalty)
+
+    if not has_non_conforme:
+        global_score = 0
+    else:
+        global_score = min(100, max(0, round(raw_score)))
+        if has_unmitigated_critical and global_score < 50:
+            global_score = 50
+
+    # Confiance agrégée étalonnée sur les seuils configurés
     avg_conf = (total_conf / len(findings)) if findings else 2.0
-    global_confidence = (
-        ConfidenceLevel.HIGH
-        if avg_conf >= 2.5
-        else (ConfidenceLevel.LOW if avg_conf < 1.5 else ConfidenceLevel.MEDIUM)
-    )
+    thresh_high = (rule.confidence_threshold_high * 3.0) if rule else 2.5
+    thresh_med = (rule.confidence_threshold_medium * 3.0) if rule else 1.5
+
+    if avg_conf >= thresh_high:
+        global_confidence = ConfidenceLevel.HIGH
+    elif avg_conf >= thresh_med:
+        global_confidence = ConfidenceLevel.MEDIUM
+    else:
+        global_confidence = ConfidenceLevel.LOW
+
     return severity_counts, global_score, global_confidence
 
 
@@ -906,8 +1016,20 @@ async def persist_audit_report_version(
     parent_version_id: Optional[UUID] = None,
 ) -> ReportVersion:
     """Persist a ReportVersion and its RiskFinding rows (storing matched_articles UUIDs)."""
+    project = await session.get(Project, project_id)
+    applicable_rule: Optional[ScoringRule] = None
+    if project:
+        applicable_rule = await resolve_applicable_scoring_rule(
+            session,
+            country_code=project.country_code,
+            sector=project.sector,
+            treatments=project.treatments,
+        )
+
     severity_counts, global_score, global_confidence = compute_initial_severity_and_score(
-        audit_result.findings
+        audit_result.findings,
+        rule=applicable_rule,
+        articles_map=audit_result.articles_map,
     )
 
     report_version = ReportVersion(

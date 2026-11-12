@@ -13,7 +13,7 @@ import io
 import uuid
 
 from app.core.database import get_async_session
-from app.core.security import get_current_active_user, require_role
+from app.core.security import get_current_active_user, get_current_workspace_user, require_role
 from app.models.user import User, UserRole, Project
 from app.models.document import Document, DocumentExtraction, DocumentAnalysis, DocumentStatus
 from app.models.legal import ReportVersion
@@ -56,7 +56,7 @@ async def upload_document(
     project_id: UUID,
     file: UploadFile = File(...),
     document_type: Optional[str] = Form(None),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_workspace_user),
     session: AsyncSession = Depends(get_async_session),
 ):
     """Upload a document for analysis."""
@@ -125,7 +125,7 @@ async def upload_document(
 @router.get("", response_model=List[DocumentRead])
 async def list_documents(
     project_id: UUID,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_workspace_user),
     session: AsyncSession = Depends(get_async_session),
 ):
     """List documents for a project."""
@@ -145,7 +145,7 @@ async def list_documents(
 async def get_document(
     project_id: UUID,
     document_id: UUID,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_workspace_user),
     session: AsyncSession = Depends(get_async_session),
 ):
     """Get document details."""
@@ -165,7 +165,7 @@ async def get_document(
 async def download_document(
     project_id: UUID,
     document_id: UUID,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_workspace_user),
     session: AsyncSession = Depends(get_async_session),
 ):
     """Stream an uploaded document after validating its organization and project scope."""
@@ -207,7 +207,7 @@ async def download_document(
 async def get_document_extraction(
     project_id: UUID,
     document_id: UUID,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_workspace_user),
     session: AsyncSession = Depends(get_async_session),
 ):
     """Get document extraction results."""
@@ -234,7 +234,7 @@ async def get_document_extraction(
 async def get_document_analysis(
     project_id: UUID,
     document_id: UUID,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_workspace_user),
     session: AsyncSession = Depends(get_async_session),
 ):
     """Get document analysis results."""
@@ -270,7 +270,7 @@ async def get_document_analysis(
 async def get_document_pipeline(
     project_id: UUID,
     document_id: UUID,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_workspace_user),
     session: AsyncSession = Depends(get_async_session),
 ):
     """Return document-level progress for the full five-stage analysis."""
@@ -309,7 +309,7 @@ async def get_document_pipeline(
 async def resume_document_pipeline(
     project_id: UUID,
     document_id: UUID,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_workspace_user),
     session: AsyncSession = Depends(get_async_session),
 ):
     """Resume the next missing or stalled stage without duplicating an active task."""
@@ -387,7 +387,7 @@ async def resume_document_pipeline(
 async def get_job_status(
     project_id: UUID,
     job_id: UUID,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_workspace_user),
     session: AsyncSession = Depends(get_async_session),
 ):
     """Get job status for polling."""
@@ -435,7 +435,7 @@ async def get_job_status(
 async def delete_document(
     project_id: UUID,
     document_id: UUID,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_workspace_user),
     session: AsyncSession = Depends(get_async_session),
 ):
     """Delete a document and its associated storage and records."""

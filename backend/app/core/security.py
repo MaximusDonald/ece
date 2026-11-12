@@ -78,6 +78,18 @@ async def get_current_active_user(
     return current_user
 
 
+async def get_current_workspace_user(
+    current_user: User = Depends(get_current_active_user),
+) -> User:
+    """Ensure user is a regular workspace member/admin, strictly forbidding platform administrators."""
+    if current_user.role == UserRole.PLATFORM_ADMIN or current_user.is_superuser:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Les administrateurs plateforme n'ont pas accès aux espaces de travail et projets utilisateurs. Veuillez utiliser un compte utilisateur dédié.",
+        )
+    return current_user
+
+
 def require_role(*allowed_roles: str):
     async def role_checker(
         current_user: User = Depends(get_current_active_user),

@@ -307,52 +307,105 @@ async def seed_country_modules() -> None:
 
 
 async def seed_scoring_rules() -> None:
-    """Seed default scoring rules."""
+    """Seed calibrated scoring rules aligned with the Master Corpus and legal policy."""
     from app.models.admin import ScoringRule
     
     rules = [
         ScoringRule(
-            name="Global Data Protection",
-            domain="data_protection",
-            country_code=None,
-            weight_critique=1.0,
-            weight_eleve=0.7,
-            weight_modere=0.4,
-            weight_a_surveiller=0.1,
-            confidence_threshold_high=0.8,
-            confidence_threshold_medium=0.5,
-        ),
-        ScoringRule(
-            name="Bénin Data Protection",
+            name="Bénin — Code du Numérique (Données & Cyber)",
             domain="data_protection",
             country_code="BJ",
+            weight_critique=1.2,
+            weight_eleve=0.85,
+            weight_modere=0.45,
+            weight_a_surveiller=0.15,
+            confidence_threshold_high=0.8,
+            confidence_threshold_medium=0.5,
+        ),
+        ScoringRule(
+            name="CEDEAO / Régional — Protection des Données",
+            domain="data_protection",
+            country_code=None,
             weight_critique=1.0,
-            weight_eleve=0.7,
+            weight_eleve=0.75,
             weight_modere=0.4,
             weight_a_surveiller=0.1,
             confidence_threshold_high=0.8,
             confidence_threshold_medium=0.5,
         ),
         ScoringRule(
-            name="Global Payment Services",
+            name="UEMOA / BCEAO — Systèmes de Paiement & EME",
             domain="payment_services",
             country_code=None,
-            weight_critique=1.2,
-            weight_eleve=0.8,
+            weight_critique=1.3,
+            weight_eleve=0.9,
             weight_modere=0.5,
             weight_a_surveiller=0.2,
             confidence_threshold_high=0.85,
             confidence_threshold_medium=0.6,
         ),
+        ScoringRule(
+            name="CEDEAO — Cybersécurité & Cybercriminalité",
+            domain="cybersecurity",
+            country_code=None,
+            weight_critique=1.15,
+            weight_eleve=0.8,
+            weight_modere=0.45,
+            weight_a_surveiller=0.15,
+            confidence_threshold_high=0.8,
+            confidence_threshold_medium=0.5,
+        ),
+        ScoringRule(
+            name="OHADA — Contrats Commerciaux & Preuve Numérique",
+            domain="ecommerce",
+            country_code=None,
+            weight_critique=0.95,
+            weight_eleve=0.65,
+            weight_modere=0.35,
+            weight_a_surveiller=0.1,
+            confidence_threshold_high=0.75,
+            confidence_threshold_medium=0.5,
+        ),
+        ScoringRule(
+            name="Régime Général Transversal (Par défaut)",
+            domain="global",
+            country_code=None,
+            weight_critique=1.0,
+            weight_eleve=0.7,
+            weight_modere=0.4,
+            weight_a_surveiller=0.1,
+            confidence_threshold_high=0.8,
+            confidence_threshold_medium=0.5,
+        ),
     ]
     
     async with SyncSession() as session:
         for rule in rules:
-            existing = await session.execute(select(ScoringRule).where(ScoringRule.name == rule.name))
-            if not existing.scalar_one_or_none():
+            existing = (
+                await session.execute(
+                    select(ScoringRule).where(
+                        (ScoringRule.name == rule.name)
+                        | (
+                            (ScoringRule.domain == rule.domain)
+                            & (ScoringRule.country_code == rule.country_code)
+                        )
+                    )
+                )
+            ).scalars().first()
+            if existing:
+                existing.name = rule.name
+                existing.weight_critique = rule.weight_critique
+                existing.weight_eleve = rule.weight_eleve
+                existing.weight_modere = rule.weight_modere
+                existing.weight_a_surveiller = rule.weight_a_surveiller
+                existing.confidence_threshold_high = rule.confidence_threshold_high
+                existing.confidence_threshold_medium = rule.confidence_threshold_medium
+                existing.is_active = True
+                session.add(existing)
+            else:
                 session.add(rule)
         await session.commit()
-        print("Seeded scoring rules.")
+        print("Seeded and synchronized calibrated scoring rules.")
 
 
 async def seed_llm_config() -> None:

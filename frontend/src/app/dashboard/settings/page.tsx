@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ErrorState, LoadingState } from '@/components/ui/feedback';
@@ -13,6 +14,7 @@ function isNotFound(error: unknown) {
 }
 
 export default function SettingsPage() {
+  const router = useRouter();
   const userQuery = useMe();
   const organizationQuery = useOrganization();
   const updateAccount = useUpdateMe();
@@ -23,6 +25,16 @@ export default function SettingsPage() {
   const [accountError, setAccountError] = React.useState('');
   const [organizationError, setOrganizationError] = React.useState('');
 
+  const isPlatformAdmin = Boolean(
+    userQuery.data?.is_superuser || userQuery.data?.role === 'platform_admin'
+  );
+
+  React.useEffect(() => {
+    if (!userQuery.isLoading && isPlatformAdmin) {
+      router.replace('/dashboard/admin/settings');
+    }
+  }, [userQuery.isLoading, isPlatformAdmin, router]);
+
   React.useEffect(() => {
     if (userQuery.data) setEmail(userQuery.data.email);
   }, [userQuery.data]);
@@ -31,9 +43,7 @@ export default function SettingsPage() {
     if (organizationQuery.data) setOrganizationName(organizationQuery.data.name);
   }, [organizationQuery.data]);
 
-  const canEditOrganization = Boolean(
-    userQuery.data?.is_superuser || userQuery.data?.role === 'platform_admin' || userQuery.data?.role === 'org_admin'
-  );
+  const canEditOrganization = Boolean(userQuery.data?.role === 'org_admin');
 
   const saveAccount = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();

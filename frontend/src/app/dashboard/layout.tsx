@@ -40,6 +40,7 @@ const adminNavigation = [
   { name: 'Pays / Juridictions', href: '/dashboard/admin/countries', icon: Database },
   { name: 'Utilisateurs', href: '/dashboard/admin/users', icon: Users },
   { name: 'Journaux d\'audit', href: '/dashboard/admin/audit', icon: History },
+  { name: 'Paramètres système', href: '/dashboard/admin/settings', icon: Settings },
 ];
 
 const getPageHeaderInfo = (pathname: string) => {
@@ -52,7 +53,8 @@ const getPageHeaderInfo = (pathname: string) => {
   if (pathname.startsWith('/dashboard/projects')) return { title: 'Projets de conformité', category: 'Gestion' };
   if (pathname.startsWith('/dashboard/corpus')) return { title: 'Codes & Articles de Loi', category: 'Référentiel' };
   if (pathname.startsWith('/dashboard/team')) return { title: 'Équipe & Accès', category: 'Organisation' };
-  if (pathname.startsWith('/dashboard/settings')) return { title: 'Paramètres', category: 'Compte' };
+  if (pathname.startsWith('/dashboard/admin/settings')) return { title: 'Paramètres système', category: 'Administration' };
+  if (pathname.startsWith('/dashboard/settings')) return { title: 'Paramètres du compte', category: 'Mon Compte' };
   if (pathname.startsWith('/dashboard/admin/corpus')) return { title: 'Bibliothèque des Codes', category: 'Gouvernance' };
   if (pathname.startsWith('/dashboard/admin/sources/documents')) return { title: 'Archives Crawler', category: 'Gouvernance' };
   if (pathname.startsWith('/dashboard/admin/sources')) return { title: 'Sentinelle Réglementaire', category: 'Gouvernance' };
@@ -68,16 +70,42 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const logout = useLogout();
-  const { data: currentUser } = useMe();
-  const isPlatformAdmin = currentUser?.is_superuser || currentUser?.role === 'platform_admin';
-  const canManageTeam = isPlatformAdmin || currentUser?.role === 'org_admin';
+  const { data: currentUser, isLoading } = useMe();
+  const isPlatformAdmin = Boolean(currentUser?.is_superuser || currentUser?.role === 'platform_admin');
+  const canManageTeam = Boolean(currentUser?.role === 'org_admin');
   const visibleNavigation = navigation.filter((item) => item.href !== '/dashboard/team' || canManageTeam);
   const [collapsed, setCollapsed] = React.useState(false);
+
+  // Strict RBAC route guard: Platform Admin NEVER accesses user interfaces
+  React.useEffect(() => {
+    if (!isLoading && currentUser) {
+      if (isPlatformAdmin) {
+        if (
+          pathname === '/dashboard' ||
+          pathname.startsWith('/dashboard/projects') ||
+          pathname.startsWith('/dashboard/team') ||
+          pathname === '/dashboard/corpus'
+        ) {
+          router.replace('/dashboard/admin/corpus');
+        } else if (pathname === '/dashboard/settings') {
+          router.replace('/dashboard/admin/settings');
+        }
+      } else {
+        if (pathname.startsWith('/dashboard/admin')) {
+          router.replace('/dashboard');
+        }
+      }
+    }
+  }, [currentUser, isLoading, isPlatformAdmin, pathname, router]);
 
   const handleLogout = async () => {
     await logout.mutateAsync().catch(() => undefined);
     router.replace('/auth/login');
   };
+
+  const navItems = isPlatformAdmin ? adminNavigation : visibleNavigation;
+  const sectionTitle = isPlatformAdmin ? 'Administration' : 'Application';
+  const logoHref = isPlatformAdmin ? '/dashboard/admin/corpus' : '/dashboard';
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -91,7 +119,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         {/* Logo */}
         <div className={cn('flex items-center justify-between h-16 px-4 border-b border-slate-200', collapsed && 'justify-center')}>
           {!collapsed && (
-            <Link href="/dashboard" className="flex items-center gap-2">
+            <Link href={logoHref} className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-sovereign-500 flex items-center justify-center">
                 <Shield className="w-5 h-5 text-white" />
               </div>
@@ -114,39 +142,9 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           {!collapsed && (
             <>
               <h3 className="px-3 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                Application
+                {sectionTitle}
               </h3>
-              {visibleNavigation.map((item) => {
-                const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
-                const Icon = item.icon;
-                return (
-                  <Link
-                    key={item.name}
-                    href={item.href}
-                    className={cn(
-                      'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
-                      isActive
-                        ? 'bg-sovereign-50 text-sovereign-600'
-                        : 'text-slate-600 hover:bg-sovereign-50 hover:text-sovereign-600'
-                    )}
-                    aria-current={isActive ? 'page' : undefined}
-                  >
-                    <Icon className="h-5 w-5 flex-shrink-0" aria-hidden="true" />
-                    <span>{item.name}</span>
-                  </Link>
-                );
-              })}
-            </>
-          )}
-
-          {isPlatformAdmin && !collapsed && <div className="my-4 border-t border-slate-200" />}
-
-          {isPlatformAdmin && !collapsed && (
-            <>
-              <h3 className="px-3 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                Administration
-              </h3>
-              {adminNavigation.map((item) => {
+              {navItems.map((item) => {
                 const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
                 const Icon = item.icon;
                 return (
@@ -171,7 +169,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
           {collapsed && (
             <>
-              {visibleNavigation.map((item) => {
+              {navItems.map((item) => {
                 const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
                 const Icon = item.icon;
                 return (
@@ -183,30 +181,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                       isActive
                         ? 'bg-sovereign-50 text-sovereign-600'
                         : 'text-slate-600 hover:bg-sovereign-50 hover:text-sovereign-600'
-                      )
-                    }
-                    aria-current={isActive ? 'page' : undefined}
-                    title={item.name}
-                  >
-                    <Icon className="h-5 w-5" aria-hidden="true" />
-                  </Link>
-                );
-              })}
-              <div className="my-4 border-t border-slate-200 mx-2" />
-              {isPlatformAdmin && adminNavigation.map((item) => {
-                const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
-                const Icon = item.icon;
-                return (
-                  <Link
-                    key={item.name}
-                    href={item.href}
-                    className={cn(
-                      'flex items-center justify-center px-3 py-2.5 rounded-lg transition-colors mx-2',
-                      isActive
-                        ? 'bg-sovereign-50 text-sovereign-600'
-                        : 'text-slate-600 hover:bg-sovereign-50 hover:text-sovereign-600'
-                      )
-                    }
+                    )}
                     aria-current={isActive ? 'page' : undefined}
                     title={item.name}
                   >
