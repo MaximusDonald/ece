@@ -1,11 +1,63 @@
-# Devpost Learn - keep personal learning context out of commits
+# Devpost & Agent local context
 /devpost/learner-profile.md
-.env
 /agent/
 /.claude/
 /.agents/
+/.gemini/
 skills-lock.json
 /fix_fullstack_issue/*
+
+# Environment variables & secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Python / FastAPI / Pytest / Ruff / Celery
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.installed.cfg
+*.egg
+build/
+dist/
+.Python
+.venv/
+venv/
+env/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+celerybeat-schedule*
+
+# Node.js / Next.js / TypeScript
+node_modules/
+.next/
+out/
+.turbo/
+.vercel/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Logs, temporary & data dumps
 *.log
+logs/
+tmp/
+*.tmp
+*.bak
+*.swp
+dump.rdb
 
-
+# IDE & OS
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
