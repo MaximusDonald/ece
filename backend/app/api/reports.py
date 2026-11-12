@@ -115,15 +115,21 @@ async def get_report_findings(
     result = await session.execute(query)
     findings = result.scalars().all()
     
-    # Batch load matched legal sources for rich display
+    # Batch load matched legal sources (legacy) and canonical LegalArticle citations
     all_source_ids = set()
+    all_article_ids = set()
     for f in findings:
         for sid in (f.matched_sources or []):
             try:
                 all_source_ids.add(UUID(str(sid)))
             except (ValueError, TypeError):
                 continue
-                
+        for aid in (f.matched_articles or []):
+            try:
+                all_article_ids.add(UUID(str(aid)))
+            except (ValueError, TypeError):
+                continue
+
     sources_map = {}
     if all_source_ids:
         from app.models.legal import LegalSource
@@ -138,7 +144,39 @@ async def get_report_findings(
                 "level": src.level.value if hasattr(src.level, "value") else str(src.level),
                 "article_ref": src.article_ref,
             }
-            
+
+    articles_map = {}
+    if all_article_ids:
+        from app.models.corpus import LegalArticle, LegalSection, LegalText
+        art_stmt = (
+            select(LegalArticle, LegalText, LegalSection)
+            .join(LegalText, LegalArticle.text_id == LegalText.id)
+            .outerjoin(LegalSection, LegalArticle.section_id == LegalSection.id)
+            .where(LegalArticle.id.in_(all_article_ids))
+        )
+        art_res = await session.execute(art_stmt)
+        for art, text_obj, sec in art_res.all():
+            rule_val = (
+                art.compliance_rule_type.value
+                if hasattr(art.compliance_rule_type, "value")
+                else art.compliance_rule_type
+            )
+            articles_map[art.id] = {
+                "id": art.id,
+                "text_code": text_obj.code,
+                "text_title": text_obj.title,
+                "jurisdiction": text_obj.jurisdiction,
+                "authority": text_obj.authority,
+                "article_number": art.article_number,
+                "title": art.title,
+                "section_breadcrumb": sec.breadcrumb if sec else "",
+                "full_text": art.full_text,
+                "has_sanction": bool(art.has_sanction),
+                "sanction_details": art.sanction_details,
+                "compliance_rule_type": rule_val,
+                "official_url": text_obj.official_url,
+            }
+
     response_items = []
     for f in findings:
         item = RiskFindingRead.model_validate(f)
@@ -147,8 +185,13 @@ async def get_report_findings(
             for sid in (f.matched_sources or [])
             if UUID(str(sid)) in sources_map
         ]
+        item.articles_details = [
+            articles_map[UUID(str(aid))]
+            for aid in (f.matched_articles or [])
+            if UUID(str(aid)) in articles_map
+        ]
         response_items.append(item)
-        
+
     return response_items
 
 

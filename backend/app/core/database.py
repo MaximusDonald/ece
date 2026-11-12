@@ -29,6 +29,8 @@ sync_engine = create_engine(
 
 async def init_db() -> None:
     """Initialize database tables and PGVector extension."""
+    import app.models  # noqa: F401 - register all SQLModel tables
+
     async with async_engine.begin() as conn:
         # Enable PGVector extension
         await conn.exec_driver_sql("CREATE EXTENSION IF NOT EXISTS vector;")
@@ -70,6 +72,19 @@ async def init_db() -> None:
             await conn.exec_driver_sql(
                 f"ALTER TABLE source_collection_run ADD COLUMN IF NOT EXISTS {column} {definition};"
             )
+
+        await conn.exec_driver_sql(
+            "ALTER TABLE risk_finding ADD COLUMN IF NOT EXISTS matched_articles JSON NOT NULL DEFAULT '[]'::json;"
+        )
+        # Hybrid Article-RAG indexes (HNSW semantic vector + French GIN full-text)
+        await conn.exec_driver_sql(
+            "CREATE INDEX IF NOT EXISTS ix_legal_article_embedding_hnsw "
+            "ON legal_article USING hnsw (embedding vector_cosine_ops);"
+        )
+        await conn.exec_driver_sql(
+            "CREATE INDEX IF NOT EXISTS ix_legal_article_fulltext_gin "
+            "ON legal_article USING gin (to_tsvector('french', coalesce(title, '') || ' ' || article_number || ' ' || full_text));"
+        )
 
 
 async def get_async_session() -> AsyncGenerator[AsyncSession, None]:

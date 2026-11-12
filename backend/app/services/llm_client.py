@@ -98,14 +98,14 @@ class GeminiClient(LLMClient):
             raise RuntimeError("Gemini returned an empty response.")
         return response.text
 
-    async def get_embeddings(self, texts: list[str]) -> list[list[float]]:
+    async def get_embeddings(self, texts: list[str], *, task_type: str = "RETRIEVAL_DOCUMENT") -> list[list[float]]:
         from google.genai import types
 
         response = await self.client.aio.models.embed_content(
             model=self.embedding_model,
             contents=texts,
             config=types.EmbedContentConfig(
-                task_type="RETRIEVAL_DOCUMENT",
+                task_type=task_type,
                 output_dimensionality=1536,
             ),
         )

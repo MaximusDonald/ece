@@ -37,7 +37,7 @@ class LegalSource(SQLModel, table=True):
     authority: str = Field(max_length=255)
     country_code: Optional[str] = Field(default=None, max_length=2, index=True)  # None = supranational
     level: LegalLevel = Field(sa_column=Column(SQLEnum(LegalLevel), index=True))
-    article_ref: str = Field(max_length=100)
+    article_ref: str = Field(max_length=255)
     url_official: str = Field(max_length=1000)
     content_hash: str = Field(max_length=64, index=True)  # SHA-256
     content_text: str = Field(sa_column=Column(Text))  # for embedding
@@ -125,7 +125,8 @@ class RiskFinding(SQLModel, table=True):
     finding_text: str = Field(sa_column=Column(Text))
     risk_level: RiskLevel = Field(sa_column=Column(SQLEnum(RiskLevel), index=True))
     confidence: ConfidenceLevel = Field(sa_column=Column(SQLEnum(ConfidenceLevel)))
-    matched_sources: List[UUID] = Field(default=[], sa_column=Column(JSON))  # LegalSource IDs
+    matched_sources: List[UUID] = Field(default=[], sa_column=Column(JSON))  # Legacy LegalSource IDs
+    matched_articles: List[UUID] = Field(default=[], sa_column=Column(JSON))  # LegalArticle IDs
     obsolescence_flag: bool = Field(default=False)
     conflict_flag: bool = Field(default=False)
     conflict_details: Optional[str] = Field(default=None, sa_column=Column(Text))

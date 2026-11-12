@@ -7,10 +7,13 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { formatDateTime, getRiskBadgeClass, getConfidenceBadgeClass, getRiskEmoji, getConfidenceEmoji } from '@/lib/utils';
-import { AlertTriangle, CheckCircle, FileText, Search, Plus, Download, ArrowLeft, Loader2, Scale, ExternalLink, FileCode } from 'lucide-react';
+import { AlertTriangle, CheckCircle, FileText, Search, Plus, Download, ArrowLeft, Loader2, Scale, ExternalLink, FileCode, ShieldAlert, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { toast } from '@/hooks/use-toast';
+import type { MatchedArticleDetail, RiskFinding } from '@/lib/api';
+import { ArticleDetailDialog } from '@/components/corpus/ArticleDetailDialog';
+import { JurisdictionBadge, RuleTypeBadge, SanctionBadge } from '@/components/corpus/corpus-badges';
 
 export default function ReportDetailPage() {
   const params = useParams();
@@ -24,6 +27,25 @@ export default function ReportDetailPage() {
   const [downloadingType, setDownloadingType] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'findings' | 'sources' | 'recommendations'>('findings');
   const [showContextModal, setShowContextModal] = useState(false);
+  const [selectedArticle, setSelectedArticle] = useState<MatchedArticleDetail | null>(null);
+  const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
+
+  const openArticleDetail = (art: MatchedArticleDetail) => {
+    setSelectedArticle(art);
+    setSelectedArticleId(art.id);
+  };
+
+  const citedArticles = useMemo(() => {
+    const map = new Map<string, MatchedArticleDetail>();
+    for (const f of findings || []) {
+      for (const art of f.articles_details || []) {
+        if (!map.has(art.id)) {
+          map.set(art.id, art);
+        }
+      }
+    }
+    return Array.from(map.values());
+  }, [findings]);
 
   const downloadReport = (reportType: 'report1' | 'report2', format: 'pdf' | 'markdown') => {
     setDownloadingType(`${reportType}-${format}`);
@@ -147,7 +169,11 @@ export default function ReportDetailPage() {
               {findings && findings.length > 0 ? (
                 <div className="space-y-4">
                   {findings.map((finding) => (
-                    <FindingCard key={finding.id} finding={finding} />
+                    <FindingCard
+                      key={finding.id}
+                      finding={finding}
+                      onOpenArticle={openArticleDetail}
+                    />
                   ))}
                 </div>
               ) : (
@@ -161,7 +187,60 @@ export default function ReportDetailPage() {
           <Card>
             <CardContent className="p-6">
               <div className="space-y-4">
-                {findings && findings.length > 0 ? (
+                {citedArticles.length > 0 ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-semibold text-slate-900">
+                        {citedArticles.length} article(s) du Master Corpus cité(s) dans cet audit
+                      </p>
+                      <Link
+                        href="/dashboard/corpus"
+                        className="text-xs font-medium text-sovereign-600 hover:underline inline-flex items-center gap-1"
+                      >
+                        <Scale className="w-3.5 h-3.5" />
+                        Explorer toute la bibliothèque
+                      </Link>
+                    </div>
+                    {citedArticles.map((art) => (
+                      <div
+                        key={art.id}
+                        className="p-4 rounded-lg border border-slate-200 bg-slate-50/70 hover:border-sovereign-300 transition-colors space-y-2"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <JurisdictionBadge jurisdiction={art.jurisdiction} />
+                            <Badge variant="outline" className="text-[11px] font-mono bg-white">
+                              {art.text_code}
+                            </Badge>
+                            <SanctionBadge hasSanction={art.has_sanction} />
+                            <RuleTypeBadge ruleType={art.compliance_rule_type} />
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-xs"
+                            onClick={() => openArticleDetail(art)}
+                          >
+                            Consulter l’article intégral →
+                          </Button>
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-slate-900">
+                            {art.article_number}
+                            {art.title ? ` — ${art.title}` : ''}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {art.text_title}
+                            {art.section_breadcrumb ? ` • ${art.section_breadcrumb}` : ''}
+                          </p>
+                        </div>
+                        <p className="text-xs text-slate-700 line-clamp-3 leading-relaxed">
+                          {art.full_text}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : findings && findings.some((f) => f.matched_sources && f.matched_sources.length > 0) ? (
                   <>
                     {findings.map((finding) => (
                       finding.matched_sources && finding.matched_sources.length > 0 && (
@@ -170,7 +249,7 @@ export default function ReportDetailPage() {
                     ))}
                   </>
                 ) : (
-                  <div className="text-center py-8 text-slate-500">Aucune source citée</div>
+                  <div className="text-center py-8 text-slate-500">Aucune source ou article cité</div>
                 )}
               </div>
             </CardContent>
@@ -230,23 +309,90 @@ export default function ReportDetailPage() {
           vagueZones={extractVagueZones(reportVersion.report1_markdown)}
         />
       )}
+
+      {/* Article Detail Modal */}
+      <ArticleDetailDialog
+        articleId={selectedArticleId}
+        initialArticle={selectedArticle}
+        onClose={() => {
+          setSelectedArticleId(null);
+          setSelectedArticle(null);
+        }}
+        onSelectArticle={(nextId) => {
+          setSelectedArticle(null);
+          setSelectedArticleId(nextId);
+        }}
+      />
     </div>
   );
 }
 
-function FindingCard({ finding }: { finding: any }) {
+function parseStructuredFindingText(raw: string) {
+  const lines = (raw || '').split('\n').map((l) => l.trim()).filter(Boolean);
+  const body: string[] = [];
+  let paradeLine: string | null = null;
+  let paradeVerified = false;
+  let legalRiskLine: string | null = null;
+
+  for (const line of lines) {
+    if (line.startsWith('Parade d\'annulation vérifiée :') || line.startsWith("Parade d'annulation vérifiée :")) {
+      paradeLine = line.replace(/^Parade d['’]annulation vérifiée\s*:\s*/i, '');
+      paradeVerified = true;
+    } else if (line.startsWith('Parade d\'annulation :') || line.startsWith("Parade d'annulation :")) {
+      paradeLine = line.replace(/^Parade d['’]annulation\s*:\s*/i, '');
+      paradeVerified = false;
+    } else if (line.startsWith('Risque légal encouru :')) {
+      legalRiskLine = line.replace(/^Risque légal encouru\s*:\s*/i, '');
+    } else if (line.startsWith('Articles applicables :')) {
+      // Rendered as interactive article chips below
+      continue;
+    } else {
+      body.push(line);
+    }
+  }
+  return {
+    mainText: body.join('\n') || raw,
+    paradeLine,
+    paradeVerified,
+    legalRiskLine,
+  };
+}
+
+function FindingCard({
+  finding,
+  onOpenArticle,
+}: {
+  finding: RiskFinding;
+  onOpenArticle: (art: MatchedArticleDetail) => void;
+}) {
+  const parsed = parseStructuredFindingText(finding.finding_text);
+  const hasArticles = (finding.articles_details?.length || 0) > 0;
+
   return (
     <Card className="border-l-4" style={{ borderLeftColor: getRiskColor(finding.risk_level) }}>
       <CardContent className="p-6">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1">
-            <div className="flex items-center gap-3 mb-2">
+            <div className="flex flex-wrap items-center gap-2 mb-2">
               <Badge variant={finding.risk_level} className="text-sm">
                 {getRiskEmoji(finding.risk_level)} {finding.risk_level.toUpperCase()}
               </Badge>
               <Badge variant={finding.confidence} className="text-sm">
                 {getConfidenceEmoji(finding.confidence)} {finding.confidence.toUpperCase()}
               </Badge>
+              {parsed.paradeLine && (
+                parsed.paradeVerified ? (
+                  <Badge variant="outline" className="text-xs bg-emerald-50 text-emerald-800 border-emerald-200 gap-1">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                    Parade prouvée
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-xs bg-amber-50 text-amber-800 border-amber-200 gap-1">
+                    <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />
+                    Aucune parade prouvée
+                  </Badge>
+                )
+              )}
               {finding.obsolescence_flag && (
                 <Badge variant="destructive" className="text-sm">
                   ⚠️ Source potentiellement abrogée
@@ -258,13 +404,67 @@ function FindingCard({ finding }: { finding: any }) {
                 </Badge>
               )}
             </div>
-            <p className="font-medium text-slate-900 mb-1">{finding.clause_ref}</p>
-            <p className="text-slate-700 mb-3">{finding.finding_text}</p>
+
+            <p className="font-semibold text-slate-900 mb-1">{finding.clause_ref}</p>
+            <p className="text-slate-700 mb-3 whitespace-pre-line">{parsed.mainText}</p>
+
+            {parsed.paradeLine && (
+              <div
+                className={`mb-3 p-2.5 rounded-lg border text-xs flex items-start gap-2 ${
+                  parsed.paradeVerified
+                    ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900'
+                    : 'bg-amber-50/70 border-amber-200 text-amber-900'
+                }`}
+              >
+                {parsed.paradeVerified ? (
+                  <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                ) : (
+                  <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                )}
+                <div>
+                  <span className="font-semibold">
+                    {parsed.paradeVerified ? 'Mesure compensatoire détectée : ' : 'Vérification multi-documents : '}
+                  </span>
+                  <span>{parsed.paradeLine}</span>
+                </div>
+              </div>
+            )}
+
+            {parsed.legalRiskLine && (
+              <div className="mb-3 p-2.5 rounded-lg border border-red-200 bg-red-50/70 text-xs text-red-900 flex items-start gap-2">
+                <ShieldAlert className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-semibold">Risque légal encouru : </span>
+                  <span>{parsed.legalRiskLine}</span>
+                </div>
+              </div>
+            )}
+
             <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
-              {finding.sources_details && finding.sources_details.length > 0 ? (
+              {hasArticles ? (
+                <>
+                  <span className="font-semibold text-slate-700">Articles cités :</span>
+                  {finding.articles_details!.map((art) => (
+                    <button
+                      key={art.id}
+                      type="button"
+                      onClick={() => onOpenArticle(art)}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-sovereign-50 hover:bg-sovereign-100 text-sovereign-900 border border-sovereign-200 transition-colors font-medium"
+                      title={`${art.text_title}${art.section_breadcrumb ? ` — ${art.section_breadcrumb}` : ''}`}
+                    >
+                      <Scale className="w-3 h-3 text-sovereign-600 shrink-0" />
+                      <span className="font-mono text-[11px]">{art.text_code}</span>
+                      <span>• {art.article_number}</span>
+                      {art.has_sanction && (
+                        <span className="w-2 h-2 rounded-full bg-red-600 shrink-0" title="Article avec sanction" />
+                      )}
+                    </button>
+                  ))}
+                </>
+              ) : finding.sources_details && finding.sources_details.length > 0 ? (
                 <>
                   <span className="font-semibold text-slate-700">Sources juridiques :</span>
-                  {finding.sources_details.map((src: any) => (
+                  {finding.sources_details.map((src) => (
                     <span
                       key={src.id}
                       className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-200"

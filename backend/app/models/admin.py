@@ -45,6 +45,9 @@ class LLMConfig(SQLModel, table=True):
     max_tokens: int = Field(default=4000)
     system_prompt_version: str = Field(max_length=50, default="v1")
     system_prompt: str = Field(sa_column=Column(Text))
+    rpm_limit: Optional[int] = Field(default=None)  # Requests Per Minute
+    tpm_limit: Optional[int] = Field(default=None)  # Tokens Per Minute
+    rpd_limit: Optional[int] = Field(default=None)  # Requests Per Day
     is_active: bool = Field(default=True)
     is_default: bool = Field(default=False)
     created_at: datetime = Field(default_factory=datetime.utcnow, sa_column=Column(DateTime, nullable=False))

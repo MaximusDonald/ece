@@ -364,14 +364,17 @@ async def seed_llm_config() -> None:
     settings = get_settings()
     system_prompt = DEFAULT_SYSTEM_PROMPT
     provider_models = [
-        (LLMProvider.OPENAI, PROVIDER_REGISTRY[LLMProvider.OPENAI].default_model, "OpenAI GPT-4o-mini", True),
-        (LLMProvider.ANTHROPIC, PROVIDER_REGISTRY[LLMProvider.ANTHROPIC].default_model, "Anthropic Claude Haiku", False),
-        (LLMProvider.GEMINI, settings.gemini_model or PROVIDER_REGISTRY[LLMProvider.GEMINI].default_model, "Google Gemini Flash", False),
-        (LLMProvider.GROQ, settings.groq_model or PROVIDER_REGISTRY[LLMProvider.GROQ].default_model, "Groq Llama 3.3", False),
+        # (provider, model, name, is_default, rpm_limit, tpm_limit, rpd_limit)
+        (LLMProvider.GEMINI, "gemini-3.5-flash-lite", "Google Gemini 3.5 Flash Lite", True, 15, 250000, 500),
+        (LLMProvider.GEMINI, "gemini-3.8-flash", "Google Gemini 3.8 Flash", False, 5, 250000, 20),
+        (LLMProvider.GEMINI, "gemini-3.6-flash", "Google Gemini 3.6 Flash", False, 5, 250000, 20),
+        (LLMProvider.OPENAI, PROVIDER_REGISTRY[LLMProvider.OPENAI].default_model, "OpenAI GPT-4o-mini", False, 60, 150000, 1000),
+        (LLMProvider.ANTHROPIC, PROVIDER_REGISTRY[LLMProvider.ANTHROPIC].default_model, "Anthropic Claude Haiku", False, 50, 100000, 1000),
+        (LLMProvider.GROQ, settings.groq_model or PROVIDER_REGISTRY[LLMProvider.GROQ].default_model, "Groq Llama 3.3", False, 30, 100000, 1000),
     ]
 
     async with SyncSession() as session:
-        for provider, model, name, is_default in provider_models:
+        for provider, model, name, is_default, rpm, tpm, rpd in provider_models:
             existing = await session.execute(
                 select(LLMConfig).where(
                     (LLMConfig.provider == provider.value)
@@ -389,10 +392,16 @@ async def seed_llm_config() -> None:
                     max_tokens=4000,
                     system_prompt_version="v2",
                     system_prompt=system_prompt,
+                    rpm_limit=rpm,
+                    tpm_limit=tpm,
+                    rpd_limit=rpd,
                     is_active=True,
                     is_default=is_default,
                 ))
             else:
+                config.rpm_limit = rpm
+                config.tpm_limit = tpm
+                config.rpd_limit = rpd
                 # Upgrade prompt to v2 if it had the old short generic prompt
                 if len(config.system_prompt.strip()) < 200 or config.system_prompt_version == "v1":
                     config.system_prompt = system_prompt
@@ -401,13 +410,79 @@ async def seed_llm_config() -> None:
         defaults = await session.execute(select(LLMConfig).where(LLMConfig.is_default.is_(True)))
         if not defaults.scalars().first():
             primary = await session.execute(
-                select(LLMConfig).where(LLMConfig.provider == LLMProvider.OPENAI.value).limit(1)
+                select(LLMConfig).where(LLMConfig.model == "gemini-3.5-flash-lite").limit(1)
             )
             default_config = primary.scalar_one_or_none()
             if default_config:
                 default_config.is_default = True
         await session.commit()
-        print("Seeded/Updated LLM configs with detailed system prompt.")
+        print("Seeded/Updated LLM configs with rate limits and detailed system prompt.")
+
+
+async def seed_sentinel_watch_targets():
+    """Seed targeted official Regulatory Sentinel watch URLs if none are configured."""
+    watch_targets = [
+        {
+            "title": "APDP Bénin — Délibérations & Textes officiels",
+            "authority": "Autorité de Protection des Données Personnelles (APDP Bénin)",
+            "country_code": "BJ",
+            "level": LegalLevel.DECISION,
+            "article_ref": "VEILLE-APDP-BJ",
+            "url_official": "https://service.apdp.bj/documentation",
+        },
+        {
+            "title": "SGG Bénin — Journal Officiel & Décrets numériques",
+            "authority": "Secrétariat Général du Gouvernement (Bénin)",
+            "country_code": "BJ",
+            "level": LegalLevel.DECRET,
+            "article_ref": "VEILLE-SGG-BJ",
+            "url_official": "https://sgg.gouv.bj/recherche",
+        },
+        {
+            "title": "CEDEAO — Actes Additionnels & Directives",
+            "authority": "Commission de la CEDEAO",
+            "country_code": None,
+            "level": LegalLevel.DIRECTIVE,
+            "article_ref": "VEILLE-CEDEAO",
+            "url_official": "https://www.ecowas.int",
+        },
+        {
+            "title": "BCEAO — Réglementation Services de Paiement & EME",
+            "authority": "Banque Centrale des États de l'Afrique de l'Ouest (BCEAO)",
+            "country_code": None,
+            "level": LegalLevel.REGLEMENT,
+            "article_ref": "VEILLE-BCEAO",
+            "url_official": "https://www.bceao.int/fr/content/reglementation-des-systemes-et-moyens-de-paiement",
+        },
+    ]
+
+    async with SyncSession() as session:
+        existing_count = (
+            await session.execute(select(LegalSource).where(LegalSource.is_portal.is_(True)))
+        ).scalars().first()
+        if existing_count:
+            return
+
+        for target in watch_targets:
+            session.add(
+                LegalSource(
+                    title=target["title"],
+                    authority=target["authority"],
+                    country_code=target["country_code"],
+                    level=target["level"],
+                    article_ref=target["article_ref"],
+                    url_official=target["url_official"],
+                    content_hash="0" * 64,
+                    content_text="",
+                    embedding=[0.0] * 1536,
+                    status=SourceStatus.VERIFIED,
+                    is_portal=True,
+                    collection_enabled=True,
+                    crawl_depth=1,
+                )
+            )
+        await session.commit()
+        print("Seeded 4 targeted Regulatory Sentinel watch feeds.")
 
 
 async def run_all_seeds():
@@ -416,8 +491,8 @@ async def run_all_seeds():
     await seed_scoring_rules()
     await seed_llm_config()
     await seed_admin_user()
-    await seed_legal_corpus()
-    print("All seeds completed.")
+    await seed_sentinel_watch_targets()
+    print("All seeds completed (Master Corpus preserved; Sentinel watch targets active).")
 
 
 if __name__ == "__main__":

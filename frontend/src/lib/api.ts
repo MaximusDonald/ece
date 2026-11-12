@@ -101,6 +101,9 @@ export interface LLMModelConfig {
   is_active: boolean;
   is_default: boolean;
   available: boolean;
+  rpm_limit?: number | null;
+  tpm_limit?: number | null;
+  rpd_limit?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -195,6 +198,96 @@ export interface MatchedSourceDetail {
   article_ref?: string | null;
 }
 
+export interface MatchedArticleDetail {
+  id: string;
+  text_code: string;
+  text_title: string;
+  jurisdiction: string;
+  authority: string;
+  article_number: string;
+  title?: string | null;
+  section_breadcrumb: string;
+  full_text: string;
+  has_sanction: boolean;
+  sanction_details?: string | null;
+  compliance_rule_type?: string | null;
+  official_url?: string | null;
+}
+
+export interface LegalTextItem {
+  id: string;
+  code: string;
+  title: string;
+  jurisdiction: string;
+  authority: string;
+  level: string;
+  publication_date?: string | null;
+  status: string;
+  official_url?: string | null;
+  pdf_path?: string | null;
+  text_path?: string | null;
+  sha256_hash?: string | null;
+  total_articles: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CorpusSectionItem {
+  id: string;
+  text_id: string;
+  parent_section_id?: string | null;
+  level_name: string;
+  title: string;
+  breadcrumb: string;
+  order_index: number;
+  article_count: number;
+  created_at: string;
+}
+
+export interface CorpusArticleItem {
+  id: string;
+  text_id: string;
+  section_id?: string | null;
+  article_number: string;
+  order_index: number;
+  title?: string | null;
+  full_text: string;
+  topics: string[];
+  actors: string[];
+  has_sanction: boolean;
+  sanction_details?: string | null;
+  compliance_rule_type?: string | null;
+  ai_tagged: boolean;
+  text_code: string;
+  text_title: string;
+  jurisdiction: string;
+  authority: string;
+  section_breadcrumb: string;
+  official_url?: string | null;
+  prev_article_id?: string | null;
+  next_article_id?: string | null;
+  score?: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CorpusArticlePage {
+  items: CorpusArticleItem[];
+  total: number;
+  skip: number;
+  limit: number;
+  mode: string;
+}
+
+export interface CorpusSummary {
+  total_texts: number;
+  total_sections: number;
+  total_articles: number;
+  sanctioned_articles: number;
+  ai_tagged_articles: number;
+  jurisdictions: string[];
+}
+
 export interface RiskFinding {
   id: string;
   report_version_id: string;
@@ -203,7 +296,9 @@ export interface RiskFinding {
   risk_level: string;
   confidence: string;
   matched_sources: string[];
+  matched_articles?: string[];
   sources_details?: MatchedSourceDetail[];
+  articles_details?: MatchedArticleDetail[];
   obsolescence_flag: boolean;
   conflict_flag: boolean;
   conflict_details: string | null;
@@ -355,6 +450,31 @@ export interface SourceCollectionRun {
   previous_hash: string | null;
   collected_hash: string | null;
   changed: boolean | null;
+  discovered_urls_count?: number;
+  downloaded_files_count?: number;
+  ai_processed_count?: number;
+  error_message?: string | null;
+}
+
+export interface RegulatoryAlertItem {
+  id: string;
+  source_id: string;
+  collection_run_id?: string | null;
+  jurisdiction: string;
+  authority: string;
+  title: string;
+  detected_url: string;
+  document_filename?: string | null;
+  previous_hash?: string | null;
+  new_hash: string;
+  etag?: string | null;
+  change_summary: string;
+  status: 'pending_review' | 'approved' | 'dismissed';
+  review_note?: string | null;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  detected_at: string;
+}
   error_message: string | null;
   discovered_urls_count?: number;
   downloaded_files_count?: number;
@@ -599,4 +719,48 @@ export const adminApi = {
   // Audit Logs
   listAuditLogs: (params?: { entity_type?: string; user_id?: string }) =>
     api.get('/admin/audit', { params }),
+
+  // Regulatory Sentinel Alerts
+  listAlerts: (params?: { status?: string; jurisdiction?: string; source_id?: string }) =>
+    api.get<RegulatoryAlertItem[]>('/admin/alerts', { params }),
+
+  reviewAlert: (id: string, data: { action: 'approve' | 'dismiss'; note?: string }) =>
+    api.post<RegulatoryAlertItem>(`/admin/alerts/${id}/review`, data),
+};
+
+// Sovereign Master Corpus Explorer API
+export const corpusApi = {
+  getSummary: () => api.get<CorpusSummary>('/corpus/summary'),
+
+  listTexts: (jurisdiction?: string) =>
+    api.get<LegalTextItem[]>('/corpus/texts', {
+      params: jurisdiction ? { jurisdiction } : undefined,
+    }),
+
+  listTextSections: (textId: string) =>
+    api.get<CorpusSectionItem[]>(`/corpus/texts/${textId}/sections`),
+
+  listArticles: (params?: {
+    text_id?: string;
+    section_id?: string;
+    jurisdiction?: string;
+    has_sanction?: boolean;
+    compliance_rule_type?: string;
+    q?: string;
+    mode?: 'keyword' | 'hybrid';
+    skip?: number;
+    limit?: number;
+  }) => api.get<CorpusArticlePage>('/corpus/articles', { params }),
+
+  getArticle: (articleId: string) =>
+    api.get<CorpusArticleItem>(`/corpus/articles/${articleId}`),
+
+  downloadPdf: async (textId: string) => {
+    const response = await http.get<Blob>(`/corpus/texts/${textId}/pdf`, {
+      responseType: 'blob',
+    });
+    const disposition = response.headers['content-disposition'] as string | undefined;
+    const filename = disposition?.match(/filename="?([^";]+)"?/i)?.[1] || 'texte_officiel.pdf';
+    return { blob: response.data, filename };
+  },
 };

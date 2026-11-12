@@ -59,6 +59,9 @@ class LLMConfigBase(BaseModel):
     max_tokens: int = Field(default=4000, gt=0)
     system_prompt_version: str = Field(max_length=50, default="v1")
     system_prompt: str
+    rpm_limit: Optional[int] = Field(default=None, ge=1)
+    tpm_limit: Optional[int] = Field(default=None, ge=1)
+    rpd_limit: Optional[int] = Field(default=None, ge=1)
     is_active: bool = True
     is_default: bool = False
 
@@ -73,6 +76,9 @@ class LLMConfigUpdate(BaseModel):
     max_tokens: Optional[int] = Field(default=None, gt=0)
     system_prompt_version: Optional[str] = None
     system_prompt: Optional[str] = None
+    rpm_limit: Optional[int] = Field(default=None, ge=1)
+    tpm_limit: Optional[int] = Field(default=None, ge=1)
+    rpd_limit: Optional[int] = Field(default=None, ge=1)
     is_active: Optional[bool] = None
     is_default: Optional[bool] = None
 

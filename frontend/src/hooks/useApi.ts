@@ -3,8 +3,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import Cookies from 'js-cookie';
-import { api, authApi, orgApi, projectApi, documentApi, reportApi, adminApi } from '@/lib/api';
-import type { Project, ProjectListItem, Document, JobResponse, ReportVersionListItem, RiskFinding, ReportVersion, ReportDiff, LegalSource, LegalDocumentItem, SourceCollectionRun, LLMModelConfig, LLMProviderAvailability } from '@/lib/api';
+import { api, authApi, orgApi, projectApi, documentApi, reportApi, adminApi, corpusApi } from '@/lib/api';
+import type { Project, ProjectListItem, Document, JobResponse, ReportVersionListItem, RiskFinding, ReportVersion, ReportDiff, LegalSource, LegalDocumentItem, SourceCollectionRun, RegulatoryAlertItem, LLMModelConfig, LLMProviderAvailability, CorpusSummary, LegalTextItem, CorpusSectionItem, CorpusArticlePage, CorpusArticleItem } from '@/lib/api';
 
 // Auth hooks
 export function useLogin() {
@@ -528,5 +528,72 @@ export function useAdminAuditLogs(params?: { entity_type?: string; user_id?: str
   return useQuery<any[]>({
     queryKey: ['adminAuditLogs', params],
     queryFn: () => adminApi.listAuditLogs(params),
+  });
+}
+
+export function useAdminAlerts(params?: { status?: string; jurisdiction?: string; source_id?: string }) {
+  return useQuery<RegulatoryAlertItem[]>({
+    queryKey: ['adminAlerts', params],
+    queryFn: () => adminApi.listAlerts(params),
+  });
+}
+
+export function useReviewAlert() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, action, note }: { id: string; action: 'approve' | 'dismiss'; note?: string }) =>
+      adminApi.reviewAlert(id, { action, note }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['adminAlerts'] });
+      queryClient.invalidateQueries({ queryKey: ['adminAuditLogs'] });
+    },
+  });
+}
+
+// Corpus Explorer hooks
+export function useCorpusSummary() {
+  return useQuery<CorpusSummary>({
+    queryKey: ['corpusSummary'],
+    queryFn: corpusApi.getSummary,
+  });
+}
+
+export function useCorpusTexts(jurisdiction?: string) {
+  return useQuery<LegalTextItem[]>({
+    queryKey: ['corpusTexts', jurisdiction],
+    queryFn: () => corpusApi.listTexts(jurisdiction),
+  });
+}
+
+export function useCorpusSections(textId?: string) {
+  return useQuery<CorpusSectionItem[]>({
+    queryKey: ['corpusSections', textId],
+    queryFn: () => corpusApi.listTextSections(textId!),
+    enabled: !!textId,
+  });
+}
+
+export function useCorpusArticles(params?: {
+  text_id?: string;
+  section_id?: string;
+  jurisdiction?: string;
+  has_sanction?: boolean;
+  compliance_rule_type?: string;
+  q?: string;
+  mode?: 'keyword' | 'hybrid';
+  skip?: number;
+  limit?: number;
+}) {
+  return useQuery<CorpusArticlePage>({
+    queryKey: ['corpusArticles', params],
+    queryFn: () => corpusApi.listArticles(params),
+  });
+}
+
+export function useCorpusArticle(articleId: string | null) {
+  return useQuery<CorpusArticleItem>({
+    queryKey: ['corpusArticle', articleId],
+    queryFn: () => corpusApi.getArticle(articleId!),
+    enabled: !!articleId,
   });
 }

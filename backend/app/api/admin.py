@@ -19,6 +19,7 @@ from app.models.legal import (
     SourceCollectionRun, SourceCollectionRunStatus,
 )
 from app.models.admin import ScoringRule, LLMConfig, LLMProvider, CountryModule
+from app.models.corpus import RegulatoryAlert, RegulatoryAlertStatus
 from app.schemas.admin import (
     ScoringRuleRead, ScoringRuleCreate, ScoringRuleUpdate,
     LLMConfigRead, LLMConfigCreate, LLMConfigUpdate,
@@ -27,6 +28,7 @@ from app.schemas.admin import (
     AuditLogRead
 )
 from app.schemas.admin import PlatformAdminCreate
+from app.schemas.corpus import RegulatoryAlertRead, RegulatoryAlertReviewRequest
 from app.schemas.legal import (
     LegalSourceRead, LegalSourceCreate, LegalSourceUpdate,
     SourceCollectionRunRead, SourceVerificationResult,
@@ -99,12 +101,12 @@ async def list_legal_sources(
 
 @router.get("/sources/documents", response_model=List[LegalSourceRead])
 async def list_extracted_documents(
-    parent_id: Optional[UUID] = Query(None),
+    parent_id: Optional[str] = Query(None),
     country_code: Optional[str] = Query(None),
-    level: Optional[LegalLevel] = Query(None),
+    level: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
     skip: int = Query(0, ge=0),
-    limit: int = Query(50, le=200),
+    limit: int = Query(200, le=500),
     current_user: User = Depends(get_current_active_user),
     session: AsyncSession = Depends(get_async_session),
 ):
@@ -112,13 +114,20 @@ async def list_extracted_documents(
     query = select(LegalSource).where(
         (LegalSource.parent_source_id.is_not(None)) | (LegalSource.is_portal.is_(False))
     )
-    if parent_id:
-        query = query.where(LegalSource.parent_source_id == parent_id)
-    if country_code:
-        query = query.where(LegalSource.country_code == country_code.upper())
-    if level:
-        query = query.where(LegalSource.level == level)
-    if search:
+    if parent_id and str(parent_id).strip().lower() not in ("all", "none", "null", ""):
+        try:
+            pid = UUID(str(parent_id).strip())
+            query = query.where(LegalSource.parent_source_id == pid)
+        except ValueError:
+            pass
+    if country_code and str(country_code).strip().lower() not in ("all", "none", ""):
+        query = query.where(LegalSource.country_code == str(country_code).strip().upper())
+    if level and str(level).strip().lower() not in ("all", "none", ""):
+        try:
+            query = query.where(LegalSource.level == LegalLevel(str(level).strip().lower()))
+        except ValueError:
+            pass
+    if search and isinstance(search, str) and search.strip():
         search_pattern = f"%{search.strip()}%"
         query = query.where(
             (LegalSource.title.ilike(search_pattern)) |
@@ -128,7 +137,25 @@ async def list_extracted_documents(
         )
     query = query.order_by(LegalSource.updated_at.desc()).offset(skip).limit(limit)
     result = await session.execute(query)
-    return result.scalars().all()
+    docs = result.scalars().all()
+
+    # Enrich each document with parent portal title and authority
+    portals_res = await session.execute(
+        select(LegalSource.id, LegalSource.title, LegalSource.authority)
+        .where(LegalSource.is_portal == True)
+    )
+    portals_map = {row[0]: (row[1], row[2]) for row in portals_res.all()}
+
+    output = []
+    for d in docs:
+        d_read = LegalSourceRead.model_validate(d)
+        if d.parent_source_id and d.parent_source_id in portals_map:
+            p_title, p_auth = portals_map[d.parent_source_id]
+            d_read.parent_title = p_title
+            d_read.parent_authority = p_auth
+        output.append(d_read)
+
+    return output
 
 
 @router.get("/sources/{source_id}/download")
@@ -276,16 +303,17 @@ async def update_legal_source(
 async def collect_legal_source(
     source_id: UUID,
     depth: Optional[int] = Query(None, ge=1, le=3),
+    immediate: bool = Query(True),
     current_user: User = Depends(get_current_active_user),
     session: AsyncSession = Depends(get_async_session),
 ):
-    """Queue a one-off collection of a registered official document URL."""
+    """Run or queue a targeted Regulatory Sentinel check on an official watch URL."""
     source = await session.get(LegalSource, source_id)
     if not source:
         raise HTTPException(status_code=404, detail="Source not found")
 
     if depth is not None:
-        source.crawl_depth = depth
+        source.crawl_depth = 1  # Blind depth disabled; sentinel enforces targeted single-page watch
 
     active = await session.execute(
         select(SourceCollectionRun).where(
@@ -295,11 +323,11 @@ async def collect_legal_source(
     )
     active_run = active.scalar_one_or_none()
     if active_run and active_run.requested_at > datetime.utcnow() - timedelta(hours=1):
-        raise HTTPException(status_code=409, detail="Une collecte de cette source est déjà en cours.")
+        raise HTTPException(status_code=409, detail="Une vérification Sentinelle de cette source est déjà en cours.")
     if active_run:
         active_run.status = SourceCollectionRunStatus.FAILED.value
         active_run.finished_at = datetime.utcnow()
-        active_run.error_message = "La tâche est restée active plus d’une heure; une nouvelle collecte peut être lancée."
+        active_run.error_message = "La tâche est restée active plus d’une heure; une nouvelle vérification peut être lancée."
 
     run = SourceCollectionRun(source_id=source_id, trigger_type="manual", triggered_by=current_user.id)
     session.add(run)
@@ -309,13 +337,21 @@ async def collect_legal_source(
     source.last_collection_run_id = run.id
     session.add(AuditLog(
         user_id=current_user.id,
-        action="collect_source",
+        action="sentinel_watch_triggered",
         entity_type="legal_source",
         entity_id=source_id,
-        diff={"run_id": str(run.id), "trigger_type": "manual"},
+        diff={"run_id": str(run.id), "trigger_type": "manual", "immediate": immediate},
     ))
     await session.commit()
     await session.refresh(run)
+
+    if immediate:
+        from app.core.database import async_session_maker
+        from app.workers.source_collection import run_sentinel_check
+
+        await run_sentinel_check(run.id, source_id, session_factory=async_session_maker)
+        await session.refresh(run)
+        return run
 
     try:
         from app.workers.source_collection import collect_source
@@ -323,10 +359,10 @@ async def collect_legal_source(
     except Exception as exc:
         run.status = SourceCollectionRunStatus.FAILED
         run.finished_at = datetime.utcnow()
-        run.error_message = f"Impossible de démarrer la tâche de collecte : {str(exc)[:1800]}"
+        run.error_message = f"Impossible de démarrer la vérification Sentinelle : {str(exc)[:1800]}"
         source.last_collection_status = SourceCollectionRunStatus.FAILED.value
         await session.commit()
-        raise HTTPException(status_code=503, detail="La collecte n’a pas pu être mise en file.") from exc
+        raise HTTPException(status_code=503, detail="La vérification n’a pas pu être mise en file.") from exc
 
     return run
 
@@ -679,4 +715,63 @@ async def list_audit_logs(
     
     result = await session.execute(query)
     return result.scalars().all()
+
+
+# Regulatory Sentinel Alerts
+@router.get("/alerts", response_model=List[RegulatoryAlertRead])
+async def list_regulatory_alerts(
+    status_filter: Optional[str] = Query(None, alias="status"),
+    jurisdiction: Optional[str] = Query(None),
+    source_id: Optional[UUID] = Query(None),
+    limit: int = Query(100, ge=1, le=300),
+    current_user: User = Depends(get_current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """List Regulatory Sentinel change alerts awaiting validation or already reviewed."""
+    stmt = select(RegulatoryAlert)
+    if status_filter and status_filter.strip().lower() not in ("all", ""):
+        stmt = stmt.where(RegulatoryAlert.status == status_filter.strip().lower())
+    if jurisdiction and jurisdiction.strip().lower() not in ("all", ""):
+        stmt = stmt.where(RegulatoryAlert.jurisdiction == jurisdiction.strip().upper())
+    if source_id:
+        stmt = stmt.where(RegulatoryAlert.source_id == source_id)
+    stmt = stmt.order_by(RegulatoryAlert.detected_at.desc()).limit(limit)
+    res = await session.execute(stmt)
+    return list(res.scalars().all())
+
+
+@router.post("/alerts/{alert_id}/review", response_model=RegulatoryAlertRead)
+async def review_regulatory_alert(
+    alert_id: UUID,
+    payload: RegulatoryAlertReviewRequest,
+    current_user: User = Depends(get_current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Approve or dismiss a Regulatory Sentinel alert before any corpus ingestion."""
+    alert = await session.get(RegulatoryAlert, alert_id)
+    if not alert:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alerte introuvable")
+
+    new_status = (
+        RegulatoryAlertStatus.APPROVED.value
+        if payload.action == "approve"
+        else RegulatoryAlertStatus.DISMISSED.value
+    )
+    alert.status = new_status
+    alert.review_note = payload.note
+    alert.reviewed_by = current_user.id
+    alert.reviewed_at = datetime.utcnow()
+    session.add(alert)
+    session.add(
+        AuditLog(
+            user_id=current_user.id,
+            action=f"regulatory_alert_{payload.action}",
+            entity_type="regulatory_alert",
+            entity_id=alert.id,
+            diff={"status": new_status, "note": payload.note, "detected_url": alert.detected_url},
+        )
+    )
+    await session.commit()
+    await session.refresh(alert)
+    return alert
 

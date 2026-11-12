@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 
 from app.core.config import get_settings
 from app.core.database import init_db, lifespan_db
-from app.api import auth, projects, documents, reports, jobs, admin
+from app.api import auth, projects, documents, reports, jobs, admin, corpus
 
 settings = get_settings()
 
@@ -44,6 +44,7 @@ app.include_router(documents.router, prefix="/api")
 app.include_router(reports.router, prefix="/api")
 # app.include_router(jobs.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
+app.include_router(corpus.router, prefix="/api")
 
 
 @app.get("/health")

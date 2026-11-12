@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -64,6 +64,7 @@ const LEVEL_OPTIONS = [
 ];
 
 export default function AdminExtractedDocumentsPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const initialParentId = searchParams.get('parent_id') || '';
 
@@ -74,10 +75,28 @@ export default function AdminExtractedDocumentsPage() {
   const [searchTerm, setSearchTerm] = React.useState<string>('');
   const [inspectingDoc, setInspectingDoc] = React.useState<LegalDocumentItem | null>(null);
 
+  React.useEffect(() => {
+    const p = searchParams.get('parent_id') || '';
+    setSelectedParentId(p);
+  }, [searchParams]);
+
+  const handleParentChange = (val: string) => {
+    const newParent = val === 'all' ? '' : val;
+    setSelectedParentId(newParent);
+    const params = new URLSearchParams(searchParams.toString());
+    if (newParent) {
+      params.set('parent_id', newParent);
+    } else {
+      params.delete('parent_id');
+    }
+    const qs = params.toString();
+    router.replace(`/dashboard/admin/sources/documents${qs ? `?${qs}` : ''}`, { scroll: false });
+  };
+
   const { data: documents, isLoading, refetch } = useAdminExtractedDocuments({
-    parent_id: selectedParentId || undefined,
-    country_code: selectedCountry || undefined,
-    level: selectedLevel || undefined,
+    parent_id: selectedParentId && selectedParentId !== 'all' ? selectedParentId : undefined,
+    country_code: selectedCountry && selectedCountry !== 'all' ? selectedCountry : undefined,
+    level: selectedLevel && selectedLevel !== 'all' ? selectedLevel : undefined,
     search: searchTerm || undefined,
   });
 
@@ -202,7 +221,7 @@ export default function AdminExtractedDocumentsPage() {
               />
             </div>
 
-            <Select value={selectedParentId || 'all'} onValueChange={(val) => setSelectedParentId(val === 'all' ? '' : val)}>
+            <Select value={selectedParentId || 'all'} onValueChange={handleParentChange}>
               <SelectTrigger className="text-sm">
                 <SelectValue placeholder="Tous les portails" />
               </SelectTrigger>
@@ -303,8 +322,11 @@ export default function AdminExtractedDocumentsPage() {
 
                       {/* Source Parent Portal */}
                       <TableCell className="py-3.5">
-                        <span className="text-xs text-slate-700 font-medium block truncate max-w-[160px]">
-                          {doc.parent_title || doc.parent_authority || 'Portail racine'}
+                        <span
+                          className="text-xs text-slate-700 font-medium block truncate max-w-[160px]"
+                          title={doc.parent_title || doc.parent_authority || parentSources?.find((p) => p.id === doc.parent_source_id)?.title || ''}
+                        >
+                          {doc.parent_title || doc.parent_authority || parentSources?.find((p) => p.id === doc.parent_source_id)?.title || 'Portail racine'}
                         </span>
                       </TableCell>
 

@@ -1,14 +1,20 @@
-"""Intelligent legal web crawler with recursive discovery, document streaming, and MinIO archiving."""
+"""Regulatory Sentinel: targeted official feed monitoring via ETag, Last-Modified, and SHA-256 diffing.
 
-import asyncio
+Blind multi-page site spidering was retired in Phase 7; the sentinel monitors
+explicitly registered regulatory watch URLs and emits pending alerts for
+human admin review before any corpus ingestion.
+"""
+
+from __future__ import annotations
+
+import difflib
 import hashlib
 import html
 import ipaddress
 import logging
-import mimetypes
 import re
 import socket
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from html.parser import HTMLParser
 from typing import List, Optional, Set, Tuple
 from urllib.parse import unquote, urljoin, urlparse
@@ -16,33 +22,36 @@ from urllib.parse import unquote, urljoin, urlparse
 import fitz
 import httpx
 
-from app.services.minio_client import ensure_bucket_exists, get_minio_client, upload_file
-
 logger = logging.getLogger(__name__)
 
 LEGAL_KEYWORDS = {
     "loi", "lois", "decret", "décret", "decrets", "décrets", "arrete", "arrêté",
     "reglement", "règlement", "directive", "deliberation", "délibération", "decision",
-    "décision", "guide", "documentation", "juridique", "legal", "textes", "corpus",
-    "donnees", "données", "personnelles", "conformite", "conformité", "telecharger",
-    "download", "recueil", "code", "numerique", "numérique"
+    "décision", "sanction", "ordonnance", "acte additionnel", "circulaire",
+    "donnees", "données", "personnelles", "conformite", "conformité", "code", "numerique", "numérique",
 }
 
-MAX_DOWNLOAD_BYTES = 35 * 1024 * 1024  # 35 MB per document
-MAX_PAGES_PER_CRAWL = 35
-MINIO_BUCKET_LEGAL = "legal-sources"
+NON_NORMATIVE_NOISE_KEYWORDS = {
+    "formulaire", "formulaires", "discours", "rapport annuel", "communique", "communiqué",
+    "agenda", "actualite", "actualité", "interview", "evenement", "événement",
+    "galerie", "newsletter", "contact", "mention legale", "mentions légales", "brochure",
+}
+
+MAX_WATCH_BYTES = 15 * 1024 * 1024  # 15 MB safeguard
 
 
 class _HTMLLinkAndTextExtractor(HTMLParser):
+    """Extract visible text and anchor links cleanly from a single watched HTML page."""
+
     def __init__(self, base_url: str) -> None:
         super().__init__(convert_charrefs=True)
         self.base_url = base_url
-        self.links: List[Tuple[str, str]] = []  # (absolute_url, anchor_text)
+        self.links: List[Tuple[str, str]] = []
         self.current_href: Optional[str] = None
         self.current_anchor_text: List[str] = []
         self._skip_depth = 0
         self.visible_text_parts: List[str] = []
-        self._ignored_tags = {"script", "style", "noscript", "svg"}
+        self._ignored_tags = {"script", "style", "noscript", "svg", "footer", "nav"}
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         tag_lower = tag.lower()
@@ -56,8 +65,7 @@ class _HTMLLinkAndTextExtractor(HTMLParser):
                     clean_val = attr_val.strip()
                     if clean_val and not clean_val.startswith(("javascript:", "mailto:", "tel:", "#")):
                         try:
-                            abs_url = urljoin(self.base_url, clean_val)
-                            self.current_href = abs_url
+                            self.current_href = urljoin(self.base_url, clean_val).split("#")[0]
                             self.current_anchor_text = []
                         except Exception:
                             self.current_href = None
@@ -106,15 +114,24 @@ def validate_public_https_url(url: str) -> None:
         raise ValueError("L'URL doit pointer exclusivement vers une adresse IP publique routable.")
 
 
+def get_base_domain(host: str) -> str:
+    parts = host.lower().strip().split(".")
+    if len(parts) >= 2:
+        return ".".join(parts[-2:])
+    return host.lower().strip()
+
+
 def is_same_or_subdomain(target_host: str, root_host: str) -> bool:
-    """Verify target_host is equal to or a subdomain of root_host."""
     t = target_host.lower().strip()
     r = root_host.lower().strip()
-    return t == r or t.endswith(f".{r}")
+    if t == r or t.endswith(f".{r}") or r.endswith(f".{t}"):
+        return True
+    base_target = get_base_domain(t)
+    base_root = get_base_domain(r)
+    return base_target == base_root and bool(base_root)
 
 
 def score_link_priority(url: str, anchor_text: str) -> int:
-    """Give higher priority to links matching legal documentation keywords."""
     combined = f"{url.lower()} {anchor_text.lower()}"
     score = 0
     if ".pdf" in url.lower():
@@ -125,8 +142,79 @@ def score_link_priority(url: str, anchor_text: str) -> int:
     return score
 
 
+def classify_normative_candidate(url: str, title: str) -> tuple[bool, str]:
+    """Filter out non-normative noise (forms, speeches, press releases, annual reports)."""
+    combined = f"{url.lower()} {title.lower()}"
+    for bad in NON_NORMATIVE_NOISE_KEYWORDS:
+        if bad in combined:
+            return False, f"Exclu (document non normatif : '{bad}')"
+
+    normative_markers = (
+        "loi", "decret", "décret", "arrete", "arrêté", "deliberation", "délibération",
+        "decision", "décision", "sanction", "reglement", "règlement", "directive",
+        "ordonnance", "acte", "code", "journal officiel",
+    )
+    if any(m in combined for m in normative_markers) or url.lower().endswith(".pdf"):
+        return True, "Texte ou acte normatif candidat"
+    return False, "Lien hors périmètre normatif"
+
+
+def compute_text_diff_summary(previous_text: Optional[str], current_text: str, max_lines: int = 18) -> str:
+    """Build a concise French diff summary showing newly added regulatory lines."""
+    if not previous_text:
+        preview = "\n".join(line for line in current_text.splitlines()[:8] if line.strip())
+        return f"Empreinte initiale enregistrée ({len(current_text)} car.). Aperçu :\n{preview[:700]}"
+
+    prev_lines = [l.strip() for l in previous_text.splitlines() if l.strip()]
+    curr_lines = [l.strip() for l in current_text.splitlines() if l.strip()]
+    diff_iter = difflib.unified_diff(prev_lines, curr_lines, lineterm="", n=0)
+
+    added_lines: List[str] = []
+    removed_lines: List[str] = []
+    for line in diff_iter:
+        if line.startswith(("+++", "---", "@@")):
+            continue
+        if line.startswith("+"):
+            added_lines.append(line[1:].strip())
+        elif line.startswith("-"):
+            removed_lines.append(line[1:].strip())
+
+    parts: List[str] = []
+    if added_lines:
+        parts.append("Ajouts détectés :\n" + "\n".join(f"+ {l[:220]}" for l in added_lines[:max_lines]))
+    if removed_lines:
+        parts.append("Suppressions / modifications :\n" + "\n".join(f"- {l[:220]}" for l in removed_lines[:6]))
+    return "\n\n".join(parts) if parts else "Modification structurelle ou métadonnée détectée (ETag / empreinte modifiée)."
+
+
+@dataclass
+class NormativeCandidate:
+    """Single normative publication or link discovered on a watched page."""
+
+    url: str
+    title: str
+    filename: Optional[str] = None
+    reason: str = ""
+
+
+@dataclass
+class SentinelCheckResult:
+    """Outcome of a single targeted regulatory watch check."""
+
+    changed: bool
+    status_code: int
+    new_hash: str
+    etag: Optional[str] = None
+    last_modified: Optional[str] = None
+    change_summary: str = ""
+    page_snapshot: str = ""
+    candidates: List[NormativeCandidate] = field(default_factory=list)
+
+
 @dataclass
 class DiscoveredDocument:
+    """Legacy dataclass preserved for backwards compatibility."""
+
     download_url: str
     original_filename: str
     content_type: str
@@ -138,189 +226,237 @@ class DiscoveredDocument:
     file_size_bytes: int
 
 
+class RegulatorySentinel:
+    """Targeted watch engine checking ETag, Last-Modified, and SHA-256 on one official URL."""
+
+    def __init__(self, target_url: str) -> None:
+        validate_public_https_url(target_url)
+        self.target_url = target_url
+        self.target_host = urlparse(target_url).hostname or ""
+        self.headers = {
+            "User-Agent": "Mozilla/5.0 (compatible; ECO-Compliance-Sentinel/3.0; +https://ece.gov)",
+            "Accept": "text/html,application/xhtml+xml,application/pdf,application/json,*/*",
+        }
+
+    async def check_for_updates(
+        self,
+        *,
+        client: Optional[httpx.AsyncClient] = None,
+        previous_etag: Optional[str] = None,
+        previous_last_modified: Optional[str] = None,
+        previous_hash: Optional[str] = None,
+        previous_snapshot: Optional[str] = None,
+        known_urls: Optional[Set[str]] = None,
+    ) -> SentinelCheckResult:
+        """Fetch only the monitored page/feed, compare fingerprints, and emit diff + candidates."""
+        req_headers = dict(self.headers)
+        if previous_etag:
+            req_headers["If-None-Match"] = previous_etag
+        if previous_last_modified:
+            req_headers["If-Modified-Since"] = previous_last_modified
+
+        owns_client = client is None
+        http_client = client or httpx.AsyncClient(timeout=httpx.Timeout(30.0), follow_redirects=True)
+        try:
+            resp = await http_client.get(self.target_url, headers=req_headers)
+            if resp.status_code == 304:
+                return SentinelCheckResult(
+                    changed=False,
+                    status_code=304,
+                    new_hash=previous_hash or "",
+                    etag=previous_etag,
+                    last_modified=previous_last_modified,
+                    change_summary="Aucun changement (HTTP 304 Not Modified).",
+                )
+            resp.raise_for_status()
+
+            etag = resp.headers.get("etag") or previous_etag
+            last_modified = resp.headers.get("last-modified") or previous_last_modified
+            content_type = (resp.headers.get("content-type") or "").lower().split(";")[0].strip()
+
+            raw_bytes = resp.content[:MAX_WATCH_BYTES]
+            candidates: List[NormativeCandidate] = []
+            known = {u.strip() for u in (known_urls or set()) if u}
+
+            if "pdf" in content_type or self.target_url.lower().endswith(".pdf"):
+                new_hash = hashlib.sha256(raw_bytes).hexdigest()
+                snapshot = self._extract_pdf_preview(raw_bytes)
+                filename = self._extract_filename(resp, self.target_url)
+                if previous_hash and new_hash == previous_hash:
+                    return SentinelCheckResult(
+                        changed=False,
+                        status_code=resp.status_code,
+                        new_hash=new_hash,
+                        etag=etag,
+                        last_modified=last_modified,
+                        change_summary="Empreinte SHA-256 du document inchangée.",
+                    )
+                candidates.append(
+                    NormativeCandidate(
+                        url=self.target_url,
+                        title=filename,
+                        filename=filename,
+                        reason="PDF officiel modifié ou nouvellement surveillé",
+                    )
+                )
+            else:
+                html_text = raw_bytes.decode("utf-8", errors="replace")
+                parser = _HTMLLinkAndTextExtractor(self.target_url)
+                parser.feed(html_text)
+                visible_text = "\n".join(re.sub(r"\s+", " ", line).strip() for line in parser.visible_text_parts if line.strip())
+
+                # Inspect links on the watched page only (no recursive spidering!)
+                for link_url, anchor in parser.links:
+                    parsed_link = urlparse(link_url)
+                    if parsed_link.scheme != "https":
+                        continue
+                    if not is_same_or_subdomain(parsed_link.hostname or "", self.target_host):
+                        continue
+                    ok, reason = classify_normative_candidate(link_url, anchor)
+                    if not ok:
+                        continue
+                    fname = self._guess_filename_from_url(link_url) if ".pdf" in link_url.lower() else None
+                    candidates.append(
+                        NormativeCandidate(
+                            url=link_url,
+                            title=(anchor or fname or link_url)[:480],
+                            filename=fname,
+                            reason=reason,
+                        )
+                    )
+
+                # If watching APDP Benin portal, query its official documentation feed without spidering
+                if "apdp.bj" in self.target_host:
+                    candidates.extend(await self._check_apdp_feed(http_client))
+
+                # Deduplicate candidates & keep canonical snapshot deterministic
+                deduped: List[NormativeCandidate] = []
+                seen_urls: Set[str] = set()
+                for cand in candidates:
+                    if cand.url not in seen_urls:
+                        seen_urls.add(cand.url)
+                        deduped.append(cand)
+                candidates = deduped[:25]
+
+                fingerprint_payload = visible_text + "\n" + "\n".join(
+                    sorted(f"{c.url}|{c.title}" for c in candidates)
+                )
+                new_hash = hashlib.sha256(fingerprint_payload.encode("utf-8")).hexdigest()
+                snapshot = fingerprint_payload
+
+                if previous_hash and new_hash == previous_hash:
+                    return SentinelCheckResult(
+                        changed=False,
+                        status_code=resp.status_code,
+                        new_hash=new_hash,
+                        etag=etag,
+                        last_modified=last_modified,
+                        change_summary="Empreinte SHA-256 de la page surveillée inchangée.",
+                    )
+
+            new_candidates = [c for c in candidates if c.url not in known]
+            diff_summary = compute_text_diff_summary(previous_snapshot, snapshot)
+
+            return SentinelCheckResult(
+                changed=True,
+                status_code=resp.status_code,
+                new_hash=new_hash,
+                etag=etag,
+                last_modified=last_modified,
+                change_summary=diff_summary,
+                page_snapshot=snapshot[:60000],
+                candidates=new_candidates if new_candidates else candidates[:5],
+            )
+        finally:
+            if owns_client:
+                await http_client.aclose()
+
+    async def _check_apdp_feed(self, client: httpx.AsyncClient) -> List[NormativeCandidate]:
+        """Targeted check on Benin APDP official documentation endpoints (no formulaires/discours)."""
+        discovered: List[NormativeCandidate] = []
+        api_base = "https://apiprod.apdp.bj/api/v1"
+        for slug in ("lois", "code_du_numerique", "decrets_et_arretes", "decisions"):
+            try:
+                resp = await client.get(
+                    f"{api_base}/articles?slug={slug}&page=1&categorie=&section=",
+                    headers={"Accept": "application/json"},
+                    timeout=12.0,
+                )
+                if resp.status_code != 200:
+                    continue
+                for item in resp.json().get("data", []):
+                    title = str(item.get("title") or slug)
+                    doc_urls = item.get("document_url") or []
+                    if isinstance(doc_urls, str):
+                        doc_urls = [doc_urls]
+                    for u in doc_urls:
+                        if not isinstance(u, str) or not u.startswith("https://"):
+                            continue
+                        ok, reason = classify_normative_candidate(u, title)
+                        if ok:
+                            discovered.append(
+                                NormativeCandidate(
+                                    url=u,
+                                    title=title[:480],
+                                    filename=self._guess_filename_from_url(u),
+                                    reason=f"Flux APDP ({slug}) : {reason}",
+                                )
+                            )
+            except Exception as exc:
+                logger.warning("Sentinel APDP feed check warning (%s): %s", slug, exc)
+        return discovered
+
+    @staticmethod
+    def _extract_pdf_preview(raw_bytes: bytes) -> str:
+        try:
+            doc = fitz.open(stream=raw_bytes, filetype="pdf")
+            try:
+                text = "\n".join(page.get_text("text") for page in doc[:10])
+            finally:
+                doc.close()
+            return "\n".join(re.sub(r"\s+", " ", line).strip() for line in html.unescape(text).splitlines() if line.strip())
+        except Exception:
+            return ""
+
+    @staticmethod
+    def _guess_filename_from_url(url: str) -> str:
+        last = unquote(urlparse(url).path).split("/")[-1].strip()
+        if not last:
+            return "acte_normatif.pdf"
+        return re.sub(r'[\\/*?:"<>|]', "_", last)
+
+    @classmethod
+    def _extract_filename(cls, response: httpx.Response, url: str) -> str:
+        cd = response.headers.get("content-disposition", "")
+        match = re.search(r'filename\*?=(?:UTF-8\'\')?["\']?([^"\';]+)["\']?', cd, re.IGNORECASE)
+        if match:
+            raw = unquote(match.group(1).strip())
+            if raw:
+                return re.sub(r'[\\/*?:"<>|]', "_", raw)
+        return cls._guess_filename_from_url(url)
+
+
 class LegalCrawlerEngine:
+    """Legacy symbol retained for compatibility; blind multi-level crawling is permanently disabled."""
+
     def __init__(
         self,
         root_url: str,
-        max_depth: int = 2,
+        max_depth: int = 1,
         country_code: Optional[str] = None,
         existing_filenames: Optional[Set[str]] = None,
-    ):
+    ) -> None:
         validate_public_https_url(root_url)
         self.root_url = root_url
         self.root_host = urlparse(root_url).hostname or ""
-        self.max_depth = min(max(1, max_depth), 3)
+        self.max_depth = 1  # Blind multi-level exploration disabled in Phase 7
         self.country_code = (country_code or "bj").lower()
         self.existing_filenames: Set[str] = {
             f.strip().lower() for f in (existing_filenames or set()) if f and f.strip()
         }
-        self.visited_urls: Set[str] = set()
-        self.discovered_documents: List[DiscoveredDocument] = []
-        self.skipped_duplicates_count: int = 0
-        self.headers = {
-            "User-Agent": "Mozilla/5.0 (compatible; ECO-Compliance-Engine-Crawler/2.0; +https://ece.gov)",
-            "Accept": "text/html,application/xhtml+xml,application/pdf,*/*",
-        }
+        self.sentinel = RegulatorySentinel(root_url)
 
     async def crawl(self) -> List[DiscoveredDocument]:
-        """Execute recursive crawl and return discovered, downloaded and archived legal documents."""
-        minio_client = get_minio_client()
-        ensure_bucket_exists(minio_client, MINIO_BUCKET_LEGAL)
-
-        # Queue items: (url, current_depth, referrer_url, anchor_text)
-        queue: List[Tuple[str, int, str, str]] = [(self.root_url, 0, "", "Accueil")]
-        pages_crawled = 0
-
-        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0), follow_redirects=True) as client:
-            while queue and pages_crawled < MAX_PAGES_PER_CRAWL:
-                # Sort queue by priority score
-                queue.sort(key=lambda item: score_link_priority(item[0], item[3]), reverse=True)
-                current_url, current_depth, referrer, anchor = queue.pop(0)
-
-                # Normalize URL (strip fragment)
-                clean_url = current_url.split("#")[0]
-                if clean_url in self.visited_urls:
-                    continue
-                self.visited_urls.add(clean_url)
-
-                try:
-                    validate_public_https_url(clean_url)
-                    parsed = urlparse(clean_url)
-                    if not is_same_or_subdomain(parsed.hostname or "", self.root_host):
-                        continue
-
-                    # Stream head or small get to check content-type
-                    async with client.stream("GET", clean_url, headers=self.headers) as resp:
-                        if resp.status_code >= 400:
-                            continue
-
-                        raw_content_type = resp.headers.get("content-type", "").lower()
-                        content_type = raw_content_type.split(";")[0].strip()
-                        is_pdf = "pdf" in content_type or clean_url.lower().endswith(".pdf")
-
-                        # If it is a PDF or document
-                        if is_pdf:
-                            filename = self._extract_filename(resp, clean_url)
-                            # Dedup check: If filename already exists under this source, skip downloading
-                            if filename.strip().lower() in self.existing_filenames:
-                                logger.info(
-                                    "PDF '%s' déjà collecté pour cette source parent. Téléchargement ignoré.",
-                                    filename,
-                                )
-                                self.skipped_duplicates_count += 1
-                                continue
-
-                            doc = await self._process_pdf_document(
-                                resp, clean_url, referrer, anchor, minio_client, filename=filename
-                            )
-                            if doc:
-                                self.discovered_documents.append(doc)
-                                self.existing_filenames.add(doc.original_filename.strip().lower())
-                            continue
-
-                        # If it is an HTML page and depth < max_depth
-                        if ("html" in content_type or "xhtml" in content_type) and current_depth < self.max_depth:
-                            pages_crawled += 1
-                            body = bytearray()
-                            async for chunk in resp.aiter_bytes():
-                                body.extend(chunk)
-                                if len(body) > 10 * 1024 * 1024:  # 10 MB max for HTML
-                                    break
-
-                            html_text = body.decode("utf-8", errors="replace")
-                            parser = _HTMLLinkAndTextExtractor(clean_url)
-                            parser.feed(html_text)
-
-                            # Enqueue child links
-                            for child_url, child_anchor in parser.links:
-                                child_clean = child_url.split("#")[0]
-                                if child_clean not in self.visited_urls:
-                                    queue.append((child_clean, current_depth + 1, clean_url, child_anchor))
-
-                except Exception as exc:
-                    logger.warning("Crawler encountered an error on %s: %s", clean_url, exc)
-                    continue
-
-        return self.discovered_documents
-
-    async def _process_pdf_document(
-        self,
-        response: httpx.Response,
-        url: str,
-        referrer: str,
-        anchor: str,
-        minio_client,
-        filename: Optional[str] = None,
-    ) -> Optional[DiscoveredDocument]:
-        """Download binary PDF, compute SHA-256, extract text, and archive to MinIO."""
-        body = bytearray()
-        async for chunk in response.aiter_bytes():
-            body.extend(chunk)
-            if len(body) > MAX_DOWNLOAD_BYTES:
-                logger.warning("PDF exceeds size limit: %s", url)
-                return None
-
-        if len(body) < 500:
-            return None
-
-        content_bytes = bytes(body)
-        sha256 = hashlib.sha256(content_bytes).hexdigest()
-
-        # Extract original filename if not provided
-        if not filename:
-            filename = self._extract_filename(response, url)
-
-        # Extract text via PyMuPDF
-        try:
-            doc = fitz.open(stream=content_bytes, filetype="pdf")
-            try:
-                text_parts = [page.get_text("text") for page in doc]
-                full_text = "\n".join(text_parts).strip()
-            finally:
-                doc.close()
-        except Exception as exc:
-            logger.warning("Failed to extract text from PDF %s: %s", url, exc)
-            return None
-
-        # Clean text
-        normalized_text = "\n".join(re.sub(r"\s+", " ", line).strip() for line in html.unescape(full_text).splitlines())
-        normalized_text = re.sub(r"\n{3,}", "\n\n", normalized_text).strip()
-
-        if len(normalized_text) < 100:
-            return None
-
-        # Archive to MinIO: legal-sources/{country}/{sha256[:12]}_{filename}
-        minio_obj_name = f"{self.country_code}/{sha256[:12]}_{filename}"
-        upload_file(minio_client, MINIO_BUCKET_LEGAL, minio_obj_name, content_bytes, "application/pdf")
-
-        return DiscoveredDocument(
-            download_url=url,
-            original_filename=filename,
-            content_type="application/pdf",
-            content_hash=sha256,
-            content_text=normalized_text,
-            minio_path=f"{MINIO_BUCKET_LEGAL}/{minio_obj_name}",
-            source_page_url=referrer or self.root_url,
-            anchor_text=anchor,
-            file_size_bytes=len(content_bytes),
-        )
-
-    def _extract_filename(self, response: httpx.Response, url: str) -> str:
-        """Extract filename from Content-Disposition header or fallback to URL path segment."""
-        cd = response.headers.get("content-disposition", "")
-        if "filename=" in cd:
-            match = re.search(r'filename\*?=(?:UTF-8\'\')?["\']?([^"\';]+)["\']?', cd, re.IGNORECASE)
-            if match:
-                raw_name = unquote(match.group(1).strip())
-                if raw_name:
-                    return re.sub(r'[\\/*?:"<>|]', "_", raw_name)
-
-        # Fallback to URL path
-        path = unquote(urlparse(url).path)
-        last_segment = path.split("/")[-1].strip()
-        if last_segment:
-            if not last_segment.lower().endswith(".pdf"):
-                last_segment = f"{last_segment}.pdf"
-            return re.sub(r'[\\/*?:"<>|]', "_", last_segment)
-
-        return "document_juridique.pdf"
+        """Blind crawling is retired; use RegulatorySentinel.check_for_updates() instead."""
+        logger.warning("LegalCrawlerEngine.crawl() appelé alors que l'aspiration aveugle est désactivée.")
+        return []

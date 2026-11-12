@@ -20,18 +20,21 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
+  Scale,
 } from 'lucide-react';
 
 const navigation = [
   { name: 'Tableau de bord', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Projets', href: '/dashboard/projects', icon: FileText },
+  { name: 'Codes & Articles', href: '/dashboard/corpus', icon: Scale },
   { name: 'Équipe', href: '/dashboard/team', icon: Users },
   { name: 'Paramètres', href: '/dashboard/settings', icon: Settings },
 ];
 
 const adminNavigation = [
-  { name: 'Portails & Collecte IA', href: '/dashboard/admin/sources', icon: Globe },
-  { name: 'Bibliothèque juridique', href: '/dashboard/admin/sources/documents', icon: FileText },
+  { name: 'Bibliothèque des Codes', href: '/dashboard/admin/corpus', icon: Scale },
+  { name: 'Sentinelle réglementaire', href: '/dashboard/admin/sources', icon: Globe },
+  { name: 'Archives Crawler (Legacy)', href: '/dashboard/admin/sources/documents', icon: FileText },
   { name: 'Règles de scoring', href: '/dashboard/admin/rules', icon: Shield },
   { name: 'Modèles LLM', href: '/dashboard/admin/models', icon: Code },
   { name: 'Pays / Juridictions', href: '/dashboard/admin/countries', icon: Database },
@@ -47,10 +50,12 @@ const getPageHeaderInfo = (pathname: string) => {
   if (pathname.includes('/diff')) return { title: 'Comparaison de versions', category: 'Rapports' };
   if (pathname.startsWith('/dashboard/projects/new')) return { title: 'Nouveau projet', category: 'Projets' };
   if (pathname.startsWith('/dashboard/projects')) return { title: 'Projets de conformité', category: 'Gestion' };
+  if (pathname.startsWith('/dashboard/corpus')) return { title: 'Codes & Articles de Loi', category: 'Référentiel' };
   if (pathname.startsWith('/dashboard/team')) return { title: 'Équipe & Accès', category: 'Organisation' };
   if (pathname.startsWith('/dashboard/settings')) return { title: 'Paramètres', category: 'Compte' };
-  if (pathname.startsWith('/dashboard/admin/sources/documents')) return { title: 'Textes juridiques extraits', category: 'Gouvernance' };
-  if (pathname.startsWith('/dashboard/admin/sources')) return { title: 'Portails officiels & Collecte IA', category: 'Gouvernance' };
+  if (pathname.startsWith('/dashboard/admin/corpus')) return { title: 'Bibliothèque des Codes', category: 'Gouvernance' };
+  if (pathname.startsWith('/dashboard/admin/sources/documents')) return { title: 'Archives Crawler', category: 'Gouvernance' };
+  if (pathname.startsWith('/dashboard/admin/sources')) return { title: 'Sentinelle Réglementaire', category: 'Gouvernance' };
   if (pathname.startsWith('/dashboard/admin/rules')) return { title: 'Règles de scoring', category: 'Gouvernance' };
   if (pathname.startsWith('/dashboard/admin/models')) return { title: 'Modèles LLM', category: 'Gouvernance' };
   if (pathname.startsWith('/dashboard/admin/countries')) return { title: 'Pays & Juridictions', category: 'Gouvernance' };

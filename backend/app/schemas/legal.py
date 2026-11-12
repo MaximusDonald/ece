@@ -11,7 +11,7 @@ class LegalSourceBase(BaseModel):
     authority: str = Field(max_length=255)
     country_code: Optional[str] = Field(default=None, max_length=2)
     level: LegalLevel
-    article_ref: str = Field(max_length=100)
+    article_ref: str = Field(max_length=255)
     url_official: str = Field(max_length=1000)
     content_hash: str = Field(max_length=64)
     content_text: str
@@ -40,7 +40,7 @@ class LegalSourceUpdate(BaseModel):
     authority: Optional[str] = Field(default=None, max_length=255)
     country_code: Optional[str] = Field(default=None, max_length=2)
     level: Optional[LegalLevel] = None
-    article_ref: Optional[str] = Field(default=None, max_length=100)
+    article_ref: Optional[str] = Field(default=None, max_length=255)
     url_official: Optional[str] = Field(default=None, max_length=1000)
     content_text: Optional[str] = None
     status: Optional[SourceStatus] = None
@@ -62,6 +62,8 @@ class LegalSourceRead(LegalSourceBase):
     source_etag: Optional[str] = None
     source_last_modified: Optional[str] = None
     child_documents_count: Optional[int] = 0
+    parent_title: Optional[str] = None
+    parent_authority: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     
@@ -107,12 +109,29 @@ class MatchedSourceDetail(BaseModel):
     article_ref: Optional[str] = None
 
 
+class MatchedArticleDetail(BaseModel):
+    id: UUID
+    text_code: str
+    text_title: str
+    jurisdiction: str
+    authority: str
+    article_number: str
+    title: Optional[str] = None
+    section_breadcrumb: str = ""
+    full_text: str
+    has_sanction: bool = False
+    sanction_details: Optional[str] = None
+    compliance_rule_type: Optional[str] = None
+    official_url: Optional[str] = None
+
+
 class RiskFindingBase(BaseModel):
     clause_ref: str
     finding_text: str
     risk_level: RiskLevel
     confidence: ConfidenceLevel
     matched_sources: List[UUID] = []
+    matched_articles: List[UUID] = []
     obsolescence_flag: bool = False
     conflict_flag: bool = False
     conflict_details: Optional[str] = None
@@ -124,6 +143,7 @@ class RiskFindingRead(RiskFindingBase):
     report_version_id: UUID
     created_at: datetime
     sources_details: List[MatchedSourceDetail] = []
+    articles_details: List[MatchedArticleDetail] = []
     
     class Config:
         from_attributes = True

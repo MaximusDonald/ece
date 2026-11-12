@@ -55,6 +55,28 @@ class ConfiguredLLMRouter(LLMClient):
 
         final_category = "unknown"
         for index, config in enumerate(candidates):
+            # Check proactive rate limit before network call to prevent HTTP 429
+            from app.services.rate_limiter import rate_limiter, QuotaExceededError
+            try:
+                await rate_limiter.acquire_slot(
+                    provider=config.provider,
+                    model=config.model,
+                    rpm_limit=config.rpm_limit,
+                    rpd_limit=config.rpd_limit,
+                    tpm_limit=config.tpm_limit,
+                    estimated_tokens=len(prompt) // 4,
+                )
+            except QuotaExceededError as quota_err:
+                logger.warning(
+                    "Contrôle de débit préventif: %s (fournisseur=%s, modèle=%s)",
+                    quota_err, config.provider, config.model
+                )
+                if index + 1 < len(candidates):
+                    continue
+                # If last candidate is throttled, fall back to error classification
+                final_category = "quota_exceeded"
+                break
+
             definition = get_provider(config.provider)
             client = definition.build_client(config.model)
             try:
@@ -97,16 +119,32 @@ class ConfiguredLLMRouter(LLMClient):
 
     async def get_embeddings(self, texts: list[str]) -> list[list[float]]:
         settings = get_settings()
-        if settings.openai_api_key and settings.openai_api_key.strip():
-            return await OpenAIClient().get_embeddings(texts)
-        if settings.gemini_api_key and settings.gemini_api_key.strip():
-            return await GeminiClient().get_embeddings(texts)
-        if settings.anthropic_api_key and settings.anthropic_api_key.strip():
-            from app.services.llm_client import AnthropicClient
+        from app.services.rate_limiter import rate_limiter, QuotaExceededError
 
-            return await AnthropicClient().get_embeddings(texts)
-        if settings.groq_api_key and settings.groq_api_key.strip():
-            from app.services.llm_client import GroqClient
+        try:
+            if settings.openai_api_key and settings.openai_api_key.strip():
+                return await OpenAIClient().get_embeddings(texts)
+            if settings.gemini_api_key and settings.gemini_api_key.strip():
+                # Enforce gemini-embedding-2 limits: 100 RPM, 30,000 TPM
+                total_chars = sum(len(t) for t in texts)
+                estimated_tokens = min(30000, total_chars // 4)
+                await rate_limiter.acquire_slot(
+                    provider="gemini",
+                    model="gemini-embedding-2",
+                    rpm_limit=100,
+                    rpd_limit=1000,
+                    tpm_limit=30000,
+                    estimated_tokens=estimated_tokens,
+                )
+                return await GeminiClient().get_embeddings(texts)
+            if settings.anthropic_api_key and settings.anthropic_api_key.strip():
+                from app.services.llm_client import AnthropicClient
+                return await AnthropicClient().get_embeddings(texts)
+            if settings.groq_api_key and settings.groq_api_key.strip():
+                from app.services.llm_client import GroqClient
+                return await GroqClient().get_embeddings(texts)
+        except Exception as exc:
+            logger.warning("Échec calcul embedding (quota ou indisponibilité): %s. Repli local déterministe.", exc)
+            return await MockLLMClient().get_embeddings(texts)
 
-            return await GroqClient().get_embeddings(texts)
         return await MockLLMClient().get_embeddings(texts)

@@ -23,6 +23,9 @@ type ModelForm = {
   system_prompt_version: string;
   system_prompt: string;
   is_default: boolean;
+  rpm_limit?: number;
+  tpm_limit?: number;
+  rpd_limit?: number;
 };
 
 const emptyForm = (provider: LLMProvider = 'openai'): ModelForm => ({
@@ -34,6 +37,9 @@ const emptyForm = (provider: LLMProvider = 'openai'): ModelForm => ({
   system_prompt_version: 'v1',
   system_prompt: 'You are a legal expert. Answer precisely and never invent legal references.',
   is_default: false,
+  rpm_limit: undefined,
+  tpm_limit: undefined,
+  rpd_limit: undefined,
 });
 
 function getErrorMessage(error: unknown) {
@@ -100,6 +106,9 @@ export default function AdminModelsPage() {
       system_prompt_version: model.system_prompt_version,
       system_prompt: model.system_prompt,
       is_default: model.is_default,
+      rpm_limit: model.rpm_limit ?? undefined,
+      tpm_limit: model.tpm_limit ?? undefined,
+      rpd_limit: model.rpd_limit ?? undefined,
     });
     setIsFormOpen(true);
   };
@@ -122,6 +131,9 @@ export default function AdminModelsPage() {
             system_prompt_version: form.system_prompt_version,
             system_prompt: form.system_prompt,
             is_default: form.is_default,
+            rpm_limit: form.rpm_limit ?? null,
+            tpm_limit: form.tpm_limit ?? null,
+            rpd_limit: form.rpd_limit ?? null,
           },
         });
         toast({ title: 'Modèle modifié', description: 'La configuration a été enregistrée.' });
@@ -212,6 +224,7 @@ export default function AdminModelsPage() {
             <Table>
               <TableHeader><TableRow>
                 <TableHead>Nom / modèle</TableHead><TableHead>Fournisseur</TableHead><TableHead>Disponibilité</TableHead>
+                <TableHead>Débit (RPM / TPM / RPD)</TableHead>
                 <TableHead>Température</TableHead><TableHead>Tokens max.</TableHead><TableHead>Prompt</TableHead>
                 <TableHead>Défaut</TableHead><TableHead>Statut</TableHead><TableHead>Activer</TableHead><TableHead className="text-right">Actions</TableHead>
               </TableRow></TableHeader>
@@ -220,6 +233,16 @@ export default function AdminModelsPage() {
                   <TableCell><div className="font-medium">{model.name}</div><code className="text-xs text-slate-500">{model.model}</code></TableCell>
                   <TableCell>{providerLabels.get(model.provider) ?? model.provider}</TableCell>
                   <TableCell><Badge variant={model.available ? 'conforme' : 'secondary'}>{model.available ? 'Available' : 'Non disponible'}</Badge></TableCell>
+                  <TableCell>
+                    <div className="flex flex-col gap-0.5 text-xs">
+                      <span className="font-semibold text-slate-800">
+                        {model.rpm_limit ?? '—'} <span className="font-normal text-slate-400">RPM</span>
+                      </span>
+                      <span className="text-slate-500">
+                        {model.tpm_limit ? `${Math.round(model.tpm_limit / 1000)}k` : '—'} <span className="text-slate-400">TPM</span> · {model.rpd_limit ?? '—'} <span className="text-slate-400">RPD</span>
+                      </span>
+                    </div>
+                  </TableCell>
                   <TableCell>{model.temperature}</TableCell><TableCell>{model.max_tokens}</TableCell><TableCell>{model.system_prompt_version}</TableCell>
                   <TableCell>{model.is_default ? <Badge>Défaut</Badge> : <span className="text-slate-400">—</span>}</TableCell>
                   <TableCell>{model.is_active ? 'Actif' : 'Inactif'}</TableCell>
@@ -255,6 +278,49 @@ export default function AdminModelsPage() {
                 <div><Label htmlFor="max-tokens">Tokens maximum</Label><Input id="max-tokens" type="number" min="1" value={form.max_tokens} onChange={(event) => setForm({ ...form, max_tokens: Number(event.target.value) })} /></div>
                 <div className="sm:col-span-2"><Label htmlFor="prompt-version">Version du prompt système</Label><Input id="prompt-version" value={form.system_prompt_version} onChange={(event) => setForm({ ...form, system_prompt_version: event.target.value })} /></div>
                 <div className="sm:col-span-2"><Label htmlFor="system-prompt">Prompt système</Label><textarea id="system-prompt" required value={form.system_prompt} onChange={(event) => setForm({ ...form, system_prompt: event.target.value })} className="input min-h-36 w-full rounded-lg border border-slate-300 p-3 text-sm" /></div>
+                
+                <div className="sm:col-span-2 rounded-lg border border-slate-200 bg-slate-50/70 p-3">
+                  <div className="mb-2">
+                    <Label className="text-xs font-semibold uppercase tracking-wider text-slate-700">Limites de débit strictes (Protection Quotas &amp; Fallback)</Label>
+                    <p className="text-xs text-slate-500">Configurez les limites officielles ou recommandées pour éviter les erreurs HTTP 429 et router automatiquement vers les modèles disponibles.</p>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <Label htmlFor="rpm-limit" className="text-xs">RPM (Req/min)</Label>
+                      <Input
+                        id="rpm-limit"
+                        type="number"
+                        min="1"
+                        placeholder="Ex: 15"
+                        value={form.rpm_limit ?? ''}
+                        onChange={(e) => setForm({ ...form, rpm_limit: e.target.value ? Number(e.target.value) : undefined })}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="tpm-limit" className="text-xs">TPM (Tokens/min)</Label>
+                      <Input
+                        id="tpm-limit"
+                        type="number"
+                        min="1000"
+                        step="1000"
+                        placeholder="Ex: 250000"
+                        value={form.tpm_limit ?? ''}
+                        onChange={(e) => setForm({ ...form, tpm_limit: e.target.value ? Number(e.target.value) : undefined })}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="rpd-limit" className="text-xs">RPD (Req/jour)</Label>
+                      <Input
+                        id="rpd-limit"
+                        type="number"
+                        min="1"
+                        placeholder="Ex: 500"
+                        value={form.rpd_limit ?? ''}
+                        onChange={(e) => setForm({ ...form, rpd_limit: e.target.value ? Number(e.target.value) : undefined })}
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
               <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.is_default} onChange={(event) => setForm({ ...form, is_default: event.target.checked })} /><CheckCircle className="h-4 w-4 text-slate-500" />Définir comme modèle prioritaire</label>
               <footer className="flex justify-end gap-2 border-t pt-4"><Button type="button" variant="outline" onClick={closeForm}>Annuler</Button><Button type="submit" disabled={createModel.isPending || updateModel.isPending || (!editingModel && !availableProviders.some((item) => item.provider === form.provider))}>{createModel.isPending ? 'Test du fournisseur…' : updateModel.isPending ? 'Enregistrement…' : editingModel ? 'Enregistrer' : 'Tester et créer'}</Button></footer>

@@ -1,0 +1,1911 @@
+--- PAGE 1 ---
+INSTRUCTION N°008-05-2015 
+REGISSANT LES CONDITIONS
+ET MODALITES D’EXERCICE
+DES ACTIVITÉS DES EMETTEURS 
+DE MONNAIE ELECTRONIQUE 
+DANS LES ETATS MEMBRES DE 
+L’UNION MONETAIRE OUEST 
+AFRICAINE (UMOA)
+
+--- PAGE 3 ---
+Le Gouverneur
+INSTRUCTION N°008-05-2015 RÉGISSANT LES
+CONDITIONS ET MODALITÉS D’EXERCICE DES 
+ACTIVITÉS DES ÉMETTEURS DE MONNAIE 
+ÉLECTRONIQUE DANS LES ETATS MEMBRES DE 
+L’UNION MONÉTAIRE OUEST AFRICAINE (UMOA)
+
+--- PAGE 5 ---
+- 3 -
+SOMMAIRE
+TITRE I : DISPOSITIONS GENERALES ..............................6
+TITRE II : CONDITIONS D’OCTROI DE L’AGREMENT OU DE 
+L’AUTORISATION D’EXERCER LES ACTIVITES D’EMISSION DE 
+MONNAIE ELECTRONIQUE............................................13
+TITRE III :  MODALITES ET CONDITIONS GENERALES 
+D’EXERCICE DES ACTIVITES D’EMISSION DE MONNAIE 
+ELECTRONIQUE
+............................................................17
+TITRE IV : MODALITES ET CONDITIONS SPECIFIQUES 
+APPLICABLES AUX ETABLISSEMENTS DE MONNAIE 
+ELECTRONIQUE
+............................................................20
+TITRE V : DISPOSITIONS RELATIVES A LA PROTECTION
+DES DETENTEURS DE MONNAIE ELECTRONIQUE............25
+TITRE VI : SUPERVISION, CONTROLE ET SANCTIONS
+.......31
+TITRE VII :  DISPOSITIONS TRANSITOIRES ET FINALES.....38
+ANNEXES...................................................................41
+
+--- PAGE 7 ---
+- 5 -
+Le Gouverneur de la Banque Centrale des Etats de 
+l’Afrique de l’Ouest (BCEAO),    
+ Vu     
+ 
+le Traité de l’Union Monétaire Ouest Africaine, du 20 
+janvier 2007, notamment en son article 34 ; 
+ Vu     
+ 
+les Statuts de la Banque Centrale des Etats de 
+l’Afrique de l’Ouest annexés au Traité de l’UMOA, 
+du 20 janvier 2007, notamment en leurs articles 21, 
+30 et 59 ;
+ Vu     
+ 
+le Règlement n°15/2002/CM/UEMOA du 19 
+septembre 2002 relatif aux systèmes de paiement 
+dans les Etats membres de l’Union Economique et 
+Monétaire Ouest Africaine (UEMOA), notamment en 
+ses articles 3, 42, 131 et 247 ;
+ Vu     
+ 
+le  Règlement n° 09/2010/CM/UEMOA du 1er octobre 
+2010 relatif aux relations financières extérieures des 
+Etats membres de l’Union Economique et Monétaire 
+Ouest Africaine ;
+ Vu     
+ 
+la Directive n° 08/2002/CM/UEMOA du 19 septembre 
+2002 portant sur les mesures de promotion de la 
+bancarisation et de l’utilisation des moyens de 
+paiement scripturaux, notamment en son article 11 ;
+ Vu     
+ 
+la Loi uniforme portant réglementation bancaire, 
+notamment en ses articles 2, 3, 4, 7, 42, 43 et 46 ;
+ Vu     
+ 
+la Loi uniforme portant réglementation des systèmes 
+financiers décentralisés, notamment en son article 6 ;
+
+--- PAGE 8 ---
+- 6 -
+TITRE I : DISPOSITIONS
+GENERALES 
+ Vu     
+ 
+l’Instruction n° 01/2007/RB du 2 juillet 2007, de 
+Monsieur le Gouverneur, relative à la lutte contre 
+le blanchiment de capitaux au sein des organismes 
+financiers,
+DECIDE  
+TITRE I : DISPOSITIONS GENERALES 
+Article premier : Définitions
+Aux fins de la présente Instruction, on entend par :
+1.	 Accepteur : le fournisseur de biens et de services 
+acceptant la monnaie électronique à titre de paiement.
+2.	 Autorités de supervision : la Banque Centrale des 
+Etats de l’Afrique de l’Ouest, la Commission Bancaire 
+de l’UMOA et le Ministre en charge des Finances.
+3.	 Banque : les banques au sens de l’article 3 de la Loi 
+portant réglementation bancaire.
+4.	 BCEAO : la Banque Centrale des Etats de l’Afrique de 
+l’Ouest ou Banque Centrale.
+5.	 CENTIF : la Cellule Nationale de Traitement des 
+Informations Financières.
+6.	 Détenteur : la personne qui, en vertu d’un contrat 
+qu’elle a conclu avec un établissement émetteur, 
+détient de la monnaie électronique.
+7.	 Dispositions prudentielles : l’ensemble des règles 
+définies dans le cadre de la surveillance prudentielle 
+des établissements émetteurs de monnaie électronique.
+
+--- PAGE 9 ---
+- 7 -
+TITRE I : DISPOSITIONS
+GENERALES 
+8.	 Distributeur : la personne morale ou physique inscrite 
+au Registre du Commerce et du Crédit Mobilier, ou 
+système financier décentralisé, offrant à la clientèle, en 
+exécution d’un contrat avec l’établissement émetteur, 
+un service de distribution de monnaie électronique. 
+9.	 Distribution de monnaie électronique : les services de 
+retrait d’espèces, de chargement et rechargement contre 
+remise de monnaie fiduciaire ou scripturale, de paiement 
+et de transfert d’argent liés à la monnaie électronique. 
+10.	Emission de monnaie électronique : l’émission 
+d’unités de valeurs électroniques en contrepartie de 
+fonds reçus.  
+11.	Etablissement de monnaie électronique : toute 
+personne morale, autre que les banques, les 
+établissements financiers de paiement et les systèmes 
+financiers décentralisés, habilitée à émettre des moyens 
+de paiement sous forme de monnaie électronique et 
+dont les activités se limitent à :
+
+y
+l’émission de monnaie électronique ; 
+
+y
+la distribution de monnaie électronique.
+12.	Etablissement émetteur : les banques, les 
+établissements financiers de paiement, les systèmes 
+financiers décentralisés dûment autorisés et les 
+établissements de monnaie électronique.
+13.	Etablissement financier de paiement : les 
+établissements financiers de paiement au sens de 
+l’Instruction n° 011-12/2010/RB relative au classement, 
+aux opérations et à la forme juridique des établissements 
+financiers à caractère bancaire.
+
+--- PAGE 10 ---
+- 8 -
+TITRE I : DISPOSITIONS
+GENERALES 
+14.	FCFA : le Franc de la Communauté Financière Africaine, 
+unité monétaire légale des Etats membres de l’UMOA.
+15.	 Interopérabilité : la capacité que possède un système 
+d’émission et de distribution de  monnaie électronique, 
+dont les interfaces sont intégralement connues, à 
+fonctionner avec d’autres systèmes existants ou futurs et 
+à partager des informations et ce, sans restrictions d’accès.
+16.	 Monnaie électronique : une valeur monétaire représentant 
+une créance sur l’établissement émetteur qui est :
+
+y stockée sous une forme électronique, y compris 
+magnétique ;
+
+y émise sans délai contre la remise de fonds d’un 
+montant qui n’est pas inférieur à la valeur monétaire 
+émise ; 
+
+y et acceptée comme moyen de paiement par 
+des personnes physiques ou morales autres que 
+l’établissement émetteur. 
+17.	OHADA : l’Organisation pour l’Harmonisation en Afrique 
+du Droit des Affaires.
+18.	 Opérateur technique : la structure qui fournit à un 
+établissement émetteur, les services techniques ainsi que 
+les conditions matérielles et logicielles pour le traitement 
+des opérations liées à la monnaie électronique, sans être 
+elle-même émetteur de monnaie électronique.
+19.	Sous-distributeur : la personne morale ou physique ou 
+le système financier décentralisé, offrant à la clientèle, 
+en exécution d’un contrat avec le distributeur, sous  la 
+responsabilité de l’émetteur, un service de distribution 
+de monnaie électronique.
+
+--- PAGE 11 ---
+- 9 -
+TITRE I : DISPOSITIONS
+GENERALES 
+20.	 Système Financier Décentralisé ou SFD : l’institution 
+dont l’objet principal est d’offrir des services financiers 
+à des personnes qui n’ont généralement pas accès aux 
+opérations des banques et établissements financiers tels 
+que définis par la loi portant réglementation bancaire et 
+habilitée aux termes de la loi portant réglementation des 
+systèmes financiers décentralisés à fournir ces prestations.
+21.	 UEMOA : l’Union Economique et Monétaire Ouest Africaine. 
+22.	UMOA : l’Union Monétaire Ouest Africaine.
+23.	Union : l’UMOA ou l’UEMOA.  
+Article 2 : Objet  
+La présente Instruction a pour objet de régir les conditions et 
+modalités d’exercice des activités d’émission et de gestion 
+de monnaie électronique dans les Etats membres de l’Union 
+Monétaire Ouest Africaine.
+A ce titre, elle fixe les conditions d’octroi de l’agrément aux 
+établissements de monnaie électronique et de l’autorisation 
+d’exercer les activités d’émission de monnaie électronique 
+pour les systèmes financiers décentralisés.
+En outre, la présente Instruction précise le dispositif de 
+contrôle et de supervision de ces activités des établissements 
+émetteurs. 
+Article 3 : Champ d’application 
+Les dispositions de la présente Instruction s’appliquent aux 
+établissements suivants : 
+• 
+les banques ; 
+• 
+les établissements financiers de paiement ;
+
+--- PAGE 12 ---
+- 10 -
+TITRE I : DISPOSITIONS
+GENERALES 
+• 
+les systèmes financiers décentralisés ; 
+• 
+les établissements de monnaie électronique.  
+Elle régit tous les usages de la monnaie électronique quel 
+qu’en soit le support, notamment carte, internet, téléphone, 
+à l’exception de ceux limités aux filiales de l’établissement 
+émetteur ou restreints à l’achat de biens et services 
+préalablement déterminés auprès de celui-ci. 
+Article 4 : Accords de partenariat 
+Les établissements émetteurs de monnaie électronique 
+peuvent conclure des accords de partenariat avec un ou plu-
+sieurs opérateurs techniques. L’activité de ces partenaires doit 
+se limiter au traitement technique de la monnaie électronique 
+ou à sa distribution, sous la responsabilité de l’émetteur. 
+Dans ce cas, les actions de communication du partenaire 
+technique ou toute autre action à l’endroit du public doivent 
+indiquer l’établissement émetteur, y compris lorsque celui-ci 
+agit dans le cadre de partenariats avec plusieurs émetteurs.
+La responsabilité de l’émission de monnaie électronique 
+ne peut être externalisée auprès d’un opérateur technique. 
+Article 5 : Interdiction d’émission de la monnaie 
+électronique à crédit et de rémunération
+des fonds
+Les établissements émetteurs ne sont pas autorisés à 
+consentir, sous quelle que forme que ce soit, des services 
+de crédit à leur clientèle, ni à payer des intérêts sur les fonds 
+perçus en contrepartie des unités de monnaie électronique 
+émises. Toutefois, les fonds provenant d’un crédit octroyé à 
+un client par une banque ou un SFD peuvent être utilisés 
+pour émettre de la monnaie électronique.
+
+--- PAGE 13 ---
+- 11 -
+TITRE I : DISPOSITIONS
+GENERALES 
+Article 6 :  Obligation de respect de la réglementation 
+relative aux relations financières avec 
+l’extérieur 
+Les transactions en monnaie électronique avec les Etats non 
+membres de l’UEMOA doivent s’effectuer conformément aux 
+dispositions de la réglementation des relations financières 
+extérieures des Etats membres de l’UEMOA. 
+Le non respect de ces dispositions est passible des sanctions 
+prévues à l’article 40 de la présente Instruction, sans préjudice 
+des autres sanctions prévues par la Loi uniforme sur le 
+contentieux des infractions à la réglementation des relations 
+financières extérieures des Etats membres de l’UEMOA. 
+Article 7 : Exigences ou spécifications techniques 
+Toute solution d’émission de monnaie électronique doit 
+satisfaire aux spécifications ou exigences visant à : 
+• 
+assurer une haute disponibilité de la plate-forme ; 
+• 
+préserver l’intégrité des messages ; 
+• 
+maintenir la confidentialité des informations ; 
+• 
+garantir l’authenticité des transactions ; 
+• 
+assurer la non-répudiation des transactions.
+L’établissement émetteur doit notamment : 
+• 
+mettre en place un dispositif éprouvé de continuité 
+de ses opérations ; 
+• 
+mettre en oeuvre une stratégie de gestion des risques 
+définissant la politique, les pratiques et procédures 
+associées aux risques inhérents au système ;
+
+--- PAGE 14 ---
+- 12 -
+- 12 -
+TITRE I : DISPOSITIONS
+GENERALES 
+• 
+s’assurer que les dispositions techniques et 
+opérationnelles ont été prises pour faciliter 
+l’interopérabilité avec d’autres systèmes de paiement ; 
+• 
+prouver l’existence d’une piste d’audit permettant 
+d’assurer une traçabilité des opérations depuis l’origine 
+de l’ordre de paiement jusqu’à son dénouement.
+L’établissement émetteur assure la traçabilité des opérations 
+sur une période de dix ans, à compter de la date de leur 
+réalisation. 
+Le respect de ces exigences doit être attesté par des audits 
+périodiques réalisés au moins une fois tous les trois ans, 
+par un organisme externe qualifié, agréé et expérimenté, 
+afin de  garantir notamment la pertinence du dispositif de 
+sécurisation mis en place. Cet audit technique, qui peut 
+porter également sur la qualité des services, doit être étendu 
+à l’opérateur technique partenaire de l’établissement 
+émetteur, le cas échéant. 
+Lorsqu’il externalise son dispositif technique, l’établissement 
+émetteur est tenu de s’assurer que le prestataire technique 
+répond aux exigences sus-mentionnées. A cette fin, il doit 
+disposer de  moyens de contrôle de l’activité de ce prestataire. 
+Un exemplaire de la convention conclue avec le prestataire 
+technique doit être transmis à la BCEAO.
+L’externalisation du dispositif technique ne doit altérer ni la 
+qualité, ni le périmètre des contrôles prévus à l’article 37 de 
+la présente Instruction. L’établissement émetteur demeure 
+responsable de la conformité du dispositif technique 
+externalisé aux exigences énoncées.
+
+--- PAGE 15 ---
+- 13 -
+TITRE II : CONDITIONS D’OCTROI DE L’AGREMENT OU DE L’AUTORISATION 
+D’EXERCER LES ACTIVITES D’EMISSION DE MONNAIE ELECTRONIQUE
+- 13 -
+TITRE II : CONDITIONS D’OCTROI DE L’AGREMENT 
+OU DE L’AUTORISATION D’EXERCER LES ACTIVITES 
+D’EMISSION DE MONNAIE ELECTRONIQUE 
+Article 8 : Obligation d’obtention préalable d’un 
+agrément ou d’une autorisation  
+A l’exception des banques et des établissements financiers 
+de paiement habilités par la loi portant réglementation 
+bancaire, aucune structure ou établissement ne peut exercer 
+des activités d’émission de monnaie électronique, sans avoir 
+été dûment agréé ou autorisé préalablement par la Banque 
+Centrale.
+Cependant, les banques et les établissements financiers 
+de paiement sont tenus d’informer la BCEAO, deux mois 
+au moins avant le démarrage de leurs activités d’émission 
+de monnaie électronique ou la commercialisation auprès 
+du grand public, de tout nouveau service lié à la monnaie 
+électronique. 
+Les établissements de monnaie électronique doivent être 
+agréés par la Banque Centrale avant le démarrage de leurs 
+activités d’émission de monnaie électronique.
+L’exercice, par les systèmes financiers décentralisés, 
+d’activités liées à la monnaie électronique, est soumis à 
+l’autorisation préalable de la BCEAO.
+Article 9 :  Forme juridique et objet social des 
+établissements de monnaie électronique 
+Les établissements de monnaie électronique établis au sein 
+de l’Union sont constitués sous forme de Sociétés Anonymes 
+TITRE II : CONDITIONS D’OCTROI DE L’AGREMENT OU DE L’AUTORISATION 
+D’EXERCER LES ACTIVITES D’EMISSION DE MONNAIE ELECTRONIQUE
+
+--- PAGE 16 ---
+- 14 -
+TITRE II : CONDITIONS D’OCTROI DE L’AGREMENT OU DE L’AUTORISATION 
+D’EXERCER LES ACTIVITES D’EMISSION DE MONNAIE ELECTRONIQUE
+ou de Sociétés à Responsabilité Limitée Pluripersonnelles, 
+de Mutuelles, de Coopératives ou de Groupements d’Intérêt 
+Economique.
+La Banque Centrale se réserve le droit d’apprécier 
+l’adéquation de la forme juridique de l’établissement aux 
+activités qu’il entend exercer. 
+A l’exception des banques, des établissements financiers 
+de paiement et des systèmes financiers décentralisés, 
+l’émission de monnaie électronique ne peut être effectuée 
+que par une personne morale dont l’objet social porte 
+exclusivement sur cette activité.
+Article 10 : Siège social 
+Les établissements de monnaie électronique doivent avoir 
+leur siège social sur le territoire de l’un des Etats membres 
+de l’UMOA. 
+Article 11 : Exigences relatives au capital social 
+minimal ou au dépôt minimum
+Le capital social minimum d’un établissement de monnaie 
+électronique est de trois cents millions FCFA. Il doit être 
+intégralement souscrit et totalement libéré en numéraire, 
+avant l’octroi de l’agrément.  
+Peut être autorisé à émettre de la monnaie électronique, 
+tout système financier décentralisé, dont les fonds propres 
+et le montant global des dépôts de la clientèle détenus 
+dans ses livres sont au moins égaux à trois cents millions 
+FCFA, à la fin de l’exercice social qui précède la date de la 
+demande d’autorisation.  
+La Banque Centrale peut, sur la base de son appréciation du 
+profil de risques, exiger le relèvement du capital social d’un
+
+--- PAGE 17 ---
+- 15 -
+TITRE II : CONDITIONS D’OCTROI DE L’AGREMENT OU DE L’AUTORISATION 
+D’EXERCER LES ACTIVITES D’EMISSION DE MONNAIE ELECTRONIQUE
+établissement de monnaie électronique ou du montant des 
+dépôts ou des fonds propres dont doit disposer un SFD, en 
+vue de le mettre en adéquation avec son volume d’activités. 
+Article 12 : Procédures de demande d’agrément ou 
+d’autorisation d’exercice des activités 
+d’émission de monnaie électronique 
+Le dossier de demande d’agrément ou d’autorisation est 
+déposé, pour instruction, auprès de la Direction Nationale de 
+la BCEAO de l’Etat dans lequel est domicilié l’établissement 
+demandeur. 
+A cet effet, le requérant a l’obligation de soumettre, à la 
+Banque Centrale, un dossier complet comprenant les pièces 
+figurant en Annexe I en trois exemplaires accompagnés de 
+la version électronique desdits documents. 
+Les documents et informations constitutifs du dossier de 
+demande d’agrément ou d’autorisation sont présentés suivant 
+le canevas figurant à l’Annexe III de la présente Instruction.
+Tout dossier incomplet est irrecevable. 
+Le dépôt du dossier de demande d’agrément ou 
+d’autorisation donne lieu à la délivrance, par la BCEAO, d’un 
+accusé de réception. La date de la délivrance de cet accusé 
+de réception tient lieu de date de réception du dossier. 
+Pour les besoins de l’instruction de la demande d’agrément 
+ou d’autorisation, la Banque Centrale peut : 
+• 
+réclamer toute information ou élément complémentaire 
+qu’elle juge nécessaire ;
+
+--- PAGE 18 ---
+- 16 -
+- 16 -
+TITRE II : CONDITIONS D’OCTROI DE L’AGREMENT OU DE L’AUTORISATION 
+D’EXERCER LES ACTIVITES D’EMISSION DE MONNAIE ELECTRONIQUE
+• 
+effectuer des visites sur site en vue de s’assurer de la 
+pertinence des informations communiquées ;
+• 
+convoquer le requérant à une audition.
+Article 13 : Délai d’instruction
+Le délai réglementaire maximum d’instruction du dossier 
+de demande d’agrément ou d’autorisation, par la BCEAO, 
+est de trois mois. 
+Toute demande d’information ou d’élément complémentaire 
+entraîne la suspension du délai d’instruction du dossier. 
+Le délai d’instruction de trois mois commence à courir à 
+nouveau, à compter de la date de réception des informations 
+ou éléments complémentaires sollicités.  
+Les requérants disposent d’un délai maximum de deux 
+mois, pour communiquer les éléments d’informations 
+complémentaires visés au 6e alinéa de l’article 12 ci-dessus. 
+A l’expiration de ce délai et, à défaut de communication de 
+l’intégralité des informations ou éléments requis, la demande 
+est considérée comme irrecevable et fait l’objet d’un rejet 
+notifié au promoteur par la Banque Centrale. 
+Article 14 : Notification de la décision prise à l’issue 
+de l’instruction 
+L’agrément ou l’autorisation est prononcé par Décision du 
+Gouverneur de la Banque Centrale et notifié par écrit au 
+requérant.
+Le refus de l’agrément ou de l’autorisation est également 
+notifié par écrit au requérant.
+
+--- PAGE 19 ---
+- 17 -
+TITRE III :  MODALITES ET CONDITIONS GENERALES D’EXERCICE 
+DES ACTIVITES D’EMISSION DE MONNAIE ELECTRONIQUE
+- 17 -
+L’agrément ou l’autorisation est matérialisé par l’inscription 
+de l’établissement ou de l’institution bénéficiaire sur la 
+liste des établissements habilités à émettre la monnaie 
+électronique. Cette liste est tenue et publiée par la BCEAO. 
+Le bénéficiaire doit publier la Décision d’agrément ou 
+d’autorisation dans un journal d’annonces légales de l’Etat 
+dans lequel il est domicilié.
+La Banque Centrale informe, dans les plus brefs délais, de 
+l’octroi de l’agrément ou de l’autorisation, le Ministre chargé 
+des finances de l’Etat dans lequel le bénéficiaire est domicilié.
+TITRE III : MODALITES ET CONDITIONS GENERALES 
+D’EXERCICE DES ACTIVITES D’EMISSION DE MONNAIE 
+ELECTRONIQUE
+Article 15 : Champ d’application 
+Les dispositions du présent Titre s’appliquent à l’ensemble des 
+établissements émetteurs de monnaie électronique, notamment 
+les banques, les établissements financiers de paiement, les 
+systèmes financiers décentralisés dûment autorisés et les 
+établissements de monnaie électronique agréés. 
+Article 16 : Nature ou typologie des activités des 
+établissements émetteurs de monnaie 
+électronique
+Les établissements émetteurs de monnaie électronique, 
+agréés ou autorisés par la Banque Centrale, peuvent fournir 
+des services liés à l’émission, la distribution de monnaie 
+électronique ainsi que le stockage de données sur support 
+électronique pour le compte d’autres personnes morales. 
+TITRE III :  MODALITES ET CONDITIONS GENERALES D’EXERCICE 
+DES ACTIVITES D’EMISSION DE MONNAIE ELECTRONIQUE
+
+--- PAGE 20 ---
+- 18 -
+TITRE III :  MODALITES ET CONDITIONS GENERALES D’EXERCICE
+DES ACTIVITES D’EMISSION DE MONNAIE ELECTRONIQUE
+Dans le cadre de l’exercice de leurs activités, les 
+établissements concernés doivent respecter les exigences 
+prudentielles définies par la Banque Centrale.
+Par ailleurs, avant le démarrage de leurs activités, ils doivent 
+justifier d’un siège ou d’un domicile physique. 
+Article 17 : Recours aux services de distributeurs
+L’établissement émetteur de monnaie électronique est habilité 
+à recourir, dans les limites de son agrément ou autorisation 
+d’exercice, aux services d’une ou de plusieurs personnes 
+morales ou physiques, dénommées distributeurs, en vue de 
+la commercialisation des services liés, notamment : 
+• 
+à la souscription des contrats d’utilisation avec la 
+clientèle ;
+• 
+au chargement des unités de monnaie électronique ; 
+• 
+aux opérations de retrait d’espèces et de remboursement 
+des unités de monnaie électronique ; 
+• 
+aux opérations de paiement. 
+Les distributeurs apportent le concours nécessaire à 
+l’établissement émetteur pour assurer la traçabilité 
+des transactions. Ils sont tenus de détenir un journal 
+des opérations enregistrant les fraudes relevées et les 
+réclamations des clients.
+Les établissements émetteurs de monnaie électronique 
+doivent communiquer à la BCEAO, conformément à l’article 
+36 de la présente Instruction, la liste actualisée de leurs 
+distributeurs ainsi que les dispositions mises en place pour 
+la maîtrise des risques, notamment de gouvernance et de 
+liquidité dans leur réseau de distribution.
+
+--- PAGE 21 ---
+- 19 -
+TITRE III :  MODALITES ET CONDITIONS GENERALES D’EXERCICE 
+DES ACTIVITES D’EMISSION DE MONNAIE ELECTRONIQUE
+Le contrat de distribution conclu entre l’établissement 
+émetteur de monnaie électronique et son distributeur doit 
+préciser les obligations respectives de chaque partie. 
+Le distributeur ne peut, en aucun cas, être contraint à limiter 
+ses activités à un seul établissement émetteur de monnaie 
+électronique.  Le réseau de distribution peut être organisé 
+autour de distributeurs principaux et de sous-distributeurs. 
+Les distributeurs principaux peuvent être notamment des 
+systèmes financiers décentralisés, des institutions financières 
+non bancaires, notamment les Offices des Postes et les sociétés 
+d’assurances, des entreprises privées non financières ou toute 
+autre personne inscrite au Registre du Commerce et du Crédit 
+Mobilier disposant de liquidités suffisantes pour répondre aux 
+besoins des détenteurs des unités de monnaie électronique. 
+Les sous-distributeurs sont des personnes physiques ou 
+morales, immatriculées au Registre du Commerce et du 
+Crédit Mobilier ou à tout autre Registre tenant lieu, qui ont 
+reçu mandat d’un ou de plusieurs distributeurs principaux 
+chargés de les approvisionner en monnaie électronique et 
+en liquidité, aux fins d’accomplir une ou plusieurs opérations 
+visées à l’alinéa 1 du présent  article.   
+Article 18 : Responsabilités des établissements 
+émetteurs à l’égard des distributeurs
+Les établissements émetteurs de monnaie électronique 
+veillent à ce que les distributeurs apportent au public, par 
+tout moyen approprié, notamment par voie d’affichage de 
+manière visible et lisible, les informations relatives à la raison 
+sociale, au logo, au nom commercial ainsi qu’à l’adresse de 
+l’établissement émetteur de monnaie électronique.
+
+--- PAGE 22 ---
+- 20 -
+TITRE IV : MODALITES ET CONDITIONS SPECIFIQUES APPLI-
+CABLES AUX ETABLISSEMENTS DE MONNAIE ELECTRONIQUE
+Les établissements émetteurs veillent à ce que les 
+distributeurs principaux et les sous-distributeurs, appliquent 
+les prescriptions en matière de sécurité et de vigilance, 
+définies dans le cadre de leur relation commerciale, y 
+compris les mesures relatives à la lutte contre le blanchiment 
+de capitaux et le financement du terrorisme.  
+Nonobstant toute clause contraire, les établissements 
+émetteurs demeurent responsables, à l’égard de leurs clients 
+et des tiers, des opérations réalisées par leurs distributeurs, 
+dans le cadre de la fourniture de services pour lesquels 
+ils ont été mandatés. A ce titre, ils sont responsables de 
+l’intégrité, de la fiabilité, de la sécurité, de la confidentialité 
+et de la traçabilité des transactions réalisées par chacun 
+de leurs distributeurs. 
+TITRE IV : MODALITES ET CONDITIONS SPECIFIQUES 
+APPLICABLES AUX ETABLISSEMENTS DE MONNAIE 
+ELECTRONIQUE 
+Article 19 : Champ d’application 
+Les dispositions du présent Titre s’appliquent aux 
+établissements de monnaie électronique, à l’exclusion des 
+autres établissements émetteurs de monnaie électronique, 
+notamment les banques, les établissements financiers de 
+paiement, les systèmes financiers décentralisés dûment 
+autorisés. 
+Article 20 : Exercice des activités par des filiales et 
+des succursales  
+A compter de son agrément dans un Etat membre, tout 
+établissement de monnaie électronique est habilité, sous 
+réserve de requérir l’autorisation de la Banque Centrale, à
+
+--- PAGE 23 ---
+- 21 -
+TITRE IV : MODALITES ET CONDITIONS SPECIFIQUES APPLI-
+CABLES AUX ETABLISSEMENTS DE MONNAIE ELECTRONIQUE
+exercer ses activités d’émission, de distribution de monnaie 
+électronique ainsi que de stockage de données sur support 
+électronique pour le compte d’autres personnes morales sur 
+le territoire des autres Etats membres de l’Union, notamment 
+en y établissant des filiales ou succursales.  
+La demande d’autorisation est accompagnée des pièces 
+constitutives du dossier figurant en Annexe II. Elle est 
+adressée au Gouverneur de la Banque Centrale et déposée 
+auprès de la Direction Nationale de la BCEAO de l’Etat dans 
+lequel l’extension des activités est prévue. Les documents 
+et informations constitutifs du dossier d’établissement de la 
+filiale ou de la succursale sont présentés suivant le canevas 
+figurant à l’Annexe III de la présente Instruction.
+L’autorisation est prononcée par Décision du Gouverneur et 
+notifiée dans les mêmes formes que l’agrément.  
+L’établissement est tenu de publier l’autorisation dans un 
+journal d’annonces légales de l’Etat dans lequel est domi-
+cilié la filiale ou la succursale, préalablement au démarrage 
+de ses activités. 
+Article 21 : Gouvernance 
+Les dirigeants de l’établissement de monnaie électronique 
+doivent jouir d’une honorabilité irréprochable. A cet égard, 
+toute personne qui a fait l’objet d’une condamnation 
+définitive par suite d’infractions portant atteinte aux biens 
+ou pour crimes de droit commun, ne peut :
+• 
+être membre d’un organe d’administration d’un 
+établissement de monnaie électronique, ni 
+directement, ni par personne interposée ;
+
+--- PAGE 24 ---
+- 22 -
+TITRE IV : MODALITES ET CONDITIONS SPECIFIQUES APPLI-
+CABLES AUX ETABLISSEMENTS DE MONNAIE ELECTRONIQUE
+• 
+administrer, diriger, gérer ou contrôler un établissement 
+de monnaie électronique ou une de ses agences, 
+filiales ou succursales ;
+• 
+créer un établissement de monnaie électronique.
+L’établissement est tenu d’informer la Banque Centrale de 
+toute modification dans sa gouvernance.
+Les dirigeants de l’établissement de monnaie électronique 
+doivent disposer de compétences nécessaires à une gestion 
+saine et prudente de leur établissement.
+Nonobstant les dispositions de l’article 38 de la présente 
+Instruction, la Banque Centrale peut procéder à la suspension 
+de tout ou partie de l’activité ou au retrait de l’agrément de 
+l’autorisation d’émettre de la monnaie électronique, si elle 
+a des raisons de considérer que les dirigeants ne présentent 
+pas les qualités et compétences nécessaires pour garantir 
+une gestion saine et prudente de l’établissement de 
+monnaie électronique. 
+Toute personne concourant à l’administration, au contrôle, 
+à la direction, à la gérance ou au fonctionnement de 
+l’établissement, est tenue au secret professionnel. 
+Il lui est interdit d’utiliser les informations confidentielles 
+dont elle a connaissance dans le cadre de son activité, pour 
+réaliser directement ou indirectement des opérations pour 
+son propre compte ou en faire bénéficier d’autres personnes.
+Le secret professionnel ne peut être opposé ni à la 
+Banque Centrale, au Ministère en charge des Finances, à 
+la Commission Bancaire, ni à l’autorité judiciaire agissant 
+dans le cadre d’une procédure pénale.
+
+--- PAGE 25 ---
+- 23 -
+TITRE IV : MODALITES ET CONDITIONS SPECIFIQUES APPLI-
+CABLES AUX ETABLISSEMENTS DE MONNAIE ELECTRONIQUE
+Article 22 : Exigences en matière de capitaux propres 
+Les capitaux propres d’un établissement de monnaie 
+électronique doivent, à tout moment, être supérieurs ou au 
+moins égaux au montant du capital social minimum. 
+Les capitaux propres de tout établissement de monnaie 
+électronique doivent être, à tout moment, égaux ou 
+supérieurs à trois pour cent de son encours en monnaie 
+électronique émise. 
+Article 23 : Modification du capital social et 
+participations dans d’autres structures
+L’établissement de monnaie électronique ne peut détenir 
+des participations que dans des entreprises qui exercent 
+des activités liées à la monnaie électronique qu’il émet ou 
+qu’il distribue. 
+Toute opération de prise, d’extension ou de cession de 
+participation, directe ou indirecte dans un établissement de 
+monnaie électronique, est soumise à l’autorisation préalable 
+de la Banque Centrale. 
+Est également subordonnée à l’autorisation préalable de la 
+BCEAO, toute opération de fusion-absorption, de scission ou 
+de dissolution anticipée. 
+Article 24 : Comptabilisation des opérations 
+Les établissements de monnaie électronique doivent tenir 
+une comptabilité de toutes leurs opérations réalisées.
+Ils établissent leurs comptes conformément aux dispositions 
+de l’Acte uniforme de l’OHADA portant organisation et 
+harmonisation des comptabilités des entreprises et aux 
+autres règles particulières fixées par la Banque Centrale.
+
+--- PAGE 26 ---
+- 24 -
+- 24 -
+TITRE IV : MODALITES ET CONDITIONS SPECIFIQUES APPLI-
+CABLES AUX ETABLISSEMENTS DE MONNAIE ELECTRONIQUE
+Ces comptes doivent être certifiés réguliers et sincères par 
+un ou plusieurs Commissaires aux comptes, conformément 
+aux prescriptions de l’Acte uniforme de l’OHADA relatif au 
+droit des sociétés commerciales et du groupement d’intérêt 
+économique. 
+Article 25 : Dispositif de contrôle interne 
+Les établissements de monnaie électronique doivent être 
+gérés de manière saine et prudente, en vue de garantir leur 
+solvabilité et leur équilibre financier.
+Ils ont notamment l’obligation de disposer de manuels de 
+procédures comptables, administratives et financières ainsi 
+que de procédures de contrôle interne adéquates.
+Le dispositif de contrôle doit notamment assurer : 
+• 
+la fiabilité des livres et des documents comptables ;
+• 
+la prévention et la détection des risques ;
+• 
+le respect des dispositions législatives et réglementaires.
+Les établissements de monnaie électronique doivent 
+s’assurer que leurs distributeurs sont dotés d’un dispositif 
+de contrôle interne efficace, adapté à leur organisation, à la 
+nature et au volume de leurs activités ainsi qu’aux risques 
+auxquels ils sont exposés. 
+Les organes sociaux sont responsables du bon fonctionnement 
+du système de contrôle interne au sein des établissements 
+de monnaie électronique et auprès de leurs distributeurs. A 
+cet égard, ils doivent mettre en place un dispositif de gestion 
+des risques, en vue d’identifier et de maîtriser tous les risques 
+significatifs en relation avec les exigences de leurs activités.
+
+--- PAGE 27 ---
+- 25 -
+TITRE V : DISPOSITIONS RELATIVES A LA PROTECTION 
+DES DETENTEURS DE MONNAIE ELECTRONIQUE
+- 25 -
+Article 26 : Lutte contre le blanchiment de capitaux et 
+le financement du terrorisme
+Les établissements de monnaie électronique sont soumis à 
+la réglementation en vigueur en matière de lutte contre le 
+blanchiment des capitaux et le financement du terrorisme. 
+A ce titre, ils doivent mettre en place un système automatisé 
+de surveillance des transactions ayant comme support la 
+monnaie électronique. 
+Ils sont également tenus d’instaurer un dispositif spécifique 
+de lutte contre le blanchiment de capitaux et le financement 
+du terrorisme, conformément à la réglementation en vigueur. 
+En outre, ils conservent toutes les données relatives aux 
+opérations qu’ils traitent sur une période de dix ans, 
+à compter de la fin de l’exercice au cours duquel ces 
+transactions ont été réalisées. 
+Les distributeurs informent l’établissement émetteur des 
+opérations suspectes qui ont un lien avec la monnaie 
+électronique. L’établissement émetteur procède, le cas 
+échéant, à leur déclaration à la CENTIF.
+TITRE V : DISPOSITIONS RELATIVES A LA PROTECTION 
+DES DETENTEURS DE MONNAIE ELECTRONIQUE
+Article 27 : Identification des clients 
+L’établissement émetteur est tenu d’identifier ses clients, 
+sur présentation d’un document officiel en cours de validité, 
+préalablement à l’ouverture d’un compte de monnaie 
+électronique. L’établissement conserve une copie du 
+document d’identification produit lors de l’ouverture du 
+compte.  
+TITRE V : DISPOSITIONS RELATIVES A LA PROTECTION 
+DES DETENTEURS DE MONNAIE ELECTRONIQUE
+
+--- PAGE 28 ---
+- 26 -
+TITRE V : DISPOSITIONS RELATIVES A LA PROTECTION 
+DES DETENTEURS DE MONNAIE ELECTRONIQUE
+Les mineurs non émancipés peuvent détenir un compte 
+de monnaie électronique, sous réserve d’une autorisation 
+dûment établie d’un parent ou d’un tuteur détenteur d’un 
+document officiel en cours de validité. 
+Article 28 : Protection des données personnelles   
+L’établissement émetteur de monnaie électronique traite 
+et protège les données personnelles de ses clients, 
+conformément aux dispositions législatives et réglementaires 
+en vigueur dans l’Etat membre de l’Union dans lequel il 
+exerce ses activités.
+Article 29 : Ouverture d’un compte de monnaie électronique 
+ 
+ 
+ 
+L’ouverture d’un compte de monnaie électronique est 
+subordonnée à la signature par l’émetteur de monnaie 
+électronique et le client d’un contrat mentionnant : 
+• 
+les conditions d’utilisation des services liés à la 
+monnaie électronique ; 
+• 
+la description des usages possibles des unités de 
+monnaie électronique ;
+• 
+les plafonds appliqués aux opérations autorisées ;
+• 
+les obligations et responsabilités respectives du 
+bénéficiaire et de l’établissement émetteur ; 
+• 
+les risques et les mesures de prudence inhérents 
+à l’utilisation des unités de monnaie électronique ;
+• 
+les modalités, les procédures et le délai d’opposition en 
+cas de vol, de perte, de falsification ou de demande de 
+remboursement des unités de monnaie électronique ;
+
+--- PAGE 29 ---
+- 27 -
+TITRE V : DISPOSITIONS RELATIVES A LA PROTECTION 
+DES DETENTEURS DE MONNAIE ELECTRONIQUE
+• 
+les conditions et modalités de contestation des 
+opérations effectuées ;
+• 
+les conditions et modalités de remboursement.
+Le contrat de souscription conclu avec chaque client doit 
+notamment énoncer que l’établissement émetteur de 
+monnaie électronique est responsable, vis-à-vis du client, du 
+bon dénouement des opérations réalisées par le distributeur.
+Article 30 : Garanties spécifiques accordées à la clientèle 
+L’établissement émetteur est tenu de mettre à la disposition 
+de sa clientèle, de façon accessible, les conditions tarifaires 
+applicables à ses opérations.
+L’établissement émetteur est également tenu de mettre en 
+place un dispositif d’écoute, de réception et de traitement 
+des réclamations des clients et des accepteurs.  
+Ce dispositif de réclamations doit : 
+• 
+être accessible par divers canaux à tout moment ;
+• 
+engager l’établissement sur un délai de traitement 
+des réclamations ;
+• 
+assurer la traçabilité des réclamations reçues et 
+traitées. 
+Toutes les transactions effectuées par le client doivent 
+donner lieu à la production d’un reçu électronique précisant 
+notamment : 
+• 
+le numéro de référence de la transaction ;
+• 
+la nature du service ;
+
+--- PAGE 30 ---
+- 28 -
+TITRE V : DISPOSITIONS RELATIVES A LA PROTECTION 
+DES DETENTEURS DE MONNAIE ELECTRONIQUE
+• 
+le nom de l’émetteur de monnaie électronique ; 
+• 
+le numéro d’immatriculation du distributeur ou du 
+sous-distributeur, le cas échéant ; 
+• 
+l’identité de l’expéditeur ou du récepteur de la 
+transaction selon le cas ; 
+• 
+l’heure, le montant et les frais de la transaction. 
+Article 31 : Plafonnement des avoirs en monnaie 
+électronique 
+Les avoirs en monnaie électronique détenus par un même 
+client identifié auprès d’un établissement émetteur ne 
+peuvent excéder deux millions FCFA, sauf autorisation 
+expresse de la Banque Centrale. 
+Lorsqu’un porteur possède plusieurs instruments émis par 
+un même établissement émetteur, ce dernier s’assure que 
+le solde cumulé n’excède pas le montant visé à l’alinéa 
+premier ci-dessus, sauf autorisation expresse de la Banque 
+Centrale. 
+Le cumul des rechargements en monnaie électronique 
+effectués au cours d’un mois, par un même client, ne peut 
+excéder dix millions FCFA, sauf autorisation expresse de la 
+Banque Centrale. 
+Ces limitations ne s’appliquent pas aux distributeurs et aux 
+accepteurs de monnaie électronique. 
+Nonobstant les dispositions de l’article 27 de la présente 
+Instruction, l’établissement émetteur peut mettre à la 
+disposition d’un détenteur non identifié un montant total 
+mensuel en monnaie électronique qui ne peut excéder deux
+
+--- PAGE 31 ---
+- 29 -
+TITRE V : DISPOSITIONS RELATIVES A LA PROTECTION 
+DES DETENTEURS DE MONNAIE ELECTRONIQUE
+cents mille FCFA, sous réserve du respect de l’interdiction 
+d’émission de la monnaie électronique à crédit prescrite à 
+l’article 5 de la présente Instruction.   
+L’autorisation de relèvement du plafond prévue aux 
+alinéas 1, 2 et 3 du présent article est accordée après 
+justification par l’établissement émetteur de monnaie 
+électronique de la nécessité de ce relèvement ainsi que 
+des mesures de contrôles supplémentaires mises en place 
+par l’établissement concerné.
+Article 32 : Protection des fonds reçus des détenteurs 
+de monnaie électronique 
+Les fonds représentant la contrepartie de la monnaie 
+électronique émise, doivent respecter les exigences suivantes : 
+• 
+être domiciliés, sans délai, dans un compte exclusivement 
+dédié à cette fin auprès d’une ou de plusieurs banques 
+ou systèmes financiers décentralisés de l’Union ; 
+• 
+être distinctement identifiés dans les comptabilités 
+de l’établissement émetteur ainsi que de la banque 
+ou du système financier décentralisé domiciliataire ; 
+• 
+faire l’objet, par l’établissement émetteur et la banque ou 
+le SFD domiciliataire, d’une réconciliation quotidienne 
+avec l’encours de la monnaie électronique émise.
+Les fonds visés à l’alinéa 1 ci-dessus ne peuvent être utilisés 
+qu’aux fins de remboursement en FCFA, des détenteurs de 
+monnaie électronique ou de placements, conformément 
+aux dispositions de l’article 34 de la présente Instruction. 
+Ils ne doivent pas être utilisés au financement des besoins 
+de l’exploitation de l’établissement émetteur.
+
+--- PAGE 32 ---
+- 30 -
+- 30 -
+TITRE V : DISPOSITIONS RELATIVES A LA PROTECTION 
+DES DETENTEURS DE MONNAIE ELECTRONIQUE
+La compensation en monnaie électronique doit être réalisée 
+dans un système de paiement autorisé par la Banque Centrale.
+Article 33 : Contrepartie des unités de monnaie 
+électronique 
+Les montants reçus par les établissements émetteurs en 
+contrepartie des unités de monnaie électronique doivent 
+en permanence être supérieurs ou égaux à l’encours de la 
+monnaie électronique en circulation. 
+Article 34 : Placement de la contrepartie de la monnaie 
+électronique
+La contrepartie de la monnaie électronique en circulation ne 
+peut être placée que dans un ou plusieurs types de comptes 
+et d’actifs énumérés ci-après :
+• 
+dépôts à vue auprès d’une ou de plusieurs banques 
+ou SFD ; 
+• 
+dépôts à terme auprès d’une ou de plusieurs banques 
+ou SFD ;
+• 
+titres émis par les Administrations centrales et leurs 
+démembrements ou les Institutions financières 
+régionales ou par des entreprises cotées à la Bourse 
+Régionale des Valeurs Mobilères.
+Les placements dans des dépôts à vue doivent représenter 
+au moins soixante-quinze pour cent de l’encours de la 
+monnaie électronique en circulation. La Banque Centrale 
+peut, en fonction des risques que présente un établissement, 
+fixer d’autres seuils pour les placements susvisés. 
+Les actifs sont évalués au montant le moins élevé entre le 
+prix d’acquisition et la valeur du marché.
+
+--- PAGE 33 ---
+- 31 -
+TITRE VI : SUPERVISION, 
+CONTROLE ET SANCTIONS
+- 31 -
+Article 35 : Conditions et modalités de remboursement
+Le détenteur de la monnaie électronique peut, à tout moment, 
+exiger de l’établissement émetteur ou de son distributeur, le 
+remboursement des unités de monnaie électronique non 
+utilisées, dans les conditions prévues par le contrat visé à 
+l’article 29 ci-dessus, à la valeur nominale en FCFA des unités 
+de monnaie électronique.
+Le contrat conclu entre l’établissement émetteur et le 
+porteur doit établir les conditions, les frais et le délai de 
+remboursement des unités de monnaie électronique non 
+utilisées, qui ne peut excéder trois jours ouvrés.
+Les remboursements prévus aux alinéas 1 et 2 du présent article 
+s’effectuent en FCFA, en espèces, par chèque ou par virement 
+sur un compte, selon la préférence exprimée par le détenteur.
+Lorsque le remboursement est effectué par un distributeur, 
+l’établissement émetteur assume l’entière responsabilité 
+du bon déroulement de l’opération.
+TITRE VI : SUPERVISION, CONTROLE ET SANCTIONS
+Article 36 : Communication d’informations aux Autorités 
+de supervision
+Les Autorités de supervision notamment la Banque Centrale 
+des Etats de l’Afrique de l’Ouest, la Commission Bancaire 
+de l’UMOA et le Ministre en charge des Finances s’assurent 
+que les établissements de monnaie électronique respectent 
+les dispositions de la présente Instruction. 
+A cet effet, les établissements émetteurs doivent 
+communiquer, à toute réquisition de la Banque Centrale, 
+TITRE VI : SUPERVISION, 
+CONTROLE ET SANCTIONS
+
+--- PAGE 34 ---
+- 32 -
+TITRE VI : SUPERVISION, 
+CONTROLE ET SANCTIONS
+de la Commission Bancaire de l’UMOA et du Ministre chargé 
+des Finances, dans les délais prescrits, tous documents, états 
+statistiques, rapports et tous autres renseignements, jugés 
+utiles pour l’examen de leurs activités.
+Les établissements émetteurs communiquent, à la BCEAO 
+dans un délai maximum de quinze jours calendaires à 
+compter de la fin du mois concerné, les données relatives 
+à l’encours de la monnaie électronique accompagnées 
+des justificatifs du solde du compte de cantonnement, 
+conformément au canevas figurant en Annexe IV de la 
+présente Instruction.
+Pour chaque trimestre de l’année civile, les établissements 
+émetteurs communiquent, à la BCEAO, dans un délai 
+maximum de quinze jours calendaires suivant la fin 
+de la période considérée, un rapport sur leurs activités, 
+conformément au canevas figurant en Annexe V de la 
+présente Instruction.
+Les banques, établissements financiers de paiement et 
+systèmes financiers décentralisés, qui  ne satisfont pas, 
+dans les délais prescrits, aux obligations découlant des 
+dispositions visées aux alinéas ci-dessus, encourent les 
+pénalités fixées en la matière dans les dispositions régissant 
+leurs activités.  
+Les établissements de monnaie électronique qui ne satisfont 
+pas, dans les délais prescrits, aux obligations découlant 
+des dispositions visées aux alinéas ci-dessus, encourent 
+les pénalités suivantes, par jour de retard et par omission :
+• 
+5.000 FCFA durant les quinze premiers jours ;
+
+--- PAGE 35 ---
+- 33 -
+TITRE VI : SUPERVISION, 
+CONTROLE ET SANCTIONS
+• 
+10.000 FCFA durant les quinze jours suivants ;
+• 
+15.000 FCFA au-delà.
+La pénalité de retard est due, à compter de la date de 
+réception de la mise en demeure adressée, par la Banque 
+Centrale, audit établissement. Le décompte des pénalités 
+est effectué mensuellement par la BCEAO.
+La somme correspondante est recouvrée par la Banque 
+Centrale pour le compte du Trésor public de l’Etat 
+d’implantation de l’établissement concerné. 
+En cas de non-paiement, dans les délais indiqués, du 
+montant dû au titre de la pénalité susvisée, la Banque 
+Centrale se réserve le droit d’appliquer les dispositions des 
+articles 39 et 40 de la présente Instruction, à l’encontre de 
+l’établissement concerné.
+Article 37 : Contrôle et supervision des établissements 
+de monnaie électronique
+La Banque Centrale peut effectuer, à tout moment, un contrôle 
+sur place des établissements de monnaie électronique, en y 
+associant, le cas échéant, les autres Autorités de supervision. 
+Les Autorités de supervision se réservent le droit, dans 
+leurs missions, d’étendre leurs investigations sur place aux 
+distributeurs et autres prestataires techniques ou partenaires 
+liés à l’activité d’émission de monnaie électronique. 
+Elles peuvent, dans l’exercice de leur mission de contrôle, 
+recourir à toute expertise et se faire communiquer toute 
+information, sans que les établissements concernés ne 
+puissent s’y opposer.
+
+--- PAGE 36 ---
+- 34 -
+TITRE VI : SUPERVISION, 
+CONTROLE ET SANCTIONS
+Les établissements de monnaie électronique sont également 
+tenus de transmettre à la Banque Centrale, au plus tard 
+le 30 juin, leurs états financiers annuels, arrêtés au 31 
+décembre de l’année écoulée, certifiés par un ou plusieurs 
+Commissaires aux Comptes inscrits à l’ordre des Experts-
+comptables, conformément aux prescriptions de l’Acte 
+uniforme de l’OHADA portant organisation et harmonisation 
+des comptabilités des entreprises.
+Article 38 : Retrait de l’agrément en qualité 
+d’établissement de monnaie électronique 
+ou de l’autorisation d’exercice d’activités 
+de monnaie électronique   
+Le retrait d’agrément ou de l’autorisation peut être demandé 
+par l’établissement après un préavis de six mois, ou survenir 
+à la suite de violations graves ou répétées des dispositions 
+de la présente Instruction. 
+Le préavis de six mois commence à courir, à compter de 
+la date d’accusé de réception de la saisine de la Banque 
+Centrale à cet effet. 
+Le retrait de l’agrément ou de l’autorisation peut être 
+prononcé d’office, lorsque l’un des établissements visés 
+aux alinéas 3 et 4 de l’article 8 de la présente Instruction :
+• 
+a cessé d’exercer l’activité de monnaie électronique 
+depuis plus d’un an ; 
+• 
+n’a pas démarré l’activité plus d’un an après la 
+notification de son agrément ; 
+• 
+ne remplit plus les conditions exigées pour l’exercice 
+de l’activité d’émission de monnaie électronique,
+
+--- PAGE 37 ---
+- 35 -
+TITRE VI : SUPERVISION, 
+CONTROLE ET SANCTIONS
+notamment en matière de protection des détenteurs de 
+la monnaie électronique et de gestion saine et prudente ; 
+• 
+a communiqué des déclarations inexactes lors de sa 
+demande d’agrément ou d’autorisation ou a fourni de 
+fausses informations dans le cadre de ses rapports 
+avec les Autorités de supervision ; 
+• 
+a décidé de sa dissolution ou de transférer son siège 
+social hors de l’UEMOA ou a fait l’objet d’une fusion ou de 
+toute autre opération ayant pour résultat la délocalisation 
+du siège social dans un Etat hors de l’Union. 
+Le retrait de l’agrément ou de l’autorisation est prononcé, 
+par le Gouverneur de la Banque Centrale, dans les mêmes 
+formes que l’octroi de l’agrément. 
+La Banque Centrale peut décider que, le retrait de l’agrément 
+en qualité d’établissement de monnaie électronique ou de 
+l’autorisation d’exercice d’activités de monnaie électronique 
+s’étende automatiquement aux filiales, compte tenu 
+de leurs liens financiers et juridiques particuliers et des 
+conséquences qui peuvent en découler. 
+Le cas échéant, la filiale doit solliciter un agrément auprès de 
+la Banque Centrale, dans les trois mois suivant la notification 
+du retrait d’agrément de la société-mère.
+La Décision de retrait de l’agrément ou de l’autorisation fixe 
+la date à partir de laquelle l’établissement émetteur doit 
+cesser toute activité d’émission et de distribution de monnaie 
+électronique et procéder au remboursement des détenteurs 
+des unités de monnaie électronique non utilisées, dans les 
+conditions prévues à l’article 35 de la présente Instruction.
+
+--- PAGE 38 ---
+- 36 -
+TITRE VI : SUPERVISION, 
+CONTROLE ET SANCTIONS
+Les opérations en cours peuvent être poursuivies jusqu’à 
+leur terme et dans la limite du délai fixé dans la Décision 
+de retrait de l’agrément ou de l’autorisation.
+Le retrait de l’agrément ou de l’autorisation est constaté 
+par la radiation de l’établissement  concerné de la liste des 
+établissements émetteurs, tenue par la BCEAO. 
+L’établissement est tenu de publier la Décision de retrait 
+de son agrément ou de son autorisation dans un journal 
+d’annonces légales de chaque Etat dans lequel il exerce 
+ses activités. 
+La Banque Centrale informe du retrait de l’agrément ou de 
+l’autorisation, le Ministre chargé des finances de l’Etat dans 
+lequel le bénéficiaire exerce ses activités. 
+Article 39 : Mesures administratives
+Lorsque la Banque Centrale constate qu’un établissement 
+de monnaie électronique a manqué aux règles de bonne 
+conduite ou de déonthologie de la profession, compromis 
+son équilibre financier, pratiqué une gestion anormale sur le 
+territoire d’un Etat membre, n’a pas respecté les engagements 
+pris à l’occasion de la demande d’agrément, ne remplit plus les 
+conditions requises pour l’agrément ou n’a pas communiqué, à 
+bonne date, les informations exigées, elle peut lui adresser soit :
+• 
+une mise en garde ;
+• 
+une injonction à l’effet de prendre, dans un délai 
+déterminé, les mesures appropriées pour se conformer 
+à la réglementation ou pour renforcer sa situation 
+financière.
+
+--- PAGE 39 ---
+- 37 -
+TITRE VI : SUPERVISION, 
+CONTROLE ET SANCTIONS
+L’établissement de monnaie électronique qui n’a pas déféré 
+à cette injonction, est réputé avoir enfreint les dispositions 
+de la présente Instruction. 
+Au titre des mesures conservatoires, la Banque Centrale 
+peut prendre toutes dispositions visant le respect de ses 
+injonctions. 
+A cet égard, elle peut convoquer, pour audition, les dirigeants 
+d’un établissement pour apprécier les dispositions adoptées 
+ou projetées en vue de déférer à une injonction ou lorsque 
+l’établissement est en difficulté, à l’effet de connaître 
+les mesures prises ou envisagées pour assurer son 
+redressement.  
+Elle peut, également mettre l’établissement concerné sous 
+une surveillance rapprochée, en vue de s’assurer de la mise 
+en œuvre de ses injonctions ou de ses recommandations. 
+Article 40 : Sanctions
+Lorsqu’elle constate un manquement aux dispositions de la 
+présente Instruction, la BCEAO prend les sanctions suivantes 
+à l’encontre de l’établissement de monnaie électronique :
+• 
+l’avertissement ;
+• 
+la suspension ou l’interdiction de tout ou partie des 
+opérations ;
+• 
+toutes autres limitations dans l’exercice de l’activité ; 
+• 
+le retrait de l’agrément ou de l’autorisation d’émettre 
+de la monnaie électronique.
+
+--- PAGE 40 ---
+- 38 -
+TITRE VII :  DISPOSITIONS TRANSITOIRES ET FINALES
+La BCEAO peut prononcer, en plus des sanctions 
+susmentionnées, une sanction pécuniaire à l’encontre de 
+l’établissement de monnaie électronique, d’un montant au 
+plus égal à vingt-cinq pour cent du capital social minimum 
+requis. L’établissement concerné s’acquitte de la somme 
+due par émission d’un ordre de virement bancaire ou d’un 
+chèque bancaire en faveur de la Banque Centrale, dans 
+les trente jours calendaires suivant la notification de la 
+sanction.
+La somme correspondante est recouvrée par la Banque 
+Centrale pour le compte du Trésor public de l’Etat dans 
+lequel est domicilié l’établissement concerné. 
+En cas de non-paiement du montant dû au titre de la sanction 
+pécuniaire susvisée, la Banque Centrale se réserve le droit 
+d’appliquer les dispositions de l’article 38 à l’encontre de 
+l’établissement concerné.  
+TITRE VII :  DISPOSITIONS TRANSITOIRES ET FINALES
+Article 41 : Dispositions transitoires 
+Les établissements émetteurs de monnaie électronique 
+dûment autorisés et en activité à la date d’entrée en vigueur 
+de la présente Instruction, disposent d’un délai de douze 
+mois pour se conformer à ses dispositions.
+A cet effet, ils doivent présenter à la BCEAO, toutes les 
+informations pertinentes, afin de lui permettre de s’assurer, 
+dans ce délai, qu’ils satisfont aux exigences de la présente 
+Instruction.
+
+--- PAGE 41 ---
+- 39 -
+TITRE VII :  DISPOSITIONS TRANSITOIRES ET FINALES
+Les établissements de monnaie électronique et les systèmes 
+financiers décentralisés qui ne se conforment pas aux 
+dispositions de la présente Instruction, doivent cesser toute 
+activité d’émission de monnaie électronique à l’expiration 
+du délai fixé à l’alinéa 1 ci-dessus.
+Article 42 : Entrée en vigueur 
+La présente Instruction abroge l’Instruction n° 01/2006/
+SP du 31 juillet 2006 relative à l’émission de monnaie 
+électronique et aux établissements de monnaie électronique. 
+Elle entre en vigueur à compter de sa date de signature et 
+sera publiée partout où besoin sera.
+Fait à Dakar, le 21 mai 2015
+Tiémoko Meyliet KONE
+
+--- PAGE 42 ---
+- 40 -
+
+--- PAGE 43 ---
+- 41 -
+ANNEXES
+ANNEXES
+
+--- PAGE 44 ---
+- 42 -
+ANNEXES
+
+--- PAGE 45 ---
+- 43 -
+ANNEXES
+ANNEXE I : LISTE DES DOCUMENTS ET 
+INFORMATIONS CONSTITUTIFS DU DOSSIER 
+DE DEMANDE D’AGREMENT EN QUALITE 
+D’ETABLISSEMENT DE MONNAIE ELECTRONIQUE 
+OU DU DOSSIER D’AUTORISATION D’EXERCICE 
+D’ACTIVITES DE MONNAIE ELECTRONIQUE
+ 
+1. Documents et informations d’ordre juridique
+• 
+une demande signée par le représentant de 
+l’établissement ou de l’institution dûment habilité à 
+cet effet, adressée à la Banque Centrale et déposée 
+auprès de la Direction Nationale de la BCEAO de l’Etat 
+d’implantation ;
+• 
+une fiche de renseignements sur les principaux 
+actionnaires, dirigeants et partenaires de l’institution 
+(copies certifiées conformes des pièces d’identité, 
+curriculum-vitae datés et signés, extraits de casier 
+judiciaire ou tout autre document équivalent datant 
+de moins de trois (3) mois) ; 
+• 
+un récépissé d’immatriculation au Registre du 
+Commerce et du Crédit Mobilier ;
+• 
+la déclaration de souscription de l’intégralité du capital, 
+le cas échéant ; 
+• 
+les statuts de la société élaborés, conformément aux 
+dispositions de l’Acte uniforme de l’OHADA relatif au 
+droit des sociétés commerciales et du groupement 
+d’intérêt économique (GIE) ;
+• 
+les projets de contrats à conclure avec les partenaires 
+financiers dans le cadre de l’activité d’émission de 
+monnaie électronique ;
+
+--- PAGE 46 ---
+- 44 -
+ANNEXES
+• 
+les projets de contrats à conclure avec les clients 
+détenteurs, les accepteurs et les distributeurs ;  
+• 
+la décision d’agrément du Ministère chargé des 
+finances pour les  systèmes financiers décentralisés ;
+• 
+la convention de domiciliation des fonds, le cas échéant. 
+2. Documents et informations d’ordre financier 
+• 
+une présentation détaillée de l’activité de monnaie 
+électronique que l’établissement ou l’institution 
+souhaite exercer ;
+• 
+les états financiers annuels des trois derniers exercices, 
+certifiés par au moins un Commissaire aux comptes 
+agréé pour les établissements assujettis à cette 
+obligation ;
+• 
+les projections financières établies sur au moins trois 
+ans, de l’activité de monnaie électronique pour laquelle 
+l’agrément ou l’autorisation est sollicité, avec des 
+hypothèses de sensibilité. 
+3. Architecture technique 
+• 
+une copie des contrats et protocoles conclus avec les 
+partenaires techniques dans le cadre de l’activité de 
+monnaie électronique ;
+• 
+une présentation de l’architecture des systèmes 
+d’information et techniques ainsi que de leur 
+fonctionnement permettant de vérifier le respect de 
+toutes les normes de sécurité technique ;
+• 
+les attestations de certification de la plate-forme, le cas 
+échéant ;
+
+--- PAGE 47 ---
+- 45 -
+ANNEXES
+• 
+la politique de sécurisation des systèmes d’information 
+et les procédures y associées ;
+• 
+le dispositif de continuité des opérations. 
+ANNEXE II : LISTE DES DOCUMENTS ET INFORMATIONS 
+CONSTITUTIFS DU DOSSIER DE DEMANDE 
+D’ETABLISSEMENT DE FILIALES OU DE SUCCURSALES 
+D’UN ETABLISSEMENT DE MONNAIE ELECTRONIQUE
+1. Documents et informations d’ordre juridique
+• 
+une demande signée par le représentant de 
+l’établissement ou de l’institution dûment habilité, à 
+cet effet, adressée à la Banque Centrale et déposée 
+auprès de la Direction Nationale de la BCEAO de l’Etat 
+d’implantation de la filiale ou de la succursale ;
+• 
+une fiche de renseignements sur les principaux 
+dirigeants et partenaires de la filiale ; 
+• 
+une présentation détaillée de l’activité de monnaie 
+électronique que l’établissement ou l’institution 
+souhaite exercer ;
+• 
+les projets de contrats à conclure avec les clients, les 
+accepteurs et les distributeurs. 
+2. Documents et informations d’ordre financier et 
+technique
+• 
+les projections financières sur au moins trois ans, 
+de l’activité de monnaie électronique pour laquelle 
+l’agrément est sollicité ;
+
+--- PAGE 48 ---
+- 46 -
+ANNEXES
+• 
+les documents attestant de la dotation financière de la 
+succursale, le cas échéant ; 
+• 
+une copie des contrats et protocoles conclus avec les 
+partenaires techniques et financiers dans le cadre de 
+l’activité de monnaie électronique ;
+• 
+une présentation de l’architecture des systèmes 
+d’information et techniques ainsi que de leur 
+fonctionnement permettant de vérifier le respect de 
+toutes les normes de sécurité techniques.
+ANNEXE III : CANEVAS POUR LA PRESENTATION DU 
+DOSSIER DE DEMANDE D’AGREMENT EN QUALITE 
+D’ETABLISSEMENT DE MONNAIE ELECTRONIQUE 
+OU DU DOSSIER D’AUTORISATION D’EXERCICE 
+D’ACTIVITES DE MONNAIE ELECTRONIQUE
+Le canevas, ci-après, sert de base pour une présentation, 
+par les promoteurs, du dossier de demande d’agrément en 
+qualité d’établissement de monnaie électronique. 
+I. PRESENTATION DE LA STRUCTURE
+1.1. Informations d’ordre juridique
+• 
+Les Statuts ou les documents décrivant la forme 
+juridique et indiquant l’objet social ainsi que le siège 
+social de la structure sollicitant l’agrément ; 
+• 
+Contrats de partenariats prévus et contrats à proposer 
+aux porteurs, aux accepteurs et aux distributeurs.
+1.2. Organisation de la structure 
+• 
+Description de l’organisation de la structure  notamment 
+les organes d’administration et de contrôle,  le réseau 
+d’implantation, l’organigramme et l’effectif ;
+
+--- PAGE 49 ---
+- 47 -
+ANNEXES
+• 
+Dispositif de contrôle interne, avec notamment un 
+récapitulatif des risques bruts et du dispositif de leur 
+gestion ; 
+• 
+Décrire les dispositifs d’analyse, d’alerte et de suivi des 
+risques de blanchiment de capitaux et de financement 
+du terrorisme.
+1.3. Informations sur les promoteurs
+• 
+Informations sur les actionnaires significatifs ou 
+membres fondateurs ; 
+• 
+Présentation des dirigeants effectifs ;
+• 
+Identité, nationalité et adresse ;
+• 
+Curriculum-vitae et extrait de casier judiciaire pour les 
+personnes physiques ;
+• 
+Situation financière des promoteurs, notamment les 
+actionnaires de référence et les membres fondateurs. 
+II. PRESENTATION DU PROJET
+2.1. Motivations
+Présenter le projet, en mettant en exergue l’orientation 
+et le positionnement sur le marché ainsi que le rôle que 
+l’établissement envisage de jouer dans le paysage financier 
+au niveau national et à l’échelle de l’Union.
+2.2. Au plan opérationnel 
+Processus opérationnels : fournir une description détaillée 
+des processus opérationnels déclinés pour chaque produit et 
+service offert mettant en exergue notamment la cinématique 
+des transactions et les flux financiers associés.
+• 
+Acteurs du système : décrire les relations entre les 
+acteurs du système, à savoir, l’établissement émetteur,
+
+--- PAGE 50 ---
+- 48 -
+ANNEXES
+les distributeurs, les sous-distributeurs, les porteurs, 
+les accepteurs de la monnaie électronique, la banque 
+dépositaire des fonds en contrepartie de l’émission de 
+monnaie électronique ;
+• 
+Décrire les modalités de gestion du réseau de 
+distribution notamment le recrutement, la formation et 
+la rémunération, préciser le nombre prévisionnel des 
+agents auxquels l’établissement envisage de recourir, 
+les critères de sélection et les caractéristiques de ces 
+agents (personnes physiques ou morales) ; 
+• 
+Décrire les mécanismes définis pour assurer la 
+disponibilité de la trésorerie chez les distributeurs pour 
+la bonne fin des opérations.
+Les fonctions de chaque acteur du système doivent être 
+précisées en vue d’apprécier : 
+• 
+l’habilitation réglementaire des acteurs à assumer les 
+fonctions qui leur sont assignées dans le système ;
+• 
+la protection des porteurs et des accepteurs ;
+• 
+le calendrier de réalisation du projet : indiquer la 
+date prévue de démarrage effectif des activités ou le 
+planning de déploiement des infrastructures. 
+III. AU PLAN TECHNIQUE
+Décrire l’infrastructure technique proposée, en mettant en 
+exergue les moyens matériels et les outils dont la société 
+disposera pour exercer les activités prévues. Les éléments 
+fournis doivent permettre de démontrer l’adéquation des 
+moyens matériels et des ressources humaines déployés 
+pour ces activités. Le dossier doit plus particulièrement 
+détailler les aspects suivants.
+
+--- PAGE 51 ---
+- 49 -
+ANNEXES
+3.1. Description de la résistance des supports de la 
+monnaie électronique à la contrefaçon
+Décrire les dispositifs de sécurité mis en œuvre sur les supports 
+et des dispositions prises pour assurer leur protection physique 
+lors de leur production, expédition, stockage et utilisation.
+3.2. Description de la sécurité des systèmes 
+d’information 
+Les moyens mis en œuvre pour assurer la sécurité physique 
+et logique des données, tant du point de vue des dispositifs 
+techniques notamment les pare-feux, la détection d’intrusion 
+ainsi que les procédures et accréditations mises en place.
+3.3. Description de la sécurité du traitement du moyen 
+de paiement 
+Décrire les mesures permettant d’assurer  : 
+• 
+l’authentification des  données impliquées dans les 
+transactions ;
+• 
+la confidentialité des données impliquées dans les 
+transactions ;
+• 
+l’intégrité des données impliquées dans les opérations ;
+• 
+la non répudiation des données impliquées dans les 
+transactions. 
+3.4. Description du plan de continuité des opérations 
+Décrire, le cas échéant, l’organisation générale de la sécurité, 
+(existence d’un responsable de la sécurité, description des 
+analyses de risques et des modalités d’alerte) ainsi que 
+les grandes lignes du plan de continuité des opérations ou 
+du plan de secours (redondance des équipements, site de 
+secours, groupe électrogène de secours).
+
+--- PAGE 52 ---
+- 50 -
+ANNEXES
+3.5. Conservation des données
+Décrire les modalités d’archivage et de traçabilité des 
+informations (périodicité, forme, lieu, durée) concernant 
+les opérations effectuées sur la plate-forme.
+IV. PROJECTIONS FINANCIERES
+Présenter les perspectives financières, en mettant en exergue 
+les points suivants : 
+• 
+le montant du capital social et sa répartition ;  
+• 
+la situation financière de la structure requérant l’agrément 
+(les états financiers prévisionnels sur trois ans ainsi que 
+les engagements et placements financiers) ;
+• 
+les hypothèses de chiffres d’affaires assorties de tests 
+de sensibilité ; 
+• 
+les investissements prévus ;  
+• 
+le plan de financement des activités ;
+• 
+la structure des coûts ; 
+• 
+la structure tarifaire.
+
+--- PAGE 53 ---
+- 51 -
+ANNEXES
+ANNEXE IV : EXIGENCES DE REPORTING MENSUEL
+Rapport mensuel de contrôle de l’encours de la monnaie 
+électronique 
+Nom de l’établissement émetteur : 
+Partenaire technique :
+Etablissement(s) domiciliataire(s) des fonds :
+CONTRÔLE DE L’ENCOURS DE LA MONNAIE ÉLECTRONIQUE
+Libellé
+Mois 
+m-3
+Mois 
+m-2
+Mois 
+m-1
+Mois 
+m
+Valeur de la monnaie électronique en 
+circulation (en FCFA) (*)
+Solde du compte 
+de cantonnement 
+(*) (1)
+Établissement 
+domiciliataire des 
+fonds : 
+Numéro du compte : 
+Intitulé du compte :
+Solde du compte 
+de cantonnement 
+(*) (2)
+Établissement 
+domiciliataire des 
+fonds : 
+Numéro du compte : 
+Intitulé du compte :
+Total (1)+(2)
+(*) Joindre les relevés justificatifs des soldes pour la période concernée 
+pour chaque établissement domiciliataire des fonds.
+
+--- PAGE 54 ---
+- 52 -
+ANNEXES
+ANNEXE V : EXIGENCES DE REPORTING 
+TRIMESTRIEL 
+Rapport trimestriel de surveillance
+Nom de l’établissement émetteur : 
+Partenaire technique :
+Etablissement(s) domiciliataire(s) des fonds :
+I. RATIOS LIÉS À LA MONNAIE ÉLECTRONIQUE 
+1.1. Tableau des ratios
+Libellé
+Trimestre 
+t-3
+Trimestre 
+t-2
+Trimestre 
+t-1
+Trimestre 
+t
+Ratio de couverture 
+de la monnaie 
+électronique (Capitaux 
+Propres / Engagement 
+en monnaie 
+électronique) ≥ 3%
+Valeur des placements 
+financiers liés à la 
+monnaie électronique/
+Valeur de la monnaie 
+électronique en 
+circulation≤ 25% (*)
+Ratio d’équivalence 
+(Valeur des placements 
+financiers liés à la 
+monnaie électronique 
+et des dépôts à vue/ 
+Valeur de la monnaie 
+électronique en 
+circulation) ≥ 100% (*)
+
+--- PAGE 55 ---
+- 53 -
+ANNEXES
+1.2. Valeur des placements des engagements financiers 
+liés à la monnaie électronique (en millions de FCFA)
+Libellé (Placements 
+effectués) (*)
+Trimestre 
+t-3
+Trimestre 
+t-2
+Trimestre 
+t-1
+Trimestre 
+t
+Dépôt à vue
+Dépôts à terme 
+Titres acquis 
+Total 
+(*) Joindre les relevés justificatifs des soldes pour la période concernée ainsi 
+que la nature des actifs de placement et la durée initiale des placements.
+II. INDICATEURS FINANCIERS 
+Libellé
+Trimestre 
+t-3
+Trimestre 
+t-2
+Trimestre 
+t-1
+Trimestre 
+t
+Chiffres d'affaires 
+Excédent brut 
+d'exploitation 
+Résultat d'exploitation
+Trésorerie Nette
+Capitaux propres
+Dettes Financières
+Ressources stables
+
+--- PAGE 56 ---
+- 54 -
+ANNEXES
+III. INDICATEURS D’ACTIVITES 
+3.1 Indicateurs de volumétrie (*)
+Volumétrie 
+Trimestre
+TOTAL
+t-3
+t-2
+t-1
+t
+Nombre de comptes de 
+monnaie électronique ouverts 
+Nombre de comptes de 
+monnaie électronique actifs 
+(au moins une transaction au 
+cours des 90 derniers jours)
+Nombre de comptes dormants 
+(aucune transaction au cours 
+des 90 derniers jours)
+Nombre de transactions
+Valeur des transactions
+(en millions de FCFA)
+3.2 Indicateurs de distribution
+Distribution
+Trimestre
+TOTAL
+t-3
+t-2
+t-1
+t
+Nombre de GAB
+Nombre de TPE 
+Nombre de sous-distributeurs
+Nombre d'agents distributeurs 
+Nombre total de points de 
+services (GAB-TPE- Sous-
+distributeurs – agents 
+distributeurs) 
+Nombre total de points de 
+services actifs (au moins une 
+transaction au cours des 90 
+derniers jours)
+
+--- PAGE 57 ---
+- 55 -
+ANNEXES
+3.3 Services financiers par téléphonie mobile
+Services financiers
+par téléphone 
+portable
+Trimestre 
+t-3
+Trimestre 
+t-2
+Trimestre 
+t-1
+Trimestre
+t
+Volume
+Valeur
+Volume
+Valeur
+Volume
+Valeur
+Volume
+Valeur
+Rechargements 
+téléphoniques
+Rechargements 
+cash
+Retraits cash
+Transferts personne 
+à personne
+Transferts personne 
+à entreprise
+Paiements de 
+factures
+Transactions avec 
+les administrations 
+publiques (impôts, 
+taxes, bourses, 
+indemnités sociales, 
+etc.)
+Transactions avec 
+les institutions 
+de microfinance 
+(indiquer le type de 
+transactions)
+Paiement marchand
+Paiement de salaires
+Autres (indiquer)
+TOTAL
+
+--- PAGE 58 ---
+- 56 -
+ANNEXES
+3.4 Transaction par types de cartes 
+Types de cartes
+Trimestre
+t-3
+t-2
+t-1
+t
+En 
+nombre 
+En 
+valeur 
+En 
+nombre 
+En 
+valeur 
+En 
+nombre 
+En 
+valeur 
+En 
+nombre 
+En 
+valeur 
+Total
+(*) Valeurs en millions de FCFA
+IV. ANALYSE DES RISQUES LIÉS AUX NOUVEAUX PRODUITS 
+ 
+4.1. Liste des produits en cours de développement
+Désignation 
+du produit
+Etat 
+d’avancement
+Date 
+prévisionnelle 
+de lancement
+Observations
+4.2. Description des acteurs/processus et risques inhé-
+rents aux nouveaux produits et services
+Pour chaque produit ou service à mettre en place, transmettre 
+un document descriptif des acteurs, processus et risques 
+inhérents.
+
+--- PAGE 59 ---
+- 57 -
+ANNEXES
+V. SUIVI DES INCIDENTS ET FRAUDES SURVENUS DANS 
+LE SYSTÈME 
+5.1. Incidents  
+LIBELLES
+Trimestre 
+t-3
+Trimestre 
+t-2
+Trimestre 
+t-1
+Trimestre 
+t
+Nombre d'incidents 
+constatés (1)
+Durée moyenne de 
+résolution des incidents 
+(en heure)
+Durée de résolution 
+d'incidents la plus longue 
+(en heure)
+Nombre de cartes en 
+opposition 
+Nombre de cartes 
+capturées (2)
+Nombre de réclamations 
+enregistrées 
+Nombre de fois que les 
+plate-formes techniques 
+ont connu des pannes 
+Durée moyenne de 
+résolution des pannes 
+sur les plate-formes 
+techniques
+Durée de résolution de 
+pannes la plus longue
+(en heure)
+(1) Il s’agit de dysfonctionnements ayant entraîné une cessation partielle ou 
+totale du processus de traitement des opérations. Décrire en appui à cette 
+déclaration, les incidents survenus, le diagnostic et les solutions appliquées. 
+(2) Indiquer et analyser les motifs pour lesquels les cartes ont été capturées
+
+--- PAGE 60 ---
+- 58 -
+ANNEXES
+5.2. Transactions frauduleuses 
+LIBELLES
+Trimestre 
+t-3
+Trimestre 
+t-2
+Trimestre 
+t-1
+Trimestre
+t
+Volume
+Valeur
+Volume
+Valeur
+Volume
+Valeur
+Volume
+Valeur
+Transactions 
+frauduleuses 
+constatées
+(*) Valeurs en millions de FCFA
+Décrire les fraudes constatées (modes opératoires, failles du système 
+exploité) et les solutions mises ou à mettre en place.
+
+--- PAGE 61 ---
+- 59 -
+
+--- PAGE 62 ---
+Achevé d’imprimer sur les Presses
+de l’Imprimerie de la BCEAO
+Juillet 2015
+
+--- PAGE 64 ---
+Avenue Abdoulaye Fadiga
+BP 3108 - Dakar - Sénégal 
+www.bceao.int
