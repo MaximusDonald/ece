@@ -11,9 +11,8 @@ from sqlmodel import delete, select
 from app.core.database import async_engine, async_session_maker
 from app.core.security import create_access_token
 from app.main import app
-from app.models.audit import AuditLog
 from app.models.corpus import RegulatoryAlert, RegulatoryAlertStatus
-from app.models.legal import LegalLevel, LegalSource, SourceCollectionRun, SourceStatus
+from app.models.legal import AuditLog, LegalLevel, LegalSource, SourceCollectionRun, SourceStatus
 from app.models.user import User, UserRole
 from app.services.crawler import (
     LegalCrawlerEngine,
@@ -57,8 +56,8 @@ def test_classify_normative_candidate_filtering():
 @pytest.mark.asyncio
 async def test_blind_crawler_engine_is_retired():
     """Legacy blind spider crawl() is retired and returns no documents."""
-    engine = LegalCrawlerEngine(max_pages=5, max_depth=2)
-    docs = await engine.crawl("https://service.apdp.bj/documentation")
+    engine = LegalCrawlerEngine("https://service.apdp.bj/documentation", max_depth=2)
+    docs = await engine.crawl()
     assert docs == []
 
 

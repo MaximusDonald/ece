@@ -475,11 +475,6 @@ export interface RegulatoryAlertItem {
   reviewed_at?: string | null;
   detected_at: string;
 }
-  error_message: string | null;
-  discovered_urls_count?: number;
-  downloaded_files_count?: number;
-  ai_processed_count?: number;
-}
 
 export interface DiffLine {
   type: 'added' | 'removed' | 'unchanged' | 'modified';
