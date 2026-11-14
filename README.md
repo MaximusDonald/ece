@@ -1,204 +1,119 @@
 # ECO-Compliance Engine (ECE)
 
-> Plateforme B2B souveraine d'audit documentaire automatisé et de vérification de conformité juridique et technique pour la zone CEDEAO/UEMOA.
-
-## 🎯 Vision
-
-L'ECO-Compliance Engine permet aux entrepreneurs, fintechs et éditeurs de logiciels de déposer leurs documents stratégiques (cahier des charges, politique de confidentialité, contrats) et d'obtenir un **double rapport traçable, sourcé et noté en confiance** ancré sur le droit CEDEAO/UEMOA/OHADA + droit national (Bénin en premier).
-
-### Noyau distinctif (Unique Kernel)
-
-- **Sources prédéfinies et curatorées uniquement** — pas de web ouvert
-- **Gestion explicite de l'obsolescence** — un texte abrogé ne ressort pas comme valide
-- **Principe de non-hallucination** — badges de confiance (High/Medium/Low), le modèle avoue ce qu'il ne sait pas
-- **Architecture incrémentale multi-niveaux** — socle communautaire CEDEAO/UEMOA/OHADA + module national via paramètre `pays`
-- **Détection des conflits de normes** — entre textes de niveaux différents (CEDEAO vs national) au lieu de choisir silencieusement
-
-## 🏗️ Architecture
-
-```
-ece/
-├── docker-compose.yml          # Orchestration locale
-├── .env.example                # Variables d'environnement
-├── backend/                    # FastAPI + Celery + PostgreSQL + MinIO
-│   ├── app/
-│   │   ├── api/               # Routes REST (auth, projects, documents, reports, admin)
-│   │   ├── core/              # Config, DB, Security
-│   │   ├── models/            # SQLModel (User, Project, Document, LegalSource, RiskFinding...)
-│   │   ├── workers/           # Celery tasks (extraction, semantic, legal_research, scoring, report, incremental)
-│   │   ├── services/          # MinIO, LLM, PDF, Diff
-│   │   └── seed/              # Corpus juridique initial (~30 textes)
-│   └── requirements.txt
-├── frontend/                   # Next.js 15 + shadcn-ui + Tailwind
-│   ├── src/
-│   │   ├── app/               # App Router (dashboard, admin, auth)
-│   │   ├── components/        # UI components (shadcn-ui based)
-│   │   ├── hooks/             # TanStack Query hooks
-│   │   └── lib/               # API client, utils
-│   └── package.json
-└── devpost/                    # Documentation Devpost Learn
-    ├── learner-profile.md
-    ├── scope.md
-    ├── prd.md
-    ├── spec.md
-    └── checklist.md
-```
-
-## 🚀 Démarrage rapide
-
-### Prérequis
-
-- Docker & Docker Compose v2
-- Clé API OpenAI ou Anthropic (pour le LLM)
-
-### Installation
-
-```bash
-# Cloner le repo
-git clone <votre-repo>
-cd ece
-
-# Configurer l'environnement
-cp .env.example .env
-# Éditer .env et ajouter OPENAI_API_KEY ou ANTHROPIC_API_KEY
-
-# Lancer la stack complète
-docker-compose up --build
-```
-
-### Accès
-
-- **Frontend** : http://localhost:3000
-- **API (Swagger)** : http://localhost:8000/docs
-- **MinIO Console** : http://localhost:9001 (minioadmin / minioadmin)
-
-### Compte admin par défaut
-
-- Email : `admin@ece.local`
-- Mot de passe : `admin123`
-- Role: `platform_admin` (governance administrator). This account can open global administration and create other platform administrators. Change the default password after the first login outside local development.
-
-## 🔄 Parcours utilisateur (Core Journey)
-
-1. **Inscription/Connexion** → JWT + OAuth (Google, GitHub)
-2. **Création projet** → Nom, pays (BJ pré-sélectionné), secteur, traitements
-3. **Téléversement document** → PDF/DOCX/Markdown (≤50 Mo) → MinIO
-4. **Analyse asynchrone** (5 étapes) :
-   - Extraction (PyMuPDF, python-docx)
-   - Analyse sémantique (spaCy NER + LLM)
-   - Recherche juridique (PGVector + RAG + consensus LLM)
-   - Scoring (règles déterministes + pondérations)
-   - Génération rapport (WeasyPrint PDF)
-5. **Double rapport** :
-   - Rapport 1 : Analyse documentaire (constats par clause)
-   - Rapport 2 : Synthèse juridique (citations articles, URLs, SHA-256)
-6. **Contexte complémentaire** → Mise à jour incrémentale → Diff v1.0 → v1.1
-7. **Admin** → Gestion corpus, règles scoring, modèles LLM, pays, audit logs
-
-## 🛠️ Stack technique
-
-| Couche | Technologie | Version |
-|--------|-------------|---------|
-| API | FastAPI | 0.115+ |
-| ORM | SQLModel | 0.0.22+ |
-| Auth | fastapi-users | 12.4+ |
-| Async | Celery + Redis | 5.4+ / 7 |
-| DB | PostgreSQL + PGVector | 16 / 0.7+ |
-| Stockage | MinIO | RELEASE.2024 |
-| Extraction | PyMuPDF, python-docx | 1.24+ / 1.1+ |
-| LLM | OpenAI / Anthropic SDK | Latest |
-| PDF | WeasyPrint | 62+ |
-| Frontend | Next.js 15 (App Router) | 15 |
-| UI | shadcn-ui + Tailwind | Latest |
-| State | TanStack Query | 5.6+ |
-
-## 📊 Corpus juridique initial (POC)
-
-- **CEDEAO** : Acte additionnel A/SA.1/01/10 (protection données), Directive transactions électroniques
-- **UEMOA** : Règlement 09/2010/CM/UEMOA
-- **OHADA** : Acte uniforme droit commercial général
-- **BCEAO** : Instruction services de paiement, Règlement monnaie électronique, Instruction LCB/FT
-- **Bénin** : Code du numérique (Loi 2017-20), Décret APDP, Formulaire unique APDP, Guide APDP, Loi cybercriminalité
-
-## 🔐 Sécurité & Souveraineté
-
-- Isolation par organisation (multi-tenant)
-- Chiffrement en transit (TLS) + au repos (PostgreSQL, MinIO)
-- JWT HttpOnly cookies + rotation refresh tokens
-- RBAC : org_admin, analyst, reader, external_auditor, platform_admin
-- Journaux d'audit immuables (toutes actions sensibles)
-- Pas d'accès web ouvert — corpus interne uniquement
-- Suppression configurable des documents originaux
-
-## 🧪 Tests & Qualité
-
-```bash
-# Backend tests
-cd backend && pytest
-
-# Frontend lint
-cd frontend && npm run lint
-
-# Type checking
-cd frontend && npx tsc --noEmit
-```
-
-## 📦 Déploiement (optionnel)
-
-Le POC tourne en local via Docker Compose. Pour la production :
-
-- **Frontend** → Vercel / Netlify
-- **Backend + Workers** → Railway / Render / Fly.io
-- **PostgreSQL + Redis** → Managed instances (Neon, Supabase, Upstash)
-- **MinIO** → AWS S3 / MinIO hosted / Cloudflare R2
-
-## 📚 Documentation Devpost Learn
-
-Le dossier `devpost/` contient la traçabilité complète du processus de planification :
-
-- `learner-profile.md` — Profil apprenant (expérience, objectifs)
-- `scope.md` — Cadrage POC (noyau, utilisateur, boucle, frontière)
-- `prd.md` — Spécifications produit détaillées (11 écrans, comportements, états)
-- `spec.md` — Spécifications techniques (stack, data model, file structure, composants)
-- `checklist.md` — Plan de build par tranches (slices) avec vérifications
-
-## 🤝 Contribution
-
-Ce projet a été développé dans le cadre du hackathon **Devpost Learn - Build With AI: Basics**.
-
-## 📄 Licence
-
-Propriétaire — POC pour démonstration hackathon.
+Plateforme B2B souveraine d'audit documentaire automatisé et de vérification de conformité juridique et technique pour l'espace **CEDEAO / UEMOA / OHADA / OAPI / Union Africaine** et les droits nationaux associés.
 
 ---
 
-**ECE** — *Faire de la conformité un levier, pas un fardeau.*
+## Stack & Environnements
 
-## Équipe et paramètres
+![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?style=for-the-badge&logo=fastapi&logoColor=white)
+![Celery](https://img.shields.io/badge/Celery-5.4+-37814A?style=for-the-badge&logo=celery&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL_16_+_pgvector-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)
+![Redis](https://img.shields.io/badge/Redis-7-DC382D?style=for-the-badge&logo=redis&logoColor=white)
+![MinIO](https://img.shields.io/badge/MinIO-S3_Storage-C72E49?style=for-the-badge&logo=minio&logoColor=white)
+![Next.js](https://img.shields.io/badge/Next.js-15-000000?style=for-the-badge&logo=nextdotjs&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
+![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-3-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker_Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)
 
-- La page **Équipe** est réservée aux administrateurs d’organisation. Elle liste les membres de l’organisation courante et permet d’en ajouter avec un rôle `org_admin`, `analyst`, `reader` ou `external_auditor`. Le rôle global `platform_admin` ne peut pas être attribué depuis une organisation.
-- API d’équipe : `GET /api/projects/organization/members` liste les membres ; `POST /api/projects/organization/members` crée un membre (e-mail, mot de passe initial de 8 caractères minimum, rôle). Les deux routes sont limitées à l’organisation de l’administrateur authentifié.
-- La page **Paramètres** permet à chaque utilisateur de modifier son e-mail et son mot de passe via `PATCH /api/auth/users/me`. Un administrateur d’organisation peut aussi renommer son organisation via `PATCH /api/projects/organization/me`.
-- Le premier projet d’un utilisateur sans organisation crée d’abord son organisation avec le nom saisi dans le formulaire, puis le projet.
-- Les membres ajoutés reçoivent un mot de passe initial communiqué par l’administrateur ; aucun courriel d’invitation ni réinitialisation obligatoire n’est encore intégré.
-## Cycle d'analyse documentaire
+---
 
-L'upload accepte les PDF, DOCX, Markdown et fichiers texte jusqu'a 50 Mo. La nature du document est stockee dans `document.document_type` (50 caracteres maximum) et enrichit les requetes de recherche juridique. Le suivi authentifie `GET /api/projects/{project_id}/documents/{document_id}/pipeline` expose les cinq etapes, leur progression, les avertissements/erreurs et l'identifiant du rapport. `POST .../resume` relance l'etape manquante apres une interruption.
+## Présentation
 
-Les rapports PDF sont transmis par `GET /api/reports/{report_version_id}/download?type=report1|report2`; les boutons du frontend utilisent cette route authentifiee au lieu d'une URL MinIO interne. Les rapports Markdown restent disponibles via les routes d'export existantes.
+**ECO-Compliance Engine** permet aux entreprises, fintechs, éditeurs de logiciels et cabinets d'audit de soumettre un dossier multi-documents (cahier des charges, politique de confidentialité, CGU, contrat sous-traitant, architecture technique) et de produire un **rapport d'audit juridique unifié, traçable et versionné**, ancré exclusivement sur un corpus normatif officiel curaté.
 
-La base locale est mise a jour de façon additive au demarrage. Les scripts SQL reversibles se trouvent dans `backend/migrations/20261016_add_document_type.sql` et `backend/migrations/20261016_remove_document_type.sql`. Le retour arriere supprime la colonne et donc les valeurs de nature deja enregistrees.
+### Principes directeurs du moteur
 
-## Veille des sources juridiques
+- **Corpus curaté et vérifiable** : recherche hybride **Article-RAG** (pgvector HNSW + PostgreSQL French GIN FTS) limitée aux textes officiels indexés.
+- **Hiérarchie des normes et validité temporelle** : exclusion stricte des textes abrogés ou non encore en vigueur ; priorité aux normes communautaires contraignantes (`OHADA`, `UEMOA/BCEAO`, `CEDEAO`, `OAPI`, `UA`) sur la loi nationale et les décrets, avec signalement automatique des conflits de normes.
+- **Principe de précaution et parade d'annulation** : lecture conjointe de tous les documents du projet ; aucun point n'est classé conforme sans preuve explicite détectée dans le dossier.
+- **Scoring stabilisé par domaine** : calcul par rendements décroissants sur 4 facettes juridiques canoniques, malus de sanction dédupliqué par article unique (plafonné à +25 pts), plancher à `50/100` sur risque critique non mitigé et compression graduée au-delà de `70/100`.
+- **Sélection ciblée sur gros dossiers** : découpage par sections Markdown et sélection prioritaire des clauses critiques pour éviter les troncatures aveugles du milieu de document.
+- **Qualification juridique et piste d'audit** : typage des constats (`non_conformite_imperative`, `risque_contractuel`, `bonne_pratique`), revue humaine horodatée (`validated`, `mitigated_by_evidence`, `dismissed`) et verrouillage inter-versions.
 
-Depuis l’administration, chaque source peut être collectée à la demande ou incluse dans le cycle hebdomadaire. L’URL doit pointer directement vers un document public en HTTPS (HTML ou PDF); le collecteur n’explore pas les liens d’un site. L’historique conserve le déclencheur, les dates, le statut, le hash précédent/nouveau et les erreurs. Le texte courant et son embedding ne sont recalculés que si le texte extrait change.
+---
 
-Celery Beat exécute la collecte hebdomadaire le lundi à 02:00 UTC (03:00 au Bénin). Seules les sources dont « collecte automatique hebdomadaire » est activée sont traitées. Les colonnes et la table d’historique sont ajoutées au démarrage; les scripts de migration sont `backend/migrations/20261016_add_source_collection.sql` et `backend/migrations/20261016_remove_source_collection.sql`.
+## Documentation du projet
 
-- API de collecte : `POST /api/admin/sources/{source_id}/collect` met une collecte manuelle en file (202); `GET /api/admin/sources/{source_id}/collections` renvoie les 20 executions les plus recentes. `PATCH /api/admin/sources/{source_id}` modifie notamment `collection_enabled`. Ces routes exigent le role `platform_admin`.
+L'ensemble de la documentation de référence est regroupé dans le répertoire [`docs/`](./docs/) :
 
-## Modèles LLM et fournisseurs
+| Document | Description | Lien |
+| :--- | :--- | :--- |
+| Cahier des charges | Périmètre fonctionnel, exigences, rôles RBAC et critères d'acceptation | [docs/cahier_des_charges.md](./docs/cahier_des_charges.md) |
+| Architecture technique | Services Docker, pipeline Celery, Article-RAG hybride et modèle de données | [docs/architecture_technique.md](./docs/architecture_technique.md) |
+| Matrice de risques & scoring | Facettes juridiques, hiérarchie des normes, formule stabilisée et piste d'audit | [docs/matrice_risques_et_scoring.md](./docs/matrice_risques_et_scoring.md) |
+| Manuel utilisateur | Guide opérationnel Analyste / Juriste et Administrateur Plateforme | [docs/manuel_utilisateur.md](./docs/manuel_utilisateur.md) |
+| Guide de déploiement | Configuration `.env`, migrations Alembic, démarrage Docker et tests | [docs/guide_deploiement.md](./docs/guide_deploiement.md) |
 
-Les fournisseurs autorisés sont déclarés dans `backend/app/services/llm_registry.py`. L’API admin calcule leur disponibilité à partir d’une clé API non vide et ne transmet jamais les clés au frontend. Les nouvelles configurations sont testées avec un appel court avant insertion. Le routeur des appels de discussion consulte les modèles actifs en base et tente au plus trois modèles disponibles, par défaut puis dans un ordre stable. Le fallback couvre les timeouts, erreurs de connexion, réponses HTTP 5xx, limites de débit et erreurs d’authentification; les erreurs de requête 4xx ne sont pas réessayées.
+---
 
-La migration Alembic `backend/alembic/versions/20261017_01_expand_llm_providers.py` convertit l’enum PostgreSQL fournisseur en texte et ajoute de façon idempotente les modèles Anthropic, Gemini et Groq sans remplacer la configuration OpenAI existante. Pour une base locale existante, depuis le dossier `backend`, exécuter `alembic -c alembic.ini upgrade head`. Le downgrade refuse de convertir si des lignes Gemini/Groq existent, afin de ne pas perdre leur configuration; exporter ou supprimer explicitement ces lignes avant un retour arrière.
+## Architecture du dépôt
+
+```text
+.
+├── backend/                    # API FastAPI, SQLModel, Alembic, Workers Celery
+│   ├── alembic/versions/       # Migrations PostgreSQL (corpus, alertes, audit trail)
+│   ├── app/
+│   │   ├── api/                # Endpoints REST (auth, projects, documents, reports, admin)
+│   │   ├── models/             # Modèles SQLModel (User, Project, LegalText, RiskFinding...)
+│   │   ├── schemas/            # Schémas Pydantic v2
+│   │   ├── services/           # Article-RAG, compliance_auditor, pdf_generator, llm_client
+│   │   ├── workers/            # Pipeline asynchrone Celery (5 étapes + barrière projet)
+│   │   └── seed/               # Corpus juridique initial et règles de scoring
+│   └── tests/                  # Suite Pytest (RAG, hiérarchie, scoring, audit trail, gros dossiers)
+├── frontend/                   # Application Next.js 15 (App Router) + Tailwind + TanStack Query
+│   └── src/
+│       ├── app/                # Pages Dashboard, Projets, Rapports, Administration
+│       ├── components/         # Composants UI réutilisables
+│       ├── hooks/              # Hooks TanStack Query
+│       └── lib/                # Client HTTP Axios & types TypeScript
+├── docs/                       # Documentation projet complète
+├── docker-compose.yml          # Stack complète (postgres, redis, minio, backend, worker, beat, frontend)
+└── .env.example                # Modèle des variables d'environnement
+```
+
+---
+
+## Démarrage rapide
+
+### Prérequis
+
+- Docker et Docker Compose v2
+- Clé API LLM configurée (Gemini / OpenAI / Anthropic selon le fournisseur actif)
+
+### Lancement
+
+```bash
+cp .env.example .env
+# Renseigner les clés API et secrets dans .env
+
+docker compose up -d --build
+docker compose exec backend alembic upgrade head
+```
+
+### Points d'accès locaux
+
+| Service | URL |
+| :--- | :--- |
+| Interface Web | http://localhost:3000 |
+| Documentation API (Swagger) | http://localhost:8000/docs |
+| Console MinIO | http://localhost:9001 |
+
+### Compte administrateur initial (environnement local)
+
+- **Email** : `admin@ece.local`
+- **Mot de passe** : `admin123`
+- **Rôle** : `platform_admin` (gouvernance du corpus, règles de scoring, configuration LLM et audit). Changer ce mot de passe dès le premier déploiement hors développement.
+
+---
+
+## Vérification et tests
+
+```bash
+# Tests backend (scoring, hiérarchie des normes, gros dossiers, piste d'audit, RAG)
+docker compose exec -T backend pytest -v
+
+# Vérification TypeScript frontend
+docker compose exec -T frontend npx tsc --noEmit
+```
