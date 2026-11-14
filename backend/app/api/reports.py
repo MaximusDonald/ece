@@ -17,7 +17,7 @@ from app.models.legal import (
     RiskLevel, ConfidenceLevel, LegalLevel, SourceStatus
 )
 from app.schemas.legal import (
-    ReportVersionRead, ReportVersionListItem, RiskFindingRead,
+    ReportVersionRead, ReportVersionListItem, RiskFindingRead, RiskFindingReviewUpdate,
     LegalSourceRead, LegalSourceCreate, LegalSourceUpdate,
     ReportDiff, DiffLine,
     MatchedSourceDetail, MatchedArticleDetail,
@@ -195,6 +195,43 @@ async def get_report_findings(
         response_items.append(item)
 
     return response_items
+
+
+@router.patch("/findings/{finding_id}/review", response_model=RiskFindingRead)
+async def review_risk_finding(
+    finding_id: UUID,
+    payload: RiskFindingReviewUpdate,
+    current_user=Depends(get_current_workspace_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Record a human jurist/analyst validation status & legal qualification on a finding."""
+    finding = await session.get(RiskFinding, finding_id)
+    if not finding:
+        raise HTTPException(status_code=404, detail="Constat introuvable")
+
+    report = await session.get(ReportVersion, finding.report_version_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="Rapport introuvable")
+
+    project = await session.get(Project, report.project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Projet introuvable")
+
+    if project.org_id != current_user.org_id and not current_user.is_superuser:
+        raise HTTPException(status_code=403, detail="Accès refusé à ce constat")
+
+    finding.review_status = payload.review_status
+    if payload.legal_nature is not None:
+        finding.legal_nature = payload.legal_nature
+    if payload.review_note is not None:
+        finding.review_note = payload.review_note.strip() or None
+    finding.reviewed_by = current_user.id
+    finding.reviewed_at = datetime.utcnow()
+
+    session.add(finding)
+    await session.commit()
+    await session.refresh(finding)
+    return RiskFindingRead.model_validate(finding)
 
 
 @router.post("/{report_version_id}/context", status_code=status.HTTP_202_ACCEPTED)

@@ -84,6 +84,63 @@ export default function AdminRulesPage() {
     setIsCreateOpen(true);
   };
 
+  const simulateRuleScore = (
+    domainFindings: number[][],
+    sanctionBonus: number,
+  ): { raw: number; final: number; hasCritical: boolean } => {
+    const weights = {
+      critique: (Number(formData.weight_critique) || 0) * 25,
+      eleve: (Number(formData.weight_eleve) || 0) * 20,
+      modere: (Number(formData.weight_modere) || 0) * 12,
+      surveiller: (Number(formData.weight_a_surveiller) || 0) * 5,
+    };
+
+    let raw = 0;
+    let hasCritical = false;
+    let hasNonConforme = false;
+
+    for (const domainCounts of domainFindings) {
+      const [c, e, m, s] = domainCounts;
+      const list: number[] = [];
+      for (let i = 0; i < c; i++) {
+        list.push(weights.critique);
+        hasCritical = true;
+        hasNonConforme = true;
+      }
+      for (let i = 0; i < e; i++) {
+        list.push(weights.eleve);
+        hasNonConforme = true;
+      }
+      for (let i = 0; i < m; i++) {
+        list.push(weights.modere);
+        hasNonConforme = true;
+      }
+      for (let i = 0; i < s; i++) {
+        list.push(weights.surveiller);
+        hasNonConforme = true;
+      }
+      list.sort((a, b) => b - a);
+      list.forEach((w, idx) => {
+        raw += w * Math.pow(0.5, idx);
+      });
+    }
+
+    raw += Math.min(25, sanctionBonus);
+    if (!hasNonConforme) {
+      return { raw: 0, final: 0, hasCritical: false };
+    }
+    const compressed = raw <= 70 ? raw : 70 + 30 * (1 - Math.exp(-(raw - 70) / 45));
+    let finalScore = Math.min(100, Math.max(0, Math.round(compressed)));
+    if (hasCritical && finalScore < 50) {
+      finalScore = 50;
+    }
+    return { raw: Math.round(raw * 10) / 10, final: finalScore, hasCritical };
+  };
+
+  const simSingleCritical = simulateRuleScore([[1, 0, 0, 0]], 0);
+  const simSameFacet = simulateRuleScore([[2, 0, 0, 0], [0, 1, 0, 0]], 8);
+  const simMultiFacetHeavy = simulateRuleScore([[1, 0, 0, 0], [1, 0, 0, 0], [1, 0, 0, 0]], 16);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -97,6 +154,40 @@ export default function AdminRulesPage() {
           Nouvelle règle
         </Button>
       </div>
+
+      {/* Stabilized Scoring Model Summary */}
+      <Card className="border-sovereign-200 bg-sovereign-50/40">
+        <CardContent className="pt-5 pb-4">
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold text-slate-900">
+                Politique de calcul stabilisée (ECE)
+              </h2>
+              <Badge variant="outline" className="bg-white">
+                Rendements décroissants + Compression &gt; 70
+              </Badge>
+            </div>
+            <div className="grid gap-3 md:grid-cols-4 text-xs text-slate-700">
+              <div className="rounded-lg bg-white p-3 border border-slate-200">
+                <div className="font-semibold text-slate-900 mb-1">1. Poids de base</div>
+                <p>Critique × 25 pts · Élevé × 20 pts · Modéré × 12 pts · À surveiller × 5 pts · Conforme × 0 pt.</p>
+              </div>
+              <div className="rounded-lg bg-white p-3 border border-slate-200">
+                <div className="font-semibold text-slate-900 mb-1">2. Rendements décroissants</div>
+                <p>Par facette juridique, les constats sont triés par gravité puis pondérés à 100 %, 50 %, 25 %, 12,5 %…</p>
+              </div>
+              <div className="rounded-lg bg-white p-3 border border-slate-200">
+                <div className="font-semibold text-slate-900 mb-1">3. Sanctions dédupliquées</div>
+                <p>+8 pts (pénal) ou +4 pts (admin) comptés une seule fois par article unique, plafonnés à +25 pts.</p>
+              </div>
+              <div className="rounded-lg bg-white p-3 border border-slate-200">
+                <div className="font-semibold text-slate-900 mb-1">4. Plancher &amp; compression</div>
+                <p>Plancher à 50/100 si un risque critique subsiste ; compression douce au-delà de 70/100.</p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Rules Table */}
       <Card>
@@ -133,7 +224,12 @@ export default function AdminRulesPage() {
                       )}
                     </TableCell>
                     <TableCell className="font-mono text-sm">
-                      {rule.weight_critique}/{rule.weight_eleve}/{rule.weight_modere}/{rule.weight_a_surveiller}/{rule.weight_conforme}
+                      <div>
+                        {rule.weight_critique}/{rule.weight_eleve}/{rule.weight_modere}/{rule.weight_a_surveiller}/{rule.weight_conforme}
+                      </div>
+                      <div className="text-[11px] text-slate-500">
+                        pts: {(rule.weight_critique * 25).toFixed(0)}/{(rule.weight_eleve * 20).toFixed(0)}/{(rule.weight_modere * 12).toFixed(0)}/{(rule.weight_a_surveiller * 5).toFixed(0)}
+                      </div>
                     </TableCell>
                     <TableCell className="font-mono text-sm">
                       H:{rule.confidence_threshold_high} M:{rule.confidence_threshold_medium}
@@ -297,6 +393,40 @@ export default function AdminRulesPage() {
                       onChange={(e) => setFormData({ ...formData, weight_conforme: parseFloat(e.target.value) })}
                       className="input"
                     />
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h4 className="text-sm font-semibold text-slate-900">
+                    Aperçu du calcul stabilisé pour cette règle
+                  </h4>
+                  <span className="text-xs font-mono text-slate-600">
+                    C:{((Number(formData.weight_critique) || 0) * 25).toFixed(1)} · E:{((Number(formData.weight_eleve) || 0) * 20).toFixed(1)} · M:{((Number(formData.weight_modere) || 0) * 12).toFixed(1)} · A:{((Number(formData.weight_a_surveiller) || 0) * 5).toFixed(1)} pts
+                  </span>
+                </div>
+                <div className="grid gap-2 md:grid-cols-3 text-xs">
+                  <div className="rounded bg-white p-2.5 border border-slate-200">
+                    <div className="text-slate-500">1 Critique isolé (sans sanction)</div>
+                    <div className="mt-1 font-semibold text-slate-900">
+                      {simSingleCritical.final}/100{' '}
+                      <span className="font-normal text-slate-500">(brut {simSingleCritical.raw} → plancher 50)</span>
+                    </div>
+                  </div>
+                  <div className="rounded bg-white p-2.5 border border-slate-200">
+                    <div className="text-slate-500">2 Critiques même facette + 1 Élevé + 1 pénal</div>
+                    <div className="mt-1 font-semibold text-slate-900">
+                      {simSameFacet.final}/100{' '}
+                      <span className="font-normal text-slate-500">(brut {simSameFacet.raw})</span>
+                    </div>
+                  </div>
+                  <div className="rounded bg-white p-2.5 border border-slate-200">
+                    <div className="text-slate-500">3 Critiques multi-facettes + 2 pénales</div>
+                    <div className="mt-1 font-semibold text-slate-900">
+                      {simMultiFacetHeavy.final}/100{' '}
+                      <span className="font-normal text-slate-500">(brut {simMultiFacetHeavy.raw}, compressé)</span>
+                    </div>
                   </div>
                 </div>
               </div>

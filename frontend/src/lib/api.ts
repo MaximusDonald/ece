@@ -309,6 +309,11 @@ export interface RiskFinding {
   conflict_flag: boolean;
   conflict_details: string | null;
   recommendation: string;
+  legal_nature?: 'non_conformite_imperative' | 'risque_contractuel' | 'bonne_pratique' | string;
+  review_status?: 'pending' | 'validated' | 'mitigated_by_evidence' | 'dismissed' | string;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  review_note?: string | null;
   created_at: string;
 }
 
@@ -651,6 +656,15 @@ export const reportApi = {
 
   getFindings: (versionId: string, filters?: { risk_level?: string; confidence?: string }) =>
     api.get<RiskFinding[]>(`/reports/${versionId}/findings`, { params: filters }),
+
+  reviewFinding: (
+    findingId: string,
+    payload: {
+      review_status: 'pending' | 'validated' | 'mitigated_by_evidence' | 'dismissed';
+      legal_nature?: 'non_conformite_imperative' | 'risque_contractuel' | 'bonne_pratique';
+      review_note?: string;
+    },
+  ) => api.patch<RiskFinding>(`/reports/findings/${findingId}/review`, payload),
 
   addContext: (versionId: string, contextData: Record<string, any>) =>
     api.post(`/reports/${versionId}/context`, contextData),

@@ -131,6 +131,17 @@ class RiskFinding(SQLModel, table=True):
     conflict_flag: bool = Field(default=False)
     conflict_details: Optional[str] = Field(default=None, sa_column=Column(Text))
     recommendation: str = Field(sa_column=Column(Text))
+    legal_nature: str = Field(
+        default="non_conformite_imperative",
+        sa_column=Column(String(40), nullable=False, server_default="non_conformite_imperative"),
+    )
+    review_status: str = Field(
+        default="pending",
+        sa_column=Column(String(30), nullable=False, server_default="pending", index=True),
+    )
+    reviewed_by: Optional[UUID] = Field(default=None, foreign_key="user.id")
+    reviewed_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime, nullable=True))
+    review_note: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
     created_at: datetime = Field(default_factory=datetime.utcnow, sa_column=Column(DateTime, nullable=False))
     
     # Relationships

@@ -92,9 +92,8 @@ async def test_calibrated_scoring_policy_with_sanctions_and_precaution():
         article_number="ART-418",
         full_text="Est puni d'un emprisonnement de 2 ans quiconque...",
         has_sanction=True,
-        sanction_nature="penale",
-        sanction_summary="Emprisonnement de 2 ans et amende",
-        rule_type=ComplianceRuleType.SANCTION,
+        sanction_details="Sanction pénale : emprisonnement de 2 ans et amende",
+        compliance_rule_type=ComplianceRuleType.SANCTION.value,
     )
     articles_map = {art_penal_id: art_penal}
 
@@ -171,3 +170,128 @@ async def test_resolve_applicable_scoring_rule_prefers_jurisdiction():
         )
         assert rule_global is not None
         assert rule_global.domain in ("payment_services", "global")
+
+
+@pytest.mark.asyncio
+async def test_diminishing_returns_unique_sanction_and_compression():
+    """Verify domain diminishing returns, unique-article sanction cap, and compression > 70."""
+    rule_default = ScoringRule(
+        name="Default Stabilized",
+        domain="global",
+        country_code=None,
+        weight_critique=1.0,
+        weight_eleve=1.0,
+        weight_modere=1.0,
+        weight_a_surveiller=1.0,
+        weight_conforme=0.0,
+        confidence_threshold_high=0.8,
+        confidence_threshold_medium=0.5,
+    )
+
+    art_penal_id = uuid4()
+    art_penal = LegalArticle(
+        id=art_penal_id,
+        section_id=uuid4(),
+        article_number="ART-418",
+        full_text="Sanction pénale.",
+        has_sanction=True,
+        sanction_details="Sanction pénale : emprisonnement",
+        compliance_rule_type=ComplianceRuleType.SANCTION.value,
+    )
+    articles_map = {art_penal_id: art_penal}
+
+    # 1. Splitting into two ELEVE findings in the SAME domain should apply 1.0 + 0.5 = 1.5x (30 pts), not 2.0x (40 pts)
+    same_domain_split = [
+        {
+            "facet": "donnees_manipulees",
+            "risk_level": RiskLevel.ELEVE,
+            "confidence": ConfidenceLevel.HIGH,
+            "matched_articles": [],
+        },
+        {
+            "facet": "donnees_manipulees",
+            "risk_level": RiskLevel.ELEVE,
+            "confidence": ConfidenceLevel.HIGH,
+            "matched_articles": [],
+        },
+    ]
+    _, score_same_domain, _ = compute_initial_severity_and_score(
+        same_domain_split,
+        rule=rule_default,
+        articles_map=articles_map,
+    )
+    assert score_same_domain == 30
+
+    # 2. Same two ELEVE findings in DIFFERENT domains should apply 1.0 + 1.0 = 40 pts
+    diff_domain_split = [
+        {
+            "facet": "donnees_manipulees",
+            "risk_level": RiskLevel.ELEVE,
+            "confidence": ConfidenceLevel.HIGH,
+            "matched_articles": [],
+        },
+        {
+            "facet": "flux_et_architecture",
+            "risk_level": RiskLevel.ELEVE,
+            "confidence": ConfidenceLevel.HIGH,
+            "matched_articles": [],
+        },
+    ]
+    _, score_diff_domain, _ = compute_initial_severity_and_score(
+        diff_domain_split,
+        rule=rule_default,
+        articles_map=articles_map,
+    )
+    assert score_diff_domain == 40
+    assert score_same_domain < score_diff_domain
+
+    # 3. Citing the same sanctioned article in two different findings must count the +8 penalty only once
+    duplicated_sanction = [
+        {
+            "facet": "donnees_manipulees",
+            "risk_level": RiskLevel.ELEVE,
+            "confidence": ConfidenceLevel.HIGH,
+            "matched_articles": [art_penal_id],
+        },
+        {
+            "facet": "flux_et_architecture",
+            "risk_level": RiskLevel.ELEVE,
+            "confidence": ConfidenceLevel.HIGH,
+            "matched_articles": [art_penal_id],
+        },
+    ]
+    _, score_dedup_sanction, _ = compute_initial_severity_and_score(
+        duplicated_sanction,
+        rule=rule_default,
+        articles_map=articles_map,
+    )
+    # 20 + 20 + 8 (counted once, not 16) = 48
+    assert score_dedup_sanction == 48
+
+    # 4. Three CRITIQUE findings across 3 distinct domains + penal sanction = raw 83 -> compressed strictly < 100 (70 + 30*(1-exp(-13/45)) ~ 78)
+    three_criticals = [
+        {
+            "facet": "donnees_manipulees",
+            "risk_level": RiskLevel.CRITIQUE,
+            "confidence": ConfidenceLevel.HIGH,
+            "matched_articles": [art_penal_id],
+        },
+        {
+            "facet": "flux_et_architecture",
+            "risk_level": RiskLevel.CRITIQUE,
+            "confidence": ConfidenceLevel.HIGH,
+            "matched_articles": [],
+        },
+        {
+            "facet": "securite_et_droits",
+            "risk_level": RiskLevel.CRITIQUE,
+            "confidence": ConfidenceLevel.HIGH,
+            "matched_articles": [],
+        },
+    ]
+    _, score_three_crit, _ = compute_initial_severity_and_score(
+        three_criticals,
+        rule=rule_default,
+        articles_map=articles_map,
+    )
+    assert 75 <= score_three_crit < 85, f"Expected compressed score in [75, 85), got {score_three_crit}"

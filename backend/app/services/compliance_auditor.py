@@ -22,8 +22,11 @@ from app.models.legal import ConfidenceLevel, ReportVersion, RiskFinding, RiskLe
 from app.models.user import Project
 from app.services.article_rag import (
     ArticleSearchResult,
+    apply_normative_ranking,
+    detect_normative_conflicts,
     hybrid_search_articles,
     jurisdictions_for_country,
+    normative_priority_multiplier,
 )
 from app.services.llm_client import LLMClient, get_llm_client
 
@@ -153,8 +156,14 @@ async def _load_previous_report_summary(
     if findings:
         lines.append(f"Constats de la version précédente ({len(findings)}) :")
         for idx, f in enumerate(findings[:20], start=1):
+            review_tag = ""
+            rev_status = getattr(f, "review_status", "pending") or "pending"
+            rev_nature = getattr(f, "legal_nature", "non_conformite_imperative") or "non_conformite_imperative"
+            if rev_status != "pending":
+                note_part = f" | Note: {f.review_note}" if getattr(f, "review_note", None) else ""
+                review_tag = f" [STATUT VALIDÉ: {rev_status} | Nature: {rev_nature}{note_part}]"
             lines.append(
-                f"  {idx}. [{f.risk_level.value}] {f.clause_ref} — {f.finding_text[:240]}"
+                f"  {idx}. [{f.risk_level.value}]{review_tag} {f.clause_ref} — {f.finding_text[:240]}"
             )
     summary = "\n".join(lines)
     return summary[:3800]
@@ -254,7 +263,143 @@ REPRESENTED_ROLE_LABELS = {
 }
 
 
-def format_dossier_for_prompt(dossier: ProjectDossier, max_total_chars: int = 44000) -> str:
+_COMPLIANCE_PASSAGE_KEYWORDS = (
+    "donnée", "donnee", "personnel", "sensible", "santé", "sante", "biomét", "biomet",
+    "mineur", "consentement", "anonymis", "pseudonymis", "finalité", "finalite",
+    "héberg", "heberg", "cloud", "aws", "azure", "gcp", "ovh", "serveur", "transfert",
+    "étranger", "etranger", "hors cedeao", "pays tiers", "état tiers", "etat tiers",
+    "sous-trait", "chiffrement", "tls", "aes", "rbac", "authentification", "journalisation",
+    "sauvegarde", "conservation", "durée", "duree", "violation", "fuite", "dpo", "apdp",
+    "cdp", "droit d'accès", "suppression", "rectification", "responsabilité", "responsabilite",
+    "garantie", "indemnisation", "résiliation", "resiliation", "pénalité", "penalite",
+    "juridiction", "loi applicable", "arbitrage", "paiement", "bceao", "uemoa", "kyc",
+    "lbc", "monnaie électronique", "prestataire", "confidentialité", "propriété intellectuelle",
+)
+
+
+def _split_markdown_passages(markdown: str, max_chunk_chars: int = 1300) -> List[str]:
+    """Split a markdown document into logical heading-aligned sections and bounded chunks."""
+    text = (markdown or "").strip()
+    if not text:
+        return []
+
+    # Split on markdown headings while keeping headings attached to their section body
+    raw_sections = re.split(r"(?m)(?=^#{1,4}\s+.+)", text)
+    passages: List[str] = []
+
+    for section in raw_sections:
+        sec = section.strip()
+        if not sec:
+            continue
+        if len(sec) <= max_chunk_chars:
+            passages.append(sec)
+            continue
+
+        # Sub-split oversized sections on paragraph boundaries
+        paragraphs = re.split(r"\n\s*\n", sec)
+        buf: List[str] = []
+        buf_len = 0
+        for para in paragraphs:
+            p = para.strip()
+            if not p:
+                continue
+            if len(p) > max_chunk_chars:
+                if buf:
+                    passages.append("\n\n".join(buf))
+                    buf, buf_len = [], 0
+                for start in range(0, len(p), max_chunk_chars):
+                    passages.append(p[start:start + max_chunk_chars].strip())
+                continue
+            if buf_len + len(p) + 2 > max_chunk_chars and buf:
+                passages.append("\n\n".join(buf))
+                buf = [p]
+                buf_len = len(p)
+            else:
+                buf.append(p)
+                buf_len += len(p) + 2
+        if buf:
+            passages.append("\n\n".join(buf))
+
+    return passages
+
+
+def _select_relevant_document_passages(
+    markdown: str,
+    budget: int,
+    *,
+    vague_zones: Sequence[Any] = (),
+    entities: Optional[Dict[str, Any]] = None,
+) -> str:
+    """Select the most compliance-relevant passages across the entire document without blind middle cuts."""
+    text = (markdown or "").strip()
+    if len(text) <= budget:
+        return text
+
+    passages = _split_markdown_passages(text)
+    if not passages:
+        return text[:budget]
+
+    # Build extra matching terms from extracted vague_zones and entities
+    extra_terms: List[str] = []
+    for vz in vague_zones or []:
+        if isinstance(vz, dict):
+            for val in vz.values():
+                if isinstance(val, str) and len(val) >= 4:
+                    extra_terms.extend(re.findall(r"[a-zA-ZÀ-ÿ]{5,}", val.lower())[:5])
+        elif isinstance(vz, str) and len(vz) >= 4:
+            extra_terms.extend(re.findall(r"[a-zA-ZÀ-ÿ]{5,}", vz.lower())[:5])
+    if isinstance(entities, dict):
+        for val in entities.values():
+            if isinstance(val, list):
+                for item in val[:5]:
+                    if isinstance(item, str) and len(item) >= 4:
+                        extra_terms.append(item.lower())
+    extra_terms_set = set(extra_terms[:25])
+
+    scored: List[tuple[int, float, int]] = []  # (idx, score, length)
+    total_passages = len(passages)
+    for idx, p in enumerate(passages):
+        low = p.lower()
+        kw_hits = sum(1 for kw in _COMPLIANCE_PASSAGE_KEYWORDS if kw in low)
+        extra_hits = sum(1 for term in extra_terms_set if term in low)
+        score = min(24.0, kw_hits * 3.0) + min(15.0, extra_hits * 3.5)
+        if idx == 0:
+            score += 5.0  # Title / introduction anchor
+        elif idx == total_passages - 1:
+            score += 3.0  # Final clauses / signatures anchor
+        scored.append((idx, score, len(p)))
+
+    # Greedily select highest-scoring passages within budget
+    selected_indices: set[int] = set()
+    used_chars = 0
+    for idx, _score, length in sorted(scored, key=lambda x: (-x[1], x[0])):
+        cost = length + 40
+        if used_chars + cost <= budget or not selected_indices:
+            if length > budget and not selected_indices:
+                return passages[idx][:budget]
+            if used_chars + cost <= budget:
+                selected_indices.add(idx)
+                used_chars += cost
+
+    # Reassemble selected passages in original document order
+    ordered_indices = sorted(selected_indices)
+    out_parts: List[str] = []
+    prev_idx = -1
+    for idx in ordered_indices:
+        if prev_idx != -1 and idx > prev_idx + 1:
+            skipped_count = idx - prev_idx - 1
+            out_parts.append(f"[... {skipped_count} section(s) à faible pertinence juridique omise(s) ...]")
+        elif prev_idx == -1 and idx > 0:
+            out_parts.append(f"[... {idx} section(s) introductive(s) omise(s) ...]")
+        out_parts.append(passages[idx])
+        prev_idx = idx
+    if prev_idx < total_passages - 1:
+        out_parts.append(f"[... {total_passages - 1 - prev_idx} section(s) finale(s) omise(s) ...]")
+
+    return "\n\n".join(out_parts)
+
+
+def format_dossier_for_prompt(dossier: ProjectDossier, max_total_chars: int = 60000) -> str:
     """Serialize all project documents fairly into a bounded multi-document context string."""
     if dossier.represented_entity_type == "autre":
         role_label = f"Autre : {dossier.represented_entity_other or 'Non précisé'}"
@@ -292,20 +437,22 @@ def format_dossier_for_prompt(dossier: ProjectDossier, max_total_chars: int = 44
             + dossier.previous_report_summary
         )
 
+    doc_lengths = [max(len(d.markdown.strip()), 500) for d in dossier.documents]
+    total_doc_len = sum(doc_lengths) or 1
     doc_count = max(len(dossier.documents), 1)
-    per_doc_budget = max(2500, min(14000, max_total_chars // doc_count))
+    min_budget = max(2500, min(6000, max_total_chars // doc_count))
 
     parts.append(f"\nDOSSIER COMPLET ({len(dossier.documents)} document(s) à inspecter conjointement) :")
     for idx, doc in enumerate(dossier.documents, start=1):
-        snippet = doc.markdown.strip()
-        if len(snippet) > per_doc_budget:
-            head = int(per_doc_budget * 0.72)
-            tail = per_doc_budget - head - 40
-            snippet = (
-                snippet[:head].rstrip()
-                + "\n[... passage intermédiaire tronqué ...]\n"
-                + snippet[-max(tail, 0):].lstrip()
-            )
+        raw_text = doc.markdown.strip()
+        proportional = int(max_total_chars * (max(len(raw_text), 500) / total_doc_len))
+        per_doc_budget = max(min_budget, min(28000, proportional))
+        snippet = _select_relevant_document_passages(
+            raw_text,
+            per_doc_budget,
+            vague_zones=doc.vague_zones,
+            entities=doc.entities,
+        )
         doc_block = [
             f"\n--- DOCUMENT #{idx} : {doc.filename} (type={doc.doc_type}) ---",
             f"TEXTE EXTRAIT :\n{snippet or '[Aucun texte extrait]'}",
@@ -490,15 +637,15 @@ async def retrieve_articles_for_facets(
             logger.warning("Article-RAG query failed for facet %s (%s): %s", signal.facet, signal.rag_query, exc)
             hits = []
 
-        for hit in hits:
+        for hit in apply_normative_ranking(hits):
             existing = articles_by_id.get(hit.article_id)
             if existing is None or hit.score > existing.score:
                 articles_by_id[hit.article_id] = hit
             if hit.article_id not in facet_article_ids.setdefault(signal.facet, []):
                 facet_article_ids[signal.facet].append(hit.article_id)
 
-    # Cap total articles sent into evaluation prompt by highest hybrid score
-    sorted_articles = sorted(articles_by_id.values(), key=lambda a: a.score, reverse=True)[:max_total_articles]
+    # Cap total articles sent into evaluation prompt by highest hierarchy-weighted score
+    sorted_articles = apply_normative_ranking(list(articles_by_id.values()))[:max_total_articles]
     capped_map = {a.article_id: a for a in sorted_articles}
     return capped_map, facet_article_ids
 
@@ -519,9 +666,12 @@ def _format_articles_catalog(articles_map: Dict[UUID, ArticleSearchResult]) -> s
             if art.has_sanction and art.sanction_details
             else ("SANCTION PRÉVUE : Oui (voir texte intégral)" if art.has_sanction else "SANCTION : Administrative / Civile selon texte")
         )
+        _, _, level_label = normative_priority_multiplier(art.jurisdiction, art.text_level)
+        pub_info = f" | Publié : {art.publication_date}" if art.publication_date else ""
         blocks.append(
             f"[{art.article_id}] {art.text_code} ({art.jurisdiction} - {art.authority}) | {art.article_number}"
             + (f" — {art.title}" if art.title else "")
+            + f"\nPortée normative : {level_label} ({art.text_level}) | Statut : {art.text_status}{pub_info}"
             + f"\nHiérarchie : {art.section_breadcrumb or 'Corps principal'}"
             + f"\n{sanction_line}"
             + f"\nTexte officiel :\n{body}"
@@ -548,6 +698,24 @@ def _normalize_risk_level(value: Any) -> RiskLevel:
         "compliant": RiskLevel.CONFORME,
     }
     return mapping.get(raw, RiskLevel.MODERE)
+
+
+_VALID_LEGAL_NATURES = {
+    "non_conformite_imperative",
+    "risque_contractuel",
+    "bonne_pratique",
+}
+
+
+def _normalize_legal_nature(value: Any, risk_level: RiskLevel) -> str:
+    raw = str(value or "").strip().lower()
+    if raw in _VALID_LEGAL_NATURES:
+        return raw
+    if risk_level == RiskLevel.CONFORME:
+        return "bonne_pratique"
+    if risk_level == RiskLevel.A_SURVEILLER:
+        return "risque_contractuel"
+    return "non_conformite_imperative"
 
 
 def _normalize_confidence(value: Any) -> ConfidenceLevel:
@@ -640,10 +808,12 @@ def _is_parade_absent_or_uncertain(parade_text: str) -> bool:
 def _normalize_findings(
     raw_findings: Sequence[Dict[str, Any]],
     articles_map: Dict[UUID, ArticleSearchResult],
+    detected_conflicts: Optional[Sequence[Dict[str, Any]]] = None,
 ) -> List[Dict[str, Any]]:
     """Validate LLM audit findings, resolve article UUIDs, and enforce the precautionary rule."""
     lookup_index = _build_article_lookup_index(articles_map)
     normalized: List[Dict[str, Any]] = []
+    conflicts = list(detected_conflicts or [])
 
     for item in raw_findings:
         if not isinstance(item, dict):
@@ -710,6 +880,23 @@ def _normalize_findings(
                 else "Fournir les pièces justificatives ou mettre en œuvre la mesure de mise en conformité requise avant mise en production."
             )
 
+        matched_set = set(matched_ids)
+        auto_conflicts = [
+            c for c in conflicts
+            if matched_set & set(c.get("article_ids") or [])
+        ]
+        conflict_flag = bool(item.get("conflict_flag", False)) or bool(auto_conflicts)
+        conflict_details = item.get("conflict_details")
+        if not conflict_details and auto_conflicts:
+            conflict_details = " ; ".join(
+                f"{c['reason']} ({c['hierarchy_rule']})" for c in auto_conflicts[:2]
+            )
+        obsolescence_flag = bool(item.get("obsolescence_flag", False)) or any(
+            getattr(articles_map[aid], "is_obsolete", False)
+            or getattr(articles_map[aid], "text_status", "in_force") != "in_force"
+            for aid in matched_ids
+        )
+
         normalized.append(
             {
                 "clause_ref": str(item.get("clause_ref") or FACET_LABELS.get(facet, "Dossier Projet")).strip(),
@@ -723,9 +910,10 @@ def _normalize_findings(
                 "confidence": _normalize_confidence(item.get("confidence")),
                 "matched_sources": [],  # Legacy legal_source empty in new Article-RAG engine
                 "matched_articles": matched_ids,
-                "obsolescence_flag": bool(item.get("obsolescence_flag", False)),
-                "conflict_flag": bool(item.get("conflict_flag", False)),
-                "conflict_details": item.get("conflict_details"),
+                "obsolescence_flag": obsolescence_flag,
+                "conflict_flag": conflict_flag,
+                "conflict_details": conflict_details,
+                "legal_nature": _normalize_legal_nature(item.get("legal_nature"), risk_level),
                 "recommendation": recommendation,
             }
         )
@@ -786,8 +974,15 @@ async def evaluate_project_compliance(
             }
         ]
 
-    dossier_prompt = format_dossier_for_prompt(dossier, max_total_chars=36000)
+    dossier_prompt = format_dossier_for_prompt(dossier, max_total_chars=56000)
     articles_catalog = _format_articles_catalog(articles_map)
+    detected_conflicts = detect_normative_conflicts(list(articles_map.values()))
+    conflicts_block = (
+        "\nCONFLITS HIÉRARCHIQUES / JURIDICTIONNELS DÉTECTÉS AUTOMATIQUEMENT :\n"
+        + "\n".join(f"- {c['reason']} => {c['hierarchy_rule']}" for c in detected_conflicts[:5])
+        if detected_conflicts
+        else "\nAucun conflit normatif majeur détecté automatiquement dans les articles candidats."
+    )
     facets_json = json.dumps(
         [{"facet": f.facet, "summary": f.summary, "source_docs": f.source_docs} for f in facets],
         ensure_ascii=False,
@@ -812,6 +1007,13 @@ Chaque constat DOIT référencer un ou plusieurs `matched_articles` choisis EXCL
 RÈGLE D'OR N°4 — CONSOLIDATION THÉMATIQUE PAR FACETTE (ANTI-FRAGMENTATION) :
 Regroupe les constats par thématique juridique (au maximum 1 à 2 constats consolidés par facette : `donnees_manipulees`, `flux_et_architecture`, `securite_et_droits`, `relations_contractuelles_et_fintech`). Ne scinde pas une même obligation ou un même article en plusieurs constats redondants.
 
+RÈGLE D'OR N°5 — HIÉRARCHIE DES NORMES & CONFLITS DE JURIDICTIONS :
+Applique strictement la hiérarchie des normes en vigueur : Actes uniformes OHADA / Règlements & Directives UEMOA-BCEAO / CEDEAO / OAPI > Lois nationales > Décrets & Arrêtés > Recommandations sectorielles. Si un conflit de normes ou de juridictions apparaît (notamment lors de flux transfrontaliers), active `conflict_flag: true` et explique la primauté applicable dans `conflict_details`.
+{conflicts_block}
+
+RÈGLE D'OR N°6 — QUALIFICATION JURIDIQUE & VERROUILLAGE DES CONSTATS VALIDÉS :
+Qualifie chaque constat via `legal_nature` : `non_conformite_imperative` (violation d'une obligation légale/réglementaire impérative), `risque_contractuel` (lacune contractuelle ou répartition de responsabilité), ou `bonne_pratique` (recommandation ou point conforme). Si l'ancienne version du rapport contient des constats marqués `[STATUT VALIDÉ: validated | mitigated_by_evidence | dismissed]`, PRÉSERVE leurs conclusions et leur qualification sauf si un nouveau document ou un nouveau contexte complémentaire les contredit directement.
+
 FACETTES IDENTIFIÉES :
 {facets_json}
 
@@ -835,6 +1037,7 @@ Produis un objet JSON strict contenant `"findings"` (entre 4 et 8 constats conso
       "matched_articles": ["uuid-exact-de-l-article"],
       "article_refs": [{{"text_code": "BJ-NUM-2017", "article_number": "Article 391"}}],
       "legal_risk": "Sanction financière ou pénale exacte issue de l'article cité.",
+      "legal_nature": "non_conformite_imperative | risque_contractuel | bonne_pratique",
       "obsolescence_flag": false,
       "conflict_flag": false,
       "conflict_details": null,
@@ -846,7 +1049,7 @@ Produis un objet JSON strict contenant `"findings"` (entre 4 et 8 constats conso
     raw = await llm_client.chat_completion(prompt, response_format="json_object")
     parsed = _parse_json_object(raw)
     raw_findings = parsed.get("findings") or []
-    normalized = _normalize_findings(raw_findings, articles_map)
+    normalized = _normalize_findings(raw_findings, articles_map, detected_conflicts=detected_conflicts)
 
     if not normalized:
         logger.warning("LLM returned zero usable findings for project %s; emitting precautionary fallback.", dossier.project_id)
@@ -1142,8 +1345,13 @@ def compute_initial_severity_and_score(
                     art = articles_map.get(uuid_obj)
                     if art and getattr(art, "has_sanction", False):
                         seen_sanctioned_articles.add(uuid_obj)
-                        nature = str(getattr(art, "sanction_nature", "") or "").lower()
-                        if "penale" in nature or "prison" in nature:
+                        nature = " ".join(
+                            [
+                                str(getattr(art, "sanction_nature", "") or ""),
+                                str(getattr(art, "sanction_details", "") or ""),
+                            ]
+                        ).lower()
+                        if any(k in nature for k in ("penale", "pénale", "prison", "emprisonnement")):
                             sanction_penalty += 8.0
                         else:
                             sanction_penalty += 4.0
@@ -1226,11 +1434,51 @@ async def persist_audit_report_version(
     session.add(report_version)
     await session.flush()
 
+    # Load human-reviewed findings from prior version to preserve audit trail lock
+    prior_reviewed: List[RiskFinding] = []
+    prior_lookup_id = parent_version_id
+    if prior_lookup_id is None:
+        latest_prev = (
+            await session.execute(
+                select(ReportVersion)
+                .where(ReportVersion.project_id == project_id, ReportVersion.id != report_version.id)
+                .order_by(ReportVersion.created_at.desc())
+            )
+        ).scalars().first()
+        if latest_prev:
+            prior_lookup_id = latest_prev.id
+    if prior_lookup_id is not None:
+        prev_findings_res = await session.execute(
+            select(RiskFinding).where(
+                RiskFinding.report_version_id == prior_lookup_id,
+                RiskFinding.review_status.in_(["validated", "mitigated_by_evidence", "dismissed"]),
+            )
+        )
+        prior_reviewed = list(prev_findings_res.scalars().all())
+
     for f in audit_result.findings:
         rl = f["risk_level"] if isinstance(f["risk_level"], RiskLevel) else RiskLevel(str(f["risk_level"]))
         conf = f["confidence"] if isinstance(f["confidence"], ConfidenceLevel) else ConfidenceLevel(str(f["confidence"]))
         matched_article_strs = [str(uid) for uid in (f.get("matched_articles") or [])]
         matched_source_strs = [str(uid) for uid in (f.get("matched_sources") or [])]
+        legal_nature = _normalize_legal_nature(f.get("legal_nature"), rl)
+        review_status = "pending"
+        reviewed_by = None
+        reviewed_at = None
+        review_note = None
+
+        clause_key = str(f["clause_ref"] or "").strip().lower()
+        art_set = set(matched_article_strs)
+        for prev_f in prior_reviewed:
+            prev_clause = (prev_f.clause_ref or "").strip().lower()
+            prev_arts = {str(x) for x in (prev_f.matched_articles or [])}
+            if (clause_key and prev_clause == clause_key) or (art_set and prev_arts and (art_set & prev_arts)):
+                review_status = prev_f.review_status
+                reviewed_by = prev_f.reviewed_by
+                reviewed_at = prev_f.reviewed_at
+                review_note = prev_f.review_note
+                legal_nature = prev_f.legal_nature
+                break
 
         session.add(
             RiskFinding(
@@ -1245,6 +1493,11 @@ async def persist_audit_report_version(
                 conflict_flag=bool(f.get("conflict_flag", False)),
                 conflict_details=f.get("conflict_details"),
                 recommendation=f["recommendation"],
+                legal_nature=legal_nature,
+                review_status=review_status,
+                reviewed_by=reviewed_by,
+                reviewed_at=reviewed_at,
+                review_note=review_note,
             )
         )
 

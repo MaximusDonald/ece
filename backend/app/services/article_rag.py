@@ -102,6 +102,144 @@ class ArticleSearchResult:
     dense_score: float = 0.0
     bm25_score: float = 0.0
     score: float = 0.0
+    text_level: str = "loi"
+    text_status: str = "in_force"
+    publication_date: Optional[str] = None
+    normative_rank: int = 2
+    normative_weight: float = 1.0
+    is_obsolete: bool = False
+
+
+_SUPRANATIONAL_JURISDICTIONS = {"OHADA", "UEMOA", "CEDEAO", "OAPI", "UA"}
+_SUPRANATIONAL_LEVELS = {
+    "traite",
+    "acte_uniforme",
+    "reglement",
+    "directive_uemoa",
+    "directive_cedeao",
+    "decision",
+}
+_STATUTORY_LEVELS = {"constitution", "loi", "code", "ordonnance"}
+_REGULATORY_LEVELS = {"decret", "arrete"}
+_SOFT_LEVELS = {"directive", "circulaire", "recommandation", "avis"}
+
+
+def normative_priority_multiplier(jurisdiction: str, level: str) -> Tuple[int, float, str]:
+    """Return (hierarchy_rank, score_multiplier, label) following West African legal hierarchy.
+
+    Rank 1: Supranational / Community binding instruments (OHADA, UEMOA, CEDEAO, OAPI, UA)
+    Rank 2: National statutory law / Code
+    Rank 3: Implementing decree / Order (décret / arrêté)
+    Rank 4: Sectoral directive / Circular / Recommendation
+    """
+    jur = (jurisdiction or "").strip().upper()
+    lvl = (level or "loi").strip().lower()
+
+    if lvl in _SOFT_LEVELS:
+        return 4, 0.94, "Directive / Recommandation sectorielle"
+    if lvl in _SUPRANATIONAL_LEVELS or jur in _SUPRANATIONAL_JURISDICTIONS:
+        return 1, 1.18, "Norme communautaire / supranationale"
+    if lvl in _STATUTORY_LEVELS:
+        return 2, 1.08, "Loi nationale / Code"
+    if lvl in _REGULATORY_LEVELS:
+        return 3, 1.00, "Texte réglementaire (décret/arrêté)"
+    return 2, 1.05, "Norme applicable"
+
+
+def apply_normative_ranking(results: Sequence[ArticleSearchResult]) -> List[ArticleSearchResult]:
+    """Filter out abrogated/obsolete texts and weight scores by normative hierarchy & recency."""
+    ranked: List[ArticleSearchResult] = []
+    for item in results:
+        status_norm = (item.text_status or "in_force").strip().lower()
+        if status_norm == "abrogated" or item.is_obsolete:
+            continue
+        rank, weight, _ = normative_priority_multiplier(item.jurisdiction, item.text_level)
+        item.normative_rank = rank
+        item.normative_weight = weight
+        base = float(item.score or 0.0)
+        item.score = round(base * weight, 6)
+        ranked.append(item)
+
+    ranked.sort(
+        key=lambda r: (
+            r.score,
+            -r.normative_rank,
+            r.publication_date or "",
+        ),
+        reverse=True,
+    )
+    return ranked
+
+
+def detect_normative_conflicts(articles: Sequence[ArticleSearchResult]) -> List[Dict[str, Any]]:
+    """Detect potential hierarchy or cross-jurisdiction conflicts among retrieved articles."""
+    conflicts: List[Dict[str, Any]] = []
+    seen_pairs: set[frozenset[UUID]] = set()
+    items = list(articles)
+
+    for i in range(len(items)):
+        for j in range(i + 1, len(items)):
+            a, b = items[i], items[j]
+            if a.text_code == b.text_code:
+                continue
+
+            pair_key = frozenset({a.article_id, b.article_id})
+            if pair_key in seen_pairs:
+                continue
+
+            topics_a = {str(t).strip().lower() for t in (a.topics or []) if t}
+            topics_b = {str(t).strip().lower() for t in (b.topics or []) if t}
+            shared_topics = topics_a & topics_b
+
+            rank_a, _, label_a = normative_priority_multiplier(a.jurisdiction, a.text_level)
+            rank_b, _, label_b = normative_priority_multiplier(b.jurisdiction, b.text_level)
+
+            is_supranational_vs_national = (rank_a == 1 and rank_b >= 2) or (rank_b == 1 and rank_a >= 2)
+            is_cross_national = (
+                a.jurisdiction.upper() not in _SUPRANATIONAL_JURISDICTIONS
+                and b.jurisdiction.upper() not in _SUPRANATIONAL_JURISDICTIONS
+                and a.jurisdiction.upper() != b.jurisdiction.upper()
+            )
+            rule_tension = (
+                {a.compliance_rule_type, b.compliance_rule_type} >= {"mandatory", "prohibition"}
+                or {a.compliance_rule_type, b.compliance_rule_type} >= {"prohibition", "conditional"}
+            )
+
+            if not ((is_supranational_vs_national or is_cross_national) and (shared_topics or rule_tension)):
+                continue
+
+            seen_pairs.add(pair_key)
+            if rank_a <= rank_b:
+                dom, sub = a, b
+                dom_label, sub_label = label_a, label_b
+            else:
+                dom, sub = b, a
+                dom_label, sub_label = label_b, label_a
+
+            if is_supranational_vs_national:
+                reason = (
+                    f"Concours entre norme supranationale ({dom.text_code}, {dom_label}) "
+                    f"et norme nationale/locale ({sub.text_code}, {sub_label}) sur {', '.join(sorted(shared_topics)) or 'une obligation concurrente'}."
+                )
+                hierarchy_rule = f"Primauté de {dom.text_code} ({dom.jurisdiction}) sur {sub.text_code} ({sub.jurisdiction})."
+            else:
+                reason = (
+                    f"Conflit potentiel de juridictions nationales ({a.jurisdiction} / {a.text_code} vs "
+                    f"{b.jurisdiction} / {b.text_code}) sur {', '.join(sorted(shared_topics)) or 'le régime applicable'}."
+                )
+                hierarchy_rule = "Vérifier la loi applicable selon le lieu d'établissement et la localisation des flux."
+
+            conflicts.append(
+                {
+                    "article_ids": [a.article_id, b.article_id],
+                    "dominant_code": dom.text_code,
+                    "subordinate_code": sub.text_code,
+                    "reason": reason,
+                    "hierarchy_rule": hierarchy_rule,
+                }
+            )
+
+    return conflicts
 
 
 def jurisdictions_for_country(country_code: Optional[str]) -> List[str]:
@@ -330,9 +468,13 @@ async def hybrid_search_articles(
     if not ts_query and not query_vec_str:
         return []
 
-    where_clauses = ["t.status = 'in_force'"]
+    where_clauses = [
+        "t.status = 'in_force'",
+        "(t.publication_date IS NULL OR t.publication_date <= CURRENT_DATE)",
+    ]
+    requested_limit = max(1, min(limit, 50))
     params: Dict[str, Any] = {
-        "limit": max(1, min(limit, 50)),
+        "limit": min(100, requested_limit * 2),
         "alpha": effective_alpha if query_vec_str else 0.0,
         "def_penalty": 1.0 if is_definition_query else 0.80,
     }
@@ -386,6 +528,9 @@ async def hybrid_search_articles(
                 t.title AS text_title,
                 t.jurisdiction,
                 t.authority,
+                t.level AS text_level,
+                t.status AS text_status,
+                t.publication_date,
                 coalesce(s.breadcrumb, '') AS section_breadcrumb,
                 a.article_number,
                 a.title,
@@ -415,7 +560,7 @@ async def hybrid_search_articles(
     async with async_session_maker() as session:
         rows = (await session.execute(sql, params)).mappings().all()
 
-    return [
+    candidates = [
         ArticleSearchResult(
             article_id=row["article_id"],
             text_id=row["text_id"],
@@ -435,6 +580,10 @@ async def hybrid_search_articles(
             dense_score=float(row["dense_score"] or 0.0),
             bm25_score=float(row["bm25_score"] or 0.0),
             score=float(row["final_score"] or 0.0),
+            text_level=str(row["text_level"] or "loi"),
+            text_status=str(row["text_status"] or "in_force"),
+            publication_date=row["publication_date"].isoformat() if row["publication_date"] else None,
         )
         for row in rows
     ]
+    return apply_normative_ranking(candidates)[:requested_limit]

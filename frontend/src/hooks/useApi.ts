@@ -330,6 +330,26 @@ export function useReportFindings(versionId: string, filters?: { risk_level?: st
   });
 }
 
+export function useReviewFinding() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      findingId,
+      payload,
+    }: {
+      findingId: string;
+      payload: {
+        review_status: 'pending' | 'validated' | 'mitigated_by_evidence' | 'dismissed';
+        legal_nature?: 'non_conformite_imperative' | 'risque_contractuel' | 'bonne_pratique';
+        review_note?: string;
+      };
+    }) => reportApi.reviewFinding(findingId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reportFindings'] });
+    },
+  });
+}
+
 export function useAddContext() {
   const queryClient = useQueryClient();
   return useMutation({

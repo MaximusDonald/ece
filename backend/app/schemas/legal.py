@@ -1,6 +1,6 @@
 from uuid import UUID
 from datetime import datetime, date
-from typing import Optional, List, Dict, Any, Union
+from typing import Optional, List, Dict, Literal, Any, Union
 from pydantic import BaseModel, Field
 from app.models.legal import RiskLevel, ConfidenceLevel, LegalLevel, SourceStatus, SourceCollectionRunStatus
 
@@ -136,17 +136,28 @@ class RiskFindingBase(BaseModel):
     conflict_flag: bool = False
     conflict_details: Optional[str] = None
     recommendation: str
+    legal_nature: str = "non_conformite_imperative"
+    review_status: str = "pending"
 
 
 class RiskFindingRead(RiskFindingBase):
     id: UUID
     report_version_id: UUID
+    reviewed_by: Optional[UUID] = None
+    reviewed_at: Optional[datetime] = None
+    review_note: Optional[str] = None
     created_at: datetime
     sources_details: List[MatchedSourceDetail] = []
     articles_details: List[MatchedArticleDetail] = []
     
     class Config:
         from_attributes = True
+
+
+class RiskFindingReviewUpdate(BaseModel):
+    review_status: Literal["pending", "validated", "mitigated_by_evidence", "dismissed"]
+    legal_nature: Optional[Literal["non_conformite_imperative", "risque_contractuel", "bonne_pratique"]] = None
+    review_note: Optional[str] = None
 
 
 # Report Version Schemas

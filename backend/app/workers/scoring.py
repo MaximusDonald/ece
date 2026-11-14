@@ -74,6 +74,8 @@ async def run_scoring(report_version_id: UUID) -> None:
                 "risk_level": f.risk_level,
                 "confidence": f.confidence,
                 "matched_articles": f.matched_articles or [],
+                "clause_ref": f.clause_ref,
+                "finding_text": f.finding_text,
             }
             for f in findings
         ]

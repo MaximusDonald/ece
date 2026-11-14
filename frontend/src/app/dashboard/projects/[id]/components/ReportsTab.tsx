@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { useReportVersions, useReportVersion, useReportFindings, useAddContext, useReportDiff, useDownloadReport } from '@/hooks/useApi';
+import { useReportVersions, useReportVersion, useReportFindings, useAddContext, useReportDiff, useDownloadReport, useReviewFinding } from '@/hooks/useApi';
 import { formatDateTime, getRiskBadgeClass, getConfidenceBadgeClass, getRiskEmoji, getConfidenceEmoji } from '@/lib/utils';
 import { AlertTriangle, CheckCircle, FileText, ChevronDown, ChevronUp, Search, Plus, Download, RefreshCw, Loader2 } from 'lucide-react';
 import Link from 'next/link';
@@ -303,20 +303,69 @@ export function ProjectWorkspaceReports({ projectId }: { projectId: string }) {
   );
 }
 
+const LEGAL_NATURE_LABELS: Record<string, string> = {
+  non_conformite_imperative: 'Non-conformité impérative',
+  risque_contractuel: 'Risque contractuel',
+  bonne_pratique: 'Bonne pratique',
+};
+
+const REVIEW_STATUS_LABELS: Record<string, { label: string; variant: 'outline' | 'conforme' | 'warning' | 'secondary' }> = {
+  pending: { label: 'En attente de revue', variant: 'outline' },
+  validated: { label: 'Validé', variant: 'conforme' },
+  mitigated_by_evidence: { label: 'Mitigé par preuve', variant: 'warning' },
+  dismissed: { label: 'Écarté', variant: 'secondary' },
+};
+
 function FindingCard({ finding }: { finding: any }) {
-  const isExpanded = false; // Could add expand/collapse state
-  
+  const reviewMutation = useReviewFinding();
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [reviewNote, setReviewNote] = useState<string>(finding.review_note || '');
+  const [legalNature, setLegalNature] = useState<'non_conformite_imperative' | 'risque_contractuel' | 'bonne_pratique'>(
+    (finding.legal_nature as any) || 'non_conformite_imperative',
+  );
+
+  const reviewMeta = REVIEW_STATUS_LABELS[finding.review_status || 'pending'] || REVIEW_STATUS_LABELS.pending;
+  const natureLabel = LEGAL_NATURE_LABELS[finding.legal_nature || 'non_conformite_imperative'] || 'Non-conformité impérative';
+
+  const submitReview = (statusVal: 'pending' | 'validated' | 'mitigated_by_evidence' | 'dismissed') => {
+    reviewMutation.mutate(
+      {
+        findingId: finding.id,
+        payload: {
+          review_status: statusVal,
+          legal_nature: legalNature,
+          review_note: reviewNote,
+        },
+      },
+      {
+        onSuccess: () => {
+          toast({ title: 'Constat mis à jour', description: `Statut enregistré : ${REVIEW_STATUS_LABELS[statusVal].label}` });
+          setShowReviewForm(false);
+        },
+        onError: () => {
+          toast({ title: 'Erreur', description: 'Impossible d’enregistrer la validation.', variant: 'destructive' });
+        },
+      },
+    );
+  };
+
   return (
     <Card className="border-l-4" style={{ borderLeftColor: getRiskColor(finding.risk_level) }}>
       <CardContent className="p-6">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1">
-            <div className="flex items-center gap-3 mb-2">
+            <div className="flex flex-wrap items-center gap-2 mb-2">
               <Badge variant={finding.risk_level} className="text-sm">
                 {getRiskEmoji(finding.risk_level)} {finding.risk_level.toUpperCase()}
               </Badge>
               <Badge variant={finding.confidence} className="text-sm">
                 {getConfidenceEmoji(finding.confidence)} {finding.confidence.toUpperCase()}
+              </Badge>
+              <Badge variant="outline" className="text-xs">
+                {natureLabel}
+              </Badge>
+              <Badge variant={reviewMeta.variant} className="text-xs">
+                {reviewMeta.label}
               </Badge>
               {finding.obsolescence_flag && (
                 <Badge variant="destructive" className="text-sm">
@@ -330,9 +379,15 @@ function FindingCard({ finding }: { finding: any }) {
               )}
             </div>
             <p className="font-medium text-slate-900 mb-1">{finding.clause_ref}</p>
-            <p className="text-slate-700 mb-3">{finding.finding_text}</p>
+            <p className="text-slate-700 mb-3 whitespace-pre-line">{finding.finding_text}</p>
+            {finding.conflict_flag && finding.conflict_details && (
+              <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                <span className="font-semibold">Conflit / Hiérarchie des normes : </span>
+                {finding.conflict_details}
+              </div>
+            )}
             <div className="flex items-center gap-2 text-sm text-slate-600">
-              {finding.matched_sources && finding.matched_sources.length > 0 && (
+              {finding.matched_sources && finding.matched_sources.length > 0 ? (
                 <>
                   <span>Sources: </span>
                   {finding.matched_sources.slice(0, 3).map((sid: string, i: number) => (
@@ -342,10 +397,17 @@ function FindingCard({ finding }: { finding: any }) {
                     <Badge variant="outline" className="text-xs">+{finding.matched_sources.length - 3} autres</Badge>
                   )}
                 </>
-              )}
+              ) : finding.matched_articles && finding.matched_articles.length > 0 ? (
+                <Badge variant="outline" className="text-xs">
+                  {finding.matched_articles.length} article(s) de loi cité(s)
+                </Badge>
+              ) : null}
             </div>
           </div>
           <div className="flex flex-col items-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShowReviewForm((v) => !v)}>
+              {showReviewForm ? 'Fermer' : 'Qualifier / Valider'}
+            </Button>
             <Button variant="ghost" size="sm" asChild>
               <Link href={`/dashboard/projects/${finding.project_id}/reports/${finding.report_version_id}?focus=${finding.id}`}>
                 Détails
@@ -353,6 +415,53 @@ function FindingCard({ finding }: { finding: any }) {
             </Button>
           </div>
         </div>
+        {(finding.reviewed_at || finding.review_note) && !showReviewForm && (
+          <div className="mt-3 rounded-md bg-slate-50 border border-slate-200 px-3 py-2 text-xs text-slate-600">
+            <span className="font-semibold text-slate-800">Piste d'audit : </span>
+            {reviewMeta.label}
+            {finding.reviewed_at ? ` le ${formatDateTime(finding.reviewed_at)}` : ''}
+            {finding.review_note ? ` — « ${finding.review_note} »` : ''}
+          </div>
+        )}
+        {showReviewForm && (
+          <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-3">
+            <div className="grid gap-3 md:grid-cols-2">
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Nature juridique</label>
+                <select
+                  value={legalNature}
+                  onChange={(e) => setLegalNature(e.target.value as any)}
+                  className="input text-sm"
+                >
+                  <option value="non_conformite_imperative">Non-conformité impérative</option>
+                  <option value="risque_contractuel">Risque contractuel</option>
+                  <option value="bonne_pratique">Bonne pratique</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Note de revue (justificatif)</label>
+                <input
+                  type="text"
+                  value={reviewNote}
+                  onChange={(e) => setReviewNote(e.target.value)}
+                  placeholder="Ex: Récépissé APDP vérifié..."
+                  className="input text-sm"
+                />
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" onClick={() => submitReview('validated')} disabled={reviewMutation.isPending}>
+                Valider
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => submitReview('mitigated_by_evidence')} disabled={reviewMutation.isPending}>
+                Mitigé par preuve
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => submitReview('dismissed')} disabled={reviewMutation.isPending}>
+                Écarter
+              </Button>
+            </div>
+          </div>
+        )}
         <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
           <p className="font-medium text-slate-900 mb-1">Recommandation</p>
           <p className="text-slate-700">{finding.recommendation}</p>
