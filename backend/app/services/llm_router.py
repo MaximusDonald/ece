@@ -1,5 +1,6 @@
 """Resolve active model configs and apply bounded, classified chat fallback."""
 
+import asyncio
 import logging
 
 from sqlalchemy import select
@@ -80,20 +81,31 @@ class ConfiguredLLMRouter(LLMClient):
             definition = get_provider(config.provider)
             client = definition.build_client(config.model)
             try:
-                return await client.chat_completion(
-                    prompt,
-                    response_format,
-                    model=config.model,
-                    temperature=config.temperature if temperature is None else temperature,
-                    max_tokens=config.max_tokens if max_tokens is None else max_tokens,
-                    system_prompt=system_prompt or config.system_prompt,
-                )
-            except Exception as exc:
-                category = classify_provider_error(exc)
-                if category is None:
-                    # Invalid user requests and model/configuration errors are not retried.
-                    raise
-                final_category = category
+                for transient_attempt in range(2):
+                    try:
+                        return await client.chat_completion(
+                            prompt,
+                            response_format,
+                            model=config.model,
+                            temperature=config.temperature if temperature is None else temperature,
+                            max_tokens=config.max_tokens if max_tokens is None else max_tokens,
+                            system_prompt=system_prompt or config.system_prompt,
+                        )
+                    except Exception as exc:
+                        category = classify_provider_error(exc)
+                        if category is None:
+                            # Invalid user requests and model/configuration errors are not retried.
+                            raise
+                        final_category = category
+                        if transient_attempt == 0 and category in {"server_error", "timeout", "connection"}:
+                            logger.warning(
+                                "Erreur transitoire LLM (%s) pour %s/%s — nouvelle tentative dans 1.5s",
+                                category, config.provider, config.model,
+                            )
+                            await asyncio.sleep(1.5)
+                            continue
+                        break
+
                 if index + 1 >= len(candidates):
                     break
                 next_config = candidates[index + 1]
@@ -101,7 +113,7 @@ class ConfiguredLLMRouter(LLMClient):
                     "LLM fallback: provider=%s model=%s category=%s next_provider=%s next_model=%s",
                     config.provider,
                     config.model,
-                    category,
+                    final_category,
                     next_config.provider,
                     next_config.model,
                 )

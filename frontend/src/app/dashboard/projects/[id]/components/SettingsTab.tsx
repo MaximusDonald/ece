@@ -20,6 +20,14 @@ const STATUS_OPTIONS = [
   { value: 'archived', label: 'Archivé' },
 ];
 
+const REPRESENTED_ROLE_OPTIONS = [
+  { value: 'entreprise', label: "L'entreprise / maître d'ouvrage" },
+  { value: 'developpeur_engage', label: 'Un développeur engagé (salarié, stagiaire, freelance interne)' },
+  { value: 'prestataire_externe', label: 'Un prestataire externe (évaluation de vos propres risques)' },
+  { value: 'dpo_juriste', label: 'Un DPO / juriste / auditeur interne' },
+  { value: 'autre', label: 'Autre (à préciser)' },
+];
+
 const TREATMENT_OPTIONS = [
   { value: 'data_protection', label: 'Protection des données personnelles' },
   { value: 'payment_services', label: 'Services de paiement / Monnaie électronique' },
@@ -40,14 +48,29 @@ export function ProjectWorkspaceSettings({ projectId, project }: { projectId: st
     sector: project.sector,
     status: project.status,
     treatments: [...project.treatments],
+    represented_entity_type: project.represented_entity_type || 'entreprise',
+    represented_entity_other: project.represented_entity_other || '',
+    represented_role_details: project.represented_role_details || '',
   });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (formData.represented_entity_type === 'autre' && !formData.represented_entity_other.trim()) {
+      setMessage({ type: 'error', text: "Veuillez préciser le rôle représenté lorsque 'Autre' est sélectionné." });
+      return;
+    }
     try {
-      await updateProject.mutateAsync({ id: projectId, data: formData });
+      await updateProject.mutateAsync({
+        id: projectId,
+        data: {
+          ...formData,
+          represented_entity_other:
+            formData.represented_entity_type === 'autre' ? formData.represented_entity_other.trim() : null,
+          represented_role_details: formData.represented_role_details.trim() || null,
+        },
+      });
       setMessage({ type: 'success', text: 'Projet mis à jour avec succès' });
       setTimeout(() => setMessage(null), 3000);
     } catch (err: any) {
@@ -150,6 +173,48 @@ export function ProjectWorkspaceSettings({ projectId, project }: { projectId: st
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
               </select>
+            </div>
+
+            <div className="space-y-4 pt-4 border-t border-slate-100">
+              <div>
+                <Label htmlFor="represented_entity_type">Qui représentez-vous pour cette analyse ? *</Label>
+                <select
+                  id="represented_entity_type"
+                  value={formData.represented_entity_type}
+                  onChange={(e) => setFormData({ ...formData, represented_entity_type: e.target.value })}
+                  className="input mt-1"
+                  required
+                >
+                  {REPRESENTED_ROLE_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {formData.represented_entity_type === 'autre' && (
+                <div>
+                  <Label htmlFor="represented_entity_other">Précisez le rôle représenté *</Label>
+                  <Input
+                    id="represented_entity_other"
+                    value={formData.represented_entity_other}
+                    onChange={(e) => setFormData({ ...formData, represented_entity_other: e.target.value })}
+                    placeholder="ex: Investisseur, Partenaire bancaire..."
+                    required
+                  />
+                </div>
+              )}
+
+              <div>
+                <Label htmlFor="represented_role_details">Description détaillée du rôle (optionnel)</Label>
+                <textarea
+                  id="represented_role_details"
+                  rows={3}
+                  value={formData.represented_role_details}
+                  onChange={(e) => setFormData({ ...formData, represented_role_details: e.target.value })}
+                  placeholder="Précisez vos responsabilités ou la perspective souhaitée pour l'audit..."
+                  className="input w-full mt-1"
+                />
+              </div>
             </div>
 
             <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">

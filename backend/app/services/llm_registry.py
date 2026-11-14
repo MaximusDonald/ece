@@ -99,23 +99,30 @@ def list_provider_availability() -> list[dict[str, object]]:
 
 def classify_provider_error(exc: Exception) -> str | None:
     """Return a retry category only for explicitly recoverable provider failures."""
-    status_code = getattr(exc, "status_code", None) or getattr(exc, "status", None)
+    status_code = (
+        getattr(exc, "status_code", None)
+        or getattr(exc, "status", None)
+        or getattr(exc, "code", None)
+    )
     try:
         status_code = int(status_code) if status_code is not None else None
     except (TypeError, ValueError):
         status_code = None
 
     class_name = type(exc).__name__.lower()
+    message_lower = str(exc).lower()
     if "timeout" in class_name or isinstance(exc, TimeoutError):
         return "timeout"
-    if status_code == 429 or "ratelimit" in class_name:
+    if status_code == 429 or "ratelimit" in class_name or "resource_exhausted" in message_lower:
         return "rate_limit"
     if status_code in {401, 403} or any(
         token in class_name for token in ("authentication", "permissiondenied", "unauthorized")
     ):
         return "authentication"
-    if (status_code is not None and status_code >= 500) or any(
-        token in class_name for token in ("internalserver", "serviceunavailable")
+    if (
+        (status_code is not None and status_code >= 500)
+        or any(token in class_name for token in ("internalserver", "serviceunavailable", "servererror"))
+        or "503 unavailable" in message_lower
     ):
         return "server_error"
     if "connection" in class_name or "connecterror" in class_name:

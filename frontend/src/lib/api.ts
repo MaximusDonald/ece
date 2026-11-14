@@ -69,6 +69,8 @@ export const api = {
     http.get<T>(url, config).then((response) => response.data),
   post: <T = any>(url: string, data?: unknown, config?: AxiosRequestConfig) =>
     http.post<T>(url, data, config).then((response) => response.data),
+  put: <T = any>(url: string, data?: unknown, config?: AxiosRequestConfig) =>
+    http.put<T>(url, data, config).then((response) => response.data),
   patch: <T = any>(url: string, data?: unknown, config?: AxiosRequestConfig) =>
     http.patch<T>(url, data, config).then((response) => response.data),
   delete: <T = any>(url: string, config?: AxiosRequestConfig) =>
@@ -137,6 +139,9 @@ export interface Project {
   country_code: string;
   sector: string;
   treatments: string[];
+  represented_entity_type: string;
+  represented_entity_other?: string | null;
+  represented_role_details?: string | null;
   status: string;
   created_at: string;
   updated_at: string;
@@ -156,6 +161,7 @@ export interface Document {
   id: string;
   project_id: string;
   filename: string;
+  document_type?: string | null;
   mime_type: string;
   minio_bucket: string;
   minio_object: string;
@@ -537,7 +543,15 @@ export const projectApi = {
   list: (status?: string) =>
     api.get<ProjectListItem[]>('/projects', { params: { status } }),
 
-  create: (data: { name: string; country_code: string; sector: string; treatments: string[] }) =>
+  create: (data: {
+    name: string;
+    country_code: string;
+    sector: string;
+    treatments: string[];
+    represented_entity_type: string;
+    represented_entity_other?: string;
+    represented_role_details?: string;
+  }) =>
     api.post<Project>('/projects', data),
 
   get: (id: string) =>
@@ -603,6 +617,28 @@ export const documentApi = {
 
   getJobStatus: (projectId: string, jobId: string) =>
     api.get<JobResponse>(`/projects/${projectId}/documents/jobs/${jobId}`),
+
+  getContextDocument: (projectId: string) =>
+    api.get<{
+      document_id: string;
+      filename: string;
+      markdown: string;
+      entities: Record<string, any>;
+      updated_at: string;
+    } | null>(`/projects/${projectId}/documents/context-document`),
+
+  updateContextDocument: (
+    projectId: string,
+    payload: { markdown?: string; context_data?: Record<string, any>; trigger_report_update?: boolean },
+  ) =>
+    api.put<{
+      document_id: string;
+      filename: string;
+      markdown: string;
+      entities: Record<string, any>;
+      updated_at: string;
+      job_id?: string | null;
+    }>(`/projects/${projectId}/documents/context-document`, payload),
 };
 
 // Report API
@@ -624,23 +660,23 @@ export const reportApi = {
       params: { compare_with: compareWith, report_type: reportType }
     }),
 
-  downloadPdf: async (versionId: string, reportType: 'report1' | 'report2') => {
+  downloadPdf: async (versionId: string, reportType: 'full' | 'report1' | 'report2' = 'full') => {
     const response = await http.get<Blob>(`/reports/${versionId}/download`, {
       params: { type: reportType },
       responseType: 'blob',
     });
     const disposition = response.headers['content-disposition'] as string | undefined;
-    const filename = disposition?.match(/filename="?([^";]+)"?/i)?.[1] || `${reportType}.pdf`;
+    const filename = disposition?.match(/filename="?([^";]+)"?/i)?.[1] || `${reportType === 'full' ? 'rapport-audit-conformite-complet' : reportType}.pdf`;
     return { blob: response.data, filename };
   },
 
-  downloadMarkdown: async (versionId: string, reportType: 'report1' | 'report2') => {
+  downloadMarkdown: async (versionId: string, reportType: 'full' | 'report1' | 'report2' = 'full') => {
     const response = await http.get<Blob>(`/reports/${versionId}/export`, {
       params: { format: 'markdown', type: reportType },
       responseType: 'blob',
     });
     const disposition = response.headers['content-disposition'] as string | undefined;
-    const filename = disposition?.match(/filename="?([^";]+)"?/i)?.[1] || `${reportType}.md`;
+    const filename = disposition?.match(/filename="?([^";]+)"?/i)?.[1] || `${reportType === 'full' ? 'rapport-audit-conformite-complet' : reportType}.md`;
     return { blob: response.data, filename };
   },
 };

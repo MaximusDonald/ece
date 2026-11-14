@@ -1,7 +1,7 @@
 from uuid import UUID
 from datetime import datetime
 from typing import Optional, List
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 from fastapi_users import schemas as fastapi_users_schemas
 from app.models.user import UserRole, PlanType, ProjectStatus
 from app.core.password_strength import password_strength_score
@@ -77,16 +77,44 @@ class OrganizationMemberRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+ALLOWED_REPRESENTED_ROLES = {
+    "entreprise",
+    "developpeur_engage",
+    "prestataire_externe",
+    "dpo_juriste",
+    "autre",
+}
+
+
 # Project Schemas
 class ProjectBase(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     country_code: str = Field(min_length=2, max_length=2, pattern="^[A-Z]{2}$")
     sector: str = Field(min_length=1, max_length=100)
     treatments: List[str] = Field(default=[])
+    represented_entity_type: str = Field(default="entreprise", min_length=1, max_length=64)
+    represented_entity_other: Optional[str] = Field(default=None, max_length=255)
+    represented_role_details: Optional[str] = Field(default=None, max_length=1000)
+
+    @field_validator("represented_entity_type")
+    @classmethod
+    def validate_represented_entity_type(cls, v: str) -> str:
+        val = (v or "").strip()
+        if val not in ALLOWED_REPRESENTED_ROLES:
+            raise ValueError(f"Rôle représenté invalide: {val}")
+        return val
+
+    @model_validator(mode="after")
+    def validate_other_role(self) -> "ProjectBase":
+        if self.represented_entity_type == "autre":
+            if not self.represented_entity_other or not self.represented_entity_other.strip():
+                raise ValueError("Veuillez préciser ce que vous représentez lorsque 'Autre' est sélectionné.")
+            self.represented_entity_other = self.represented_entity_other.strip()
+        return self
 
 
 class ProjectCreate(ProjectBase):
-    pass
+    represented_entity_type: str = Field(..., min_length=1, max_length=64)
 
 
 class ProjectUpdate(BaseModel):
@@ -94,6 +122,19 @@ class ProjectUpdate(BaseModel):
     sector: Optional[str] = Field(default=None, min_length=1, max_length=100)
     treatments: Optional[List[str]] = None
     status: Optional[ProjectStatus] = None
+    represented_entity_type: Optional[str] = Field(default=None, min_length=1, max_length=64)
+    represented_entity_other: Optional[str] = Field(default=None, max_length=255)
+    represented_role_details: Optional[str] = Field(default=None, max_length=1000)
+
+    @field_validator("represented_entity_type")
+    @classmethod
+    def validate_represented_entity_type(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        val = v.strip()
+        if val not in ALLOWED_REPRESENTED_ROLES:
+            raise ValueError(f"Rôle représenté invalide: {val}")
+        return val
 
 
 class ProjectRead(ProjectBase):

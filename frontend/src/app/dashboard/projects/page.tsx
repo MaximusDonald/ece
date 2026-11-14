@@ -177,8 +177,19 @@ function NewProjectModal({ onClose, onSuccess }: { onClose: () => void; onSucces
     country_code: 'BJ',
     sector: '',
     treatments: [] as string[],
+    represented_entity_type: '',
+    represented_entity_other: '',
+    represented_role_details: '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const REPRESENTED_ROLE_OPTIONS = [
+    { value: 'entreprise', label: "L'entreprise / maître d'ouvrage" },
+    { value: 'developpeur_engage', label: 'Un développeur engagé (salarié, stagiaire, freelance interne)' },
+    { value: 'prestataire_externe', label: 'Un prestataire externe (évaluation de vos propres risques)' },
+    { value: 'dpo_juriste', label: 'Un DPO / juriste / auditeur interne' },
+    { value: 'autre', label: 'Autre (à préciser)' },
+  ];
 
   const TREATMENT_OPTIONS = [
     { value: 'data_protection', label: 'Protection des données personnelles' },
@@ -201,6 +212,10 @@ function NewProjectModal({ onClose, onSuccess }: { onClose: () => void; onSucces
     if (!userQuery.data?.org_id && !organizationName.trim()) newErrors.organization = 'Le nom de votre organisation est requis';
     if (!formData.sector.trim()) newErrors.sector = 'Le secteur est requis';
     if (formData.treatments.length === 0) newErrors.treatments = 'Sélectionnez au moins un type de traitement';
+    if (!formData.represented_entity_type) newErrors.represented_entity_type = 'Précisez ce que vous représentez pour l’analyse';
+    if (formData.represented_entity_type === 'autre' && !formData.represented_entity_other.trim()) {
+      newErrors.represented_entity_other = 'Veuillez préciser le rôle représenté';
+    }
     
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -219,6 +234,9 @@ function NewProjectModal({ onClose, onSuccess }: { onClose: () => void; onSucces
         country_code: formData.country_code,
         sector: formData.sector,
         treatments: formData.treatments,
+        represented_entity_type: formData.represented_entity_type,
+        represented_entity_other: formData.represented_entity_type === 'autre' ? formData.represented_entity_other.trim() : undefined,
+        represented_role_details: formData.represented_role_details.trim() || undefined,
       });
       onSuccess();
     } catch (err: any) {
@@ -320,6 +338,50 @@ function NewProjectModal({ onClose, onSuccess }: { onClose: () => void; onSucces
               ))}
             </div>
             {errors.treatments && <p className="mt-1 text-sm text-danger-600">{errors.treatments}</p>}
+          </div>
+
+          <div className="space-y-4 pt-2 border-t border-slate-100">
+            <div>
+              <label className="label">Qui représentez-vous pour cette analyse ? *</label>
+              <Select
+                value={formData.represented_entity_type}
+                onValueChange={(value) => setFormData({ ...formData, represented_entity_type: value })}
+              >
+                <SelectTrigger className={errors.represented_entity_type ? 'input-error' : ''}>
+                  <SelectValue placeholder="Sélectionnez votre rôle / entité représentée" />
+                </SelectTrigger>
+                <SelectContent>
+                  {REPRESENTED_ROLE_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {errors.represented_entity_type && <p className="mt-1 text-sm text-danger-600">{errors.represented_entity_type}</p>}
+            </div>
+
+            {formData.represented_entity_type === 'autre' && (
+              <div>
+                <label className="label">Précisez le rôle représenté *</label>
+                <Input
+                  placeholder="ex: Investisseur, Partenaire bancaire, Autorité de contrôle..."
+                  value={formData.represented_entity_other}
+                  onChange={(e) => setFormData({ ...formData, represented_entity_other: e.target.value })}
+                  className={errors.represented_entity_other ? 'input-error' : ''}
+                />
+                {errors.represented_entity_other && <p className="mt-1 text-sm text-danger-600">{errors.represented_entity_other}</p>}
+              </div>
+            )}
+
+            <div>
+              <label className="label">Description détaillée du rôle (optionnel)</label>
+              <textarea
+                rows={3}
+                placeholder="Ex: Stagiaire développeur ayant conçu le backend RAG ; souhaite connaître sa responsabilité personnelle en cas de fuite de données..."
+                value={formData.represented_role_details}
+                onChange={(e) => setFormData({ ...formData, represented_role_details: e.target.value })}
+                className="input w-full"
+              />
+            </div>
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">

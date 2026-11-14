@@ -99,6 +99,7 @@ async def run_incremental_update(report_version_id: UUID, context_data: Dict[str
                 session,
                 old_report.project_id,
                 incremental_context=context_data,
+                previous_report_id=old_report.id,
             )
             new_report = await persist_audit_report_version(
                 session,

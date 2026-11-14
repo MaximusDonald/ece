@@ -78,6 +78,9 @@ class Project(SQLModel, table=True):
     country_code: str = Field(max_length=2, index=True)  # ISO alpha-2, e.g., "BJ"
     sector: str = Field(max_length=100)
     treatments: List[str] = Field(default=[], sa_column=Column(JSON))
+    represented_entity_type: str = Field(default="entreprise", max_length=64)
+    represented_entity_other: Optional[str] = Field(default=None, max_length=255)
+    represented_role_details: Optional[str] = Field(default=None, max_length=1000)
     status: ProjectStatus = Field(default=ProjectStatus.ACTIVE, sa_column=Column(SQLEnum(ProjectStatus)))
     created_at: datetime = Field(default_factory=datetime.utcnow, sa_column=Column(DateTime, nullable=False))
     updated_at: datetime = Field(default_factory=datetime.utcnow, sa_column=Column(DateTime, nullable=False))

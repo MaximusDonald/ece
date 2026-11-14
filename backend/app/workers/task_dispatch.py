@@ -8,10 +8,9 @@ from app.workers.celery_app import celery_app
 LOCK_TTL_SECONDS = 300
 
 
-def enqueue_document_task(task, document_id: UUID, stage: str) -> tuple[str, bool]:
+def _enqueue_dedup_task(task, key: str, task_arg: str) -> tuple[str, bool]:
     """Queue a task once while its Celery result is pending or active."""
     client = celery_app.backend.client
-    key = f"ece:document-task:{stage}:{document_id}"
     current = client.get(key)
 
     if current:
@@ -35,7 +34,7 @@ def enqueue_document_task(task, document_id: UUID, stage: str) -> tuple[str, boo
         return "", False
 
     try:
-        result = task.delay(str(document_id))
+        result = task.delay(task_arg)
         client.set(key, result.id, ex=LOCK_TTL_SECONDS)
         return result.id, True
     except Exception:
@@ -47,3 +46,21 @@ def enqueue_document_task(task, document_id: UUID, stage: str) -> tuple[str, boo
             claim,
         )
         raise
+
+
+def enqueue_document_task(task, document_id: UUID, stage: str) -> tuple[str, bool]:
+    """Queue a document/report task once while its Celery result is pending or active."""
+    return _enqueue_dedup_task(task, f"ece:document-task:{stage}:{document_id}", str(document_id))
+
+
+def enqueue_project_audit_task(
+    task,
+    project_id: UUID,
+    trigger_document_id: UUID,
+) -> tuple[str, bool]:
+    """Queue at most one holistic project audit at a time per project."""
+    return _enqueue_dedup_task(
+        task,
+        f"ece:project-audit:{project_id}",
+        str(trigger_document_id),
+    )

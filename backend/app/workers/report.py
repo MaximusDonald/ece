@@ -13,7 +13,7 @@ from app.services.minio_client import get_minio_client, upload_file, get_bucket_
 from app.services.pdf_generator import generate_pdf_from_html
 from app.workers.celery_app import celery_app
 from app.workers.async_runner import run_async_task
-from app.workers.pipeline_tracker import complete_step, fail_step, get_document_for_report, start_step
+from app.workers.pipeline_tracker import complete_step, fail_step, get_documents_for_report, start_step
 
 settings = get_settings()
 
@@ -28,8 +28,8 @@ SyncSession = sessionmaker(async_engine, class_=AsyncSession, expire_on_commit=F
 
 async def run_report_generation(report_version_id: UUID) -> None:
     """Generate PDF reports from Markdown."""
-    document_id = get_document_for_report(report_version_id)
-    if document_id:
+    document_ids = get_documents_for_report(report_version_id)
+    for document_id in document_ids:
         start_step(document_id, 5, "Preparation des deux rapports et de leurs PDF")
     async with SyncSession() as session:
         result = await session.execute(
@@ -66,7 +66,7 @@ async def run_report_generation(report_version_id: UUID) -> None:
         except Exception as e:
             print(f"Report generation error: {e}")
             raise
-        if document_id:
+        for document_id in document_ids:
             complete_step(document_id, 5, "Les deux rapports et leurs PDF sont prets", report_version_id)
 
 
@@ -96,7 +96,7 @@ def markdown_to_html(markdown: str, title: str) -> str:
         .badge-high {{ background: #e8f5ed; color: #007b3f; }}
         .badge-medium {{ background: #fff8e1; color: #e6a800; }}
         .badge-low {{ background: #fdeaea; color: #c41e3a; }}
-        pre {{ background: #f1f5f9; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; }}
+        pre {{ background: #f1f5f9; padding: 1rem; border-radius: 0.5rem; white-space: pre-wrap; word-break: break-word; }}
         code {{ background: #f1f5f9; padding: 0.1rem 0.3rem; border-radius: 0.25rem; font-family: monospace; }}
         table {{ width: 100%; border-collapse: collapse; margin: 1rem 0; }}
         th, td {{ border: 1px solid #e2e8f0; padding: 0.5rem; text-align: left; }}
@@ -124,7 +124,6 @@ def report_generation_task(self, report_version_id):
     try:
         run_async_task(run_report_generation(ensure_uuid(report_version_id)), async_engine)
     except Exception as exc:
-        document_id = get_document_for_report(str(report_version_id))
-        if document_id:
+        for document_id in get_documents_for_report(str(report_version_id)):
             fail_step(str(document_id), 5, retrying=self.request.retries < self.max_retries)
         self.retry(exc=exc, countdown=60)

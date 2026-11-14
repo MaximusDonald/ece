@@ -33,16 +33,32 @@ def get_pipeline_state(document_id: UUID | str) -> dict | None:
 
 
 def bind_report(document_id: UUID | str, report_version_id: UUID | str) -> None:
+    bind_report_documents([document_id], report_version_id)
+
+
+def bind_report_documents(
+    document_ids: list[UUID | str],
+    report_version_id: UUID | str,
+) -> None:
+    normalized = [str(doc_id) for doc_id in dict.fromkeys(str(d) for d in document_ids)]
+    if not normalized:
+        return
     client = celery_app.backend.client
     client.set(
         f"ece:report-document:{report_version_id}",
-        str(document_id),
+        normalized[0],
         ex=PIPELINE_TTL_SECONDS,
     )
-    state = _read(document_id)
-    if state:
-        state["report_version_id"] = str(report_version_id)
-        _write(document_id, state)
+    client.set(
+        f"ece:report-documents:{report_version_id}",
+        json.dumps(normalized),
+        ex=PIPELINE_TTL_SECONDS,
+    )
+    for doc_id in normalized:
+        state = _read(doc_id)
+        if state:
+            state["report_version_id"] = str(report_version_id)
+            _write(doc_id, state)
 
 
 def get_document_for_report(report_version_id: UUID | str) -> str | None:
@@ -50,6 +66,21 @@ def get_document_for_report(report_version_id: UUID | str) -> str | None:
     if isinstance(value, bytes):
         return value.decode()
     return str(value) if value else None
+
+
+def get_documents_for_report(report_version_id: UUID | str) -> list[str]:
+    raw = celery_app.backend.client.get(f"ece:report-documents:{report_version_id}")
+    if raw:
+        if isinstance(raw, bytes):
+            raw = raw.decode()
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, list):
+                return [str(item) for item in parsed if item]
+        except Exception:
+            pass
+    single = get_document_for_report(report_version_id)
+    return [single] if single else []
 
 
 def _write(document_id: UUID | str, state: dict) -> None:

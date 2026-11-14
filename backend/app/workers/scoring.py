@@ -12,7 +12,7 @@ from app.models.admin import ScoringRule
 from app.workers.celery_app import celery_app
 from app.workers.async_runner import run_async_task
 from app.workers.task_dispatch import enqueue_document_task
-from app.workers.pipeline_tracker import complete_step, fail_step, get_document_for_report, start_step
+from app.workers.pipeline_tracker import complete_step, fail_step, get_documents_for_report, start_step
 
 settings = get_settings()
 
@@ -27,8 +27,8 @@ SyncSession = sessionmaker(async_engine, class_=AsyncSession, expire_on_commit=F
 
 async def run_scoring(report_version_id: UUID) -> None:
     """Apply deterministic scoring rules to findings."""
-    document_id = get_document_for_report(report_version_id)
-    if document_id:
+    document_ids = get_documents_for_report(report_version_id)
+    for document_id in document_ids:
         start_step(document_id, 4, "Calcul du score de risque et de la confiance")
     async with SyncSession() as session:
         result = await session.execute(
@@ -91,7 +91,7 @@ async def run_scoring(report_version_id: UUID) -> None:
         await session.commit()
         
         # Chain to report generation
-        if document_id:
+        for document_id in document_ids:
             complete_step(document_id, 4, "Score global et niveaux de confiance calcules")
             start_step(document_id, 5, "Preparation des rapports et fichiers PDF")
         from app.workers.report import report_generation_task
@@ -99,7 +99,7 @@ async def run_scoring(report_version_id: UUID) -> None:
             enqueue_document_task(report_generation_task, report_version_id, "report")
         except Exception as exc:
             print(f"Unable to queue report generation for {report_version_id}: {exc}")
-            if document_id:
+            for document_id in document_ids:
                 fail_step(document_id, 5)
 
 
@@ -109,8 +109,7 @@ def scoring_task(self, report_version_id):
     try:
         run_async_task(run_scoring(ensure_uuid(report_version_id)), async_engine)
     except Exception as exc:
-        document_id = get_document_for_report(str(report_version_id))
-        if document_id:
+        for document_id in get_documents_for_report(str(report_version_id)):
             fail_step(str(document_id), 4, retrying=self.request.retries < self.max_retries)
         self.retry(exc=exc, countdown=60)
 

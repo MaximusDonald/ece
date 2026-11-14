@@ -112,7 +112,7 @@ export function useProjects(status?: string) {
 export function useCreateProject() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: { name: string; country_code: string; sector: string; treatments: string[] }) => projectApi.create(data),
+    mutationFn: (data: Parameters<typeof projectApi.create>[0]) => projectApi.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
     },
@@ -226,7 +226,15 @@ export function useDocumentPipeline(projectId: string, documentId: string) {
 
 export function useDownloadReport() {
   return useMutation({
-    mutationFn: ({ versionId, reportType, format }: { versionId: string; reportType: 'report1' | 'report2'; format: 'pdf' | 'markdown' }) =>
+    mutationFn: ({
+      versionId,
+      reportType = 'full',
+      format,
+    }: {
+      versionId: string;
+      reportType?: 'full' | 'report1' | 'report2';
+      format: 'pdf' | 'markdown';
+    }) =>
       format === 'pdf'
         ? reportApi.downloadPdf(versionId, reportType)
         : reportApi.downloadMarkdown(versionId, reportType),
@@ -331,6 +339,32 @@ export function useAddContext() {
       queryClient.invalidateQueries({ queryKey: ['reportVersion', versionId] });
       queryClient.invalidateQueries({ queryKey: ['reportVersions'] });
       queryClient.invalidateQueries({ queryKey: ['reportFindings'] });
+      queryClient.invalidateQueries({ queryKey: ['documents'] });
+      queryClient.invalidateQueries({ queryKey: ['contextDocument'] });
+    },
+  });
+}
+
+export function useContextDocument(projectId: string) {
+  return useQuery({
+    queryKey: ['contextDocument', projectId],
+    queryFn: () => documentApi.getContextDocument(projectId),
+    enabled: !!projectId,
+  });
+}
+
+export function useUpdateContextDocument(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: {
+      markdown?: string;
+      context_data?: Record<string, any>;
+      trigger_report_update?: boolean;
+    }) => documentApi.updateContextDocument(projectId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contextDocument', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['documents', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['reportVersions', projectId] });
     },
   });
 }

@@ -4,7 +4,8 @@ from sqlmodel import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from uuid import UUID
-from typing import List, Optional
+from pydantic import BaseModel
+from typing import List, Optional, Dict, Any
 from datetime import datetime
 from urllib.parse import quote
 from minio.error import S3Error
@@ -39,16 +40,26 @@ ALLOWED_MIME_TYPES = {
     "text/plain",
 }
 
+EXTENSION_TO_MIME = {
+    ".pdf": "application/pdf",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".md": "text/markdown",
+    ".txt": "text/plain",
+}
+
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
 
 
-def validate_file(file: UploadFile) -> None:
-    if file.content_type not in ALLOWED_MIME_TYPES:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"File type not allowed. Allowed: PDF, DOCX, Markdown, Text"
-        )
-    # Note: size check happens on read
+def resolve_and_validate_mime_type(file: UploadFile) -> str:
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if file.content_type in ALLOWED_MIME_TYPES:
+        return file.content_type
+    if (not file.content_type or file.content_type in {"application/octet-stream", "text/x-markdown"}) and ext in EXTENSION_TO_MIME:
+        return EXTENSION_TO_MIME[ext]
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="File type not allowed. Allowed: PDF, DOCX, Markdown, Text",
+    )
 
 
 @router.post("/upload", response_model=DocumentRead, status_code=status.HTTP_201_CREATED)
@@ -69,8 +80,8 @@ async def upload_document(
     if current_user.role not in [UserRole.ORG_ADMIN, UserRole.ANALYST]:
         raise HTTPException(status_code=403, detail="Not enough permissions")
     
-    # Validate file
-    validate_file(file)
+    # Validate file and resolve MIME type
+    mime_type = resolve_and_validate_mime_type(file)
     
     # Read file content
     content = await file.read()
@@ -81,7 +92,7 @@ async def upload_document(
         )
     
     # Generate unique object name
-    file_ext = os.path.splitext(file.filename)[1].lower()
+    file_ext = os.path.splitext(file.filename or "")[1].lower()
     object_name = f"{uuid.uuid4()}{file_ext}"
     
     # Upload to MinIO
@@ -97,15 +108,15 @@ async def upload_document(
         object_name,
         io.BytesIO(content),
         len(content),
-        content_type=file.content_type,
+        content_type=mime_type,
     )
     
     # Create document record
     document = Document(
         project_id=project_id,
-        filename=file.filename,
+        filename=file.filename or f"document{file_ext}",
         document_type=(document_type.strip()[:50] or None) if document_type else None,
-        mime_type=file.content_type,
+        mime_type=mime_type,
         minio_bucket=bucket_name,
         minio_object=object_name,
         size_bytes=len(content),
@@ -139,6 +150,89 @@ async def list_documents(
     documents = result.scalars().all()
     
     return documents
+
+
+class ContextDocumentUpdate(BaseModel):
+    markdown: Optional[str] = None
+    context_data: Optional[Dict[str, Any]] = None
+    trigger_report_update: bool = False
+
+
+@router.get("/context-document")
+async def get_project_context_document(
+    project_id: UUID,
+    current_user: User = Depends(get_current_workspace_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Retrieve the project's complementary context document if it exists."""
+    project = await session.get(Project, project_id)
+    if not project or project.org_id != current_user.org_id:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    from app.services.context_document import get_context_document
+
+    found = await get_context_document(session, project_id)
+    if not found:
+        return None
+    doc, ext, ana = found
+    return {
+        "document_id": str(doc.id),
+        "filename": doc.filename,
+        "markdown": ext.markdown if ext else "",
+        "entities": ana.entities if ana else {},
+        "updated_at": doc.updated_at.isoformat(),
+    }
+
+
+@router.put("/context-document")
+async def update_project_context_document(
+    project_id: UUID,
+    payload: ContextDocumentUpdate,
+    current_user: User = Depends(get_current_workspace_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Create or update the project's complementary context document."""
+    project = await session.get(Project, project_id)
+    if not project or project.org_id != current_user.org_id:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if current_user.role not in [UserRole.ORG_ADMIN, UserRole.ANALYST]:
+        raise HTTPException(status_code=403, detail="Not enough permissions")
+
+    from app.services.context_document import upsert_context_document
+
+    doc, ext, ana = await upsert_context_document(
+        session,
+        project,
+        context_data=payload.context_data,
+        markdown_override=payload.markdown,
+    )
+    await session.commit()
+
+    job_id = None
+    if payload.trigger_report_update:
+        latest_res = await session.execute(
+            select(ReportVersion)
+            .where(ReportVersion.project_id == project_id)
+            .order_by(ReportVersion.created_at.desc())
+        )
+        latest_report = latest_res.scalars().first()
+        if latest_report:
+            from app.workers.incremental import incremental_update_task
+
+            task = incremental_update_task.delay(
+                str(latest_report.id),
+                payload.context_data or {"contexte_mis_a_jour": ext.markdown[:2000]},
+            )
+            job_id = task.id
+
+    return {
+        "document_id": str(doc.id),
+        "filename": doc.filename,
+        "markdown": ext.markdown,
+        "entities": ana.entities,
+        "updated_at": doc.updated_at.isoformat(),
+        "job_id": job_id,
+    }
 
 
 @router.get("/{document_id}", response_model=DocumentRead)
@@ -351,6 +445,11 @@ async def resume_document_pipeline(
         step = 3
 
     if step == 1:
+        if document.status == DocumentStatus.FAILED:
+            document.status = DocumentStatus.UPLOADED
+            session.add(document)
+            await session.commit()
+            initialize_pipeline(document.id, document.filename)
         task, stage, task_argument = extract_document_task, "extraction", document_id
     elif step == 2:
         from app.workers.semantic import semantic_analysis_task

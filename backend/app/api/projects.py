@@ -161,6 +161,9 @@ async def create_project(
         country_code=project_data.country_code.upper(),
         sector=project_data.sector,
         treatments=project_data.treatments,
+        represented_entity_type=project_data.represented_entity_type,
+        represented_entity_other=project_data.represented_entity_other,
+        represented_role_details=project_data.represented_role_details,
     )
     session.add(project)
     await session.commit()
@@ -252,6 +255,14 @@ async def update_project(
     update_data = project_data.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(project, field, value)
+
+    if project.represented_entity_type == "autre" and (
+        not project.represented_entity_other or not project.represented_entity_other.strip()
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Veuillez préciser ce que vous représentez lorsque 'Autre' est sélectionné.",
+        )
     
     project.updated_at = datetime.utcnow()
     await session.commit()

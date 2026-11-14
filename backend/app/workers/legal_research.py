@@ -15,12 +15,13 @@ from app.core.utils import ensure_uuid
 from app.models.document import Document, DocumentExtraction
 from app.models.legal import ReportVersion
 from app.services.compliance_auditor import (
+    get_project_analysis_readiness,
     persist_audit_report_version,
     run_holistic_compliance_audit,
 )
 from app.workers.async_runner import run_async_task
 from app.workers.celery_app import celery_app
-from app.workers.pipeline_tracker import bind_report, complete_step, fail_step, start_step
+from app.workers.pipeline_tracker import bind_report_documents, complete_step, fail_step, start_step
 from app.workers.task_dispatch import enqueue_document_task
 
 logger = logging.getLogger(__name__)
@@ -69,6 +70,20 @@ async def run_legal_research(document_id: UUID) -> None:
 
         project_id = extraction.document.project_id
 
+        ready_doc_ids, pending_doc_ids = await get_project_analysis_readiness(session, project_id)
+        if pending_doc_ids:
+            start_step(
+                document_id,
+                3,
+                f"En attente de l'analyse de {len(pending_doc_ids)} autre(s) document(s) du projet",
+            )
+            return
+        if not ready_doc_ids:
+            return
+
+        for ready_doc_id in ready_doc_ids:
+            start_step(ready_doc_id, 3, "Recherche des textes applicables au pays et au secteur")
+
         latest_res = await session.execute(
             select(ReportVersion)
             .where(ReportVersion.project_id == project_id)
@@ -90,21 +105,23 @@ async def run_legal_research(document_id: UUID) -> None:
             parent_version_id=parent_id,
         )
 
-        bind_report(document_id, report_version.id)
-        complete_step(
-            document_id,
-            3,
-            "Les constats multi-documents et les citations d'articles sont enregistrés",
-            report_version.id,
-        )
-        start_step(document_id, 4, "Calcul du score et du niveau de confiance")
+        bind_report_documents(ready_doc_ids, report_version.id)
+        for ready_doc_id in ready_doc_ids:
+            complete_step(
+                ready_doc_id,
+                3,
+                "Les constats multi-documents et les citations d'articles sont enregistrés",
+                report_version.id,
+            )
+            start_step(ready_doc_id, 4, "Calcul du score et du niveau de confiance")
         from app.workers.scoring import scoring_task
 
         try:
             enqueue_document_task(scoring_task, report_version.id, "scoring")
         except Exception as exc:
             logger.warning("Unable to queue scoring for report %s: %s", report_version.id, exc)
-            fail_step(document_id, 4)
+            for ready_doc_id in ready_doc_ids:
+                fail_step(ready_doc_id, 4)
 
 
 @celery_app.task(bind=True, max_retries=2)

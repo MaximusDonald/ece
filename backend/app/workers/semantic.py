@@ -4,17 +4,18 @@ import re
 from celery import Celery
 from sqlmodel import select
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import selectinload, sessionmaker
 from uuid import UUID
 from datetime import datetime
 
 from app.core.config import get_settings
 from app.core.utils import ensure_uuid
 from app.models.document import DocumentExtraction, DocumentAnalysis
+from app.services.compliance_auditor import get_project_analysis_readiness
 from app.services.llm_client import get_llm_client
 from app.workers.celery_app import celery_app
 from app.workers.async_runner import run_async_task
-from app.workers.task_dispatch import enqueue_document_task
+from app.workers.task_dispatch import enqueue_project_audit_task
 from app.workers.pipeline_tracker import add_warning, complete_step, fail_step, start_step
 
 settings = get_settings()
@@ -41,11 +42,14 @@ async def run_semantic_analysis(document_id: UUID) -> None:
     async with SyncSession() as session:
         # The task receives a document ID; DocumentExtraction has a separate primary key.
         extraction_result = await session.execute(
-            select(DocumentExtraction).where(DocumentExtraction.document_id == document_id)
+            select(DocumentExtraction)
+            .options(selectinload(DocumentExtraction.document))
+            .where(DocumentExtraction.document_id == document_id)
         )
         extraction = extraction_result.scalar_one_or_none()
         if not extraction:
             raise RuntimeError("Extraction introuvable pour l’analyse sémantique")
+        project_id = extraction.document.project_id
 
         existing_analysis = await session.execute(
             select(DocumentAnalysis.id).where(DocumentAnalysis.extraction_id == extraction.id)
@@ -86,13 +90,33 @@ async def run_semantic_analysis(document_id: UUID) -> None:
             await session.commit()
             complete_step(document_id, 2, "Entités et zones à clarifier enregistrées")
 
-        start_step(document_id, 3, "Recherche des textes applicables au pays et au secteur")
+        ready_doc_ids, pending_doc_ids = await get_project_analysis_readiness(
+            session, project_id
+        )
+        if pending_doc_ids:
+            start_step(
+                document_id,
+                3,
+                f"En attente de l'analyse de {len(pending_doc_ids)} autre(s) document(s) du projet",
+            )
+            return
+
+        if not ready_doc_ids:
+            return
+
+        for ready_doc_id in ready_doc_ids:
+            start_step(ready_doc_id, 3, "Recherche des textes applicables au pays et au secteur")
         from app.workers.legal_research import legal_research_task
         try:
-            enqueue_document_task(legal_research_task, document_id, "legal_research")
+            enqueue_project_audit_task(
+                legal_research_task,
+                project_id,
+                document_id,
+            )
         except Exception as exc:
             print(f"Unable to queue legal research for {document_id}: {exc}")
-            fail_step(document_id, 3)
+            for ready_doc_id in ready_doc_ids:
+                fail_step(ready_doc_id, 3)
 
 
 async def classify_clauses_with_llm(markdown: str, document_id: UUID) -> tuple[list[dict], dict[str, list[str]]]:

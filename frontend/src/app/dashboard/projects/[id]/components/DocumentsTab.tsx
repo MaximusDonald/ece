@@ -4,61 +4,170 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { useDocuments, useDocumentAnalysis, useUploadDocument, useDownloadDocument, useDeleteDocument } from '@/hooks/useApi';
-import { Upload, FileText, Download, Trash2, Eye, CheckCircle, Loader2, AlertCircle } from 'lucide-react';
+import { useDocuments, useDocumentAnalysis, useUploadDocument, useDownloadDocument, useDeleteDocument, useResumeDocumentPipeline } from '@/hooks/useApi';
+import { Upload, FileText, Download, Trash2, Eye, CheckCircle, Loader2, AlertCircle, X, RotateCw, Pencil } from 'lucide-react';
 import { formatDateTime, formatDate } from '@/lib/utils';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { toast } from '@/hooks/use-toast';
 import Link from 'next/link';
+import { ContextDocumentModal } from './ContextDocumentModal';
+
+type QueuedUploadItem = {
+  id: string;
+  file: File;
+  documentType: string;
+  status: 'pending' | 'uploading' | 'done' | 'error';
+  error?: string;
+};
+
+const ALLOWED_EXTENSIONS = ['.pdf', '.docx', '.md', '.txt'];
+const MAX_FILE_SIZE = 50 * 1024 * 1024;
+const DOCUMENT_TYPE_OPTIONS = [
+  { value: '', label: 'Détection automatique' },
+  { value: 'cahier_charges', label: 'Cahier des charges' },
+  { value: 'privacy_policy', label: 'Politique de confidentialité' },
+  { value: 'contract', label: 'Contrat' },
+  { value: 'terms_conditions', label: 'Conditions générales' },
+  { value: 'internal_procedure', label: 'Procédure interne' },
+  { value: 'compliance_dossier', label: 'Dossier de conformité' },
+  { value: 'technical_specs', label: 'Spécifications techniques' },
+  { value: 'governance', label: 'Gouvernance des données' },
+];
 
 export function ProjectWorkspaceDocuments({ projectId }: { projectId: string }) {
   const { data: documents, isLoading, refetch } = useDocuments(projectId);
   const uploadMutation = useUploadDocument();
   const downloadMutation = useDownloadDocument();
   const deleteMutation = useDeleteDocument();
+  const resumeMutation = useResumeDocumentPipeline();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
-  const [documentType, setDocumentType] = useState('');
+  const [queuedFiles, setQueuedFiles] = useState<QueuedUploadItem[]>([]);
+  const [defaultDocumentType, setDefaultDocumentType] = useState('');
+  const [isDragging, setIsDragging] = useState(false);
+  const [isBatchUploading, setIsBatchUploading] = useState(false);
   const [documentToDelete, setDocumentToDelete] = useState<{ id: string; filename: string } | null>(null);
+  const [isContextDocOpen, setIsContextDocOpen] = useState(false);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      // Validate file type
-      const allowedTypes = [
-        'application/pdf',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'text/markdown',
-        'text/plain',
-      ];
-      if (!allowedTypes.includes(file.type)) {
-        toast({ title: 'Format non pris en charge', description: 'Choisissez un fichier PDF, DOCX, Markdown ou texte.', variant: 'destructive' });
-        return;
+  const addFilesToQueue = (fileList: FileList | File[] | null) => {
+    if (!fileList || fileList.length === 0) return;
+    const files = Array.from(fileList);
+    const rejected: string[] = [];
+    const newItems: QueuedUploadItem[] = [];
+
+    for (const file of files) {
+      const lowerName = file.name.toLowerCase();
+      if (!ALLOWED_EXTENSIONS.some((ext) => lowerName.endsWith(ext))) {
+        rejected.push(`${file.name} (format non pris en charge)`);
+        continue;
       }
-      // Validate size (50 MB)
-      if (file.size > 50 * 1024 * 1024) {
-        toast({ title: 'Fichier trop volumineux', description: 'La taille maximale autorisée est de 50 Mo.', variant: 'destructive' });
-        return;
+      if (file.size > MAX_FILE_SIZE) {
+        rejected.push(`${file.name} (> 50 Mo)`);
+        continue;
       }
-      setUploadFile(file);
+      const alreadyQueued = queuedFiles.some(
+        (q) => q.file.name === file.name && q.file.size === file.size && q.status !== 'done',
+      );
+      if (!alreadyQueued) {
+        newItems.push({
+          id: `${file.name}-${file.size}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          file,
+          documentType: defaultDocumentType,
+          status: 'pending',
+        });
+      }
+    }
+
+    if (rejected.length > 0) {
+      toast({
+        title: 'Certains fichiers ont été ignorés',
+        description: rejected.join(', '),
+        variant: 'destructive',
+      });
+    }
+
+    if (newItems.length > 0) {
+      setQueuedFiles((prev) => [...prev, ...newItems]);
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    addFilesToQueue(e.target.files);
+  };
+
   const handleUpload = async () => {
-    if (!uploadFile) return;
-    try {
-      await uploadMutation.mutateAsync({
-        projectId,
-        file: uploadFile,
-        documentType: documentType || undefined,
+    const itemsToUpload = queuedFiles.filter((item) => item.status === 'pending' || item.status === 'error');
+    if (itemsToUpload.length === 0) return;
+
+    setIsBatchUploading(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    // Upload concurrently in batches of 3 to stay fast without saturating the connection
+    const BATCH_SIZE = 3;
+    for (let i = 0; i < itemsToUpload.length; i += BATCH_SIZE) {
+      const batch = itemsToUpload.slice(i, i + BATCH_SIZE);
+      await Promise.all(
+        batch.map(async (item) => {
+          setQueuedFiles((prev) =>
+            prev.map((q) => (q.id === item.id ? { ...q, status: 'uploading', error: undefined } : q)),
+          );
+          try {
+            await uploadMutation.mutateAsync({
+              projectId,
+              file: item.file,
+              documentType: item.documentType || undefined,
+            });
+            successCount += 1;
+            setQueuedFiles((prev) =>
+              prev.map((q) => (q.id === item.id ? { ...q, status: 'done' } : q)),
+            );
+          } catch (err) {
+            errorCount += 1;
+            const apiError = err as { response?: { data?: { detail?: string } } };
+            const message = apiError.response?.data?.detail || 'Échec du téléversement';
+            setQueuedFiles((prev) =>
+              prev.map((q) => (q.id === item.id ? { ...q, status: 'error', error: message } : q)),
+            );
+          }
+        }),
+      );
+    }
+
+    setIsBatchUploading(false);
+    await refetch();
+
+    if (errorCount === 0 && successCount > 0) {
+      toast({
+        title: successCount > 1 ? `${successCount} documents téléversés` : 'Document téléversé',
+        description: 'L’extraction et l’analyse juridique ont été lancées en arrière-plan.',
       });
       setIsUploadOpen(false);
-      setUploadFile(null);
-      setDocumentType('');
-      refetch();
-    } catch (err) {
-      toast({ title: 'Téléversement impossible', description: 'Le document n’a pas pu être envoyé. Réessayez dans un instant.', variant: 'destructive' });
+      setQueuedFiles([]);
+      setDefaultDocumentType('');
+    } else if (successCount > 0 && errorCount > 0) {
+      toast({
+        title: `${successCount} réussi(s), ${errorCount} en échec`,
+        description: 'Vous pouvez réessayer les fichiers en erreur ou les retirer.',
+        variant: 'destructive',
+      });
+    } else {
+      toast({
+        title: 'Téléversement impossible',
+        description: 'Aucun document n’a pu être envoyé. Vérifiez les erreurs affichées.',
+        variant: 'destructive',
+      });
     }
+  };
+
+  const closeUploadModal = () => {
+    if (isBatchUploading) return;
+    setIsUploadOpen(false);
+    setQueuedFiles([]);
+    setDefaultDocumentType('');
   };
 
   const formatSize = (bytes: number) => {
@@ -71,12 +180,18 @@ export function ProjectWorkspaceDocuments({ projectId }: { projectId: string }) 
     <div className="space-y-6">
       {/* Upload Section */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-row items-center justify-between gap-2">
           <CardTitle>Documents du projet</CardTitle>
-          <Button onClick={() => setIsUploadOpen(true)} disabled={uploadMutation.isPending}>
-            <Upload className="h-4 w-4 mr-2" />
-            Téléverser un document
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => setIsContextDocOpen(true)}>
+              <Pencil className="h-4 w-4 mr-2" />
+              Contexte complémentaire
+            </Button>
+            <Button onClick={() => setIsUploadOpen(true)} disabled={isBatchUploading}>
+              <Upload className="h-4 w-4 mr-2" />
+              Téléverser des documents
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {/* Documents Table */}
@@ -119,6 +234,17 @@ export function ProjectWorkspaceDocuments({ projectId }: { projectId: string }) 
                       <div className="flex items-center justify-end gap-2">
                         {doc.status === 'extracted' && (
                           <>
+                            {doc.document_type === 'contexte_complementaire' && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                title="Consulter / Modifier le contexte"
+                                aria-label="Consulter / Modifier le contexte"
+                                onClick={() => setIsContextDocOpen(true)}
+                              >
+                                <Pencil className="h-4 w-4 text-sovereign-600" />
+                              </Button>
+                            )}
                             <Button variant="ghost" size="icon" asChild>
                               <Link href={`/dashboard/projects/${projectId}/documents/${doc.id}/extraction`}>
                                 <Eye className="h-4 w-4" />
@@ -130,6 +256,30 @@ export function ProjectWorkspaceDocuments({ projectId }: { projectId: string }) 
                                 : <Download className="h-4 w-4" />}
                             </Button>
                           </>
+                        )}
+                        {doc.status === 'failed' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-sovereign-600 hover:text-sovereign-700"
+                            disabled={resumeMutation.isPending}
+                            onClick={() =>
+                              resumeMutation.mutate(
+                                { projectId, documentId: doc.id },
+                                {
+                                  onSuccess: () => {
+                                    toast({ title: 'Analyse relancée', description: `Le traitement de ${doc.filename} a redémarré.` });
+                                    refetch();
+                                  },
+                                  onError: () =>
+                                    toast({ title: 'Relance impossible', description: 'Impossible de relancer ce document.', variant: 'destructive' }),
+                                },
+                              )
+                            }
+                          >
+                            <RotateCw className={`h-4 w-4 mr-1 ${resumeMutation.isPending && resumeMutation.variables?.documentId === doc.id ? 'animate-spin' : ''}`} />
+                            Relancer
+                          </Button>
                         )}
                         <Button
                           variant="ghost"
@@ -153,73 +303,179 @@ export function ProjectWorkspaceDocuments({ projectId }: { projectId: string }) 
               <p className="text-slate-500 mb-4">Téléversez votre premier document pour commencer l'analyse.</p>
               <Button onClick={() => setIsUploadOpen(true)}>
                 <Upload className="h-4 w-4 mr-2" />
-                Téléverser un document
+                Téléverser des documents
               </Button>
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Upload Modal */}
+      {/* Upload Modal (Multi-fichiers) */}
       {isUploadOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setIsUploadOpen(false)}>
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={closeUploadModal}>
+          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="p-6 border-b border-slate-200 flex items-center justify-between">
-              <h2 className="text-xl font-semibold">Téléverser un document</h2>
-              <button onClick={() => setIsUploadOpen(false)} className="text-slate-400 hover:text-slate-600">
+              <div>
+                <h2 className="text-xl font-semibold">Téléverser des documents</h2>
+                <p className="text-sm text-slate-500 mt-0.5">Sélectionnez ou déposez un ou plusieurs fichiers simultanément.</p>
+              </div>
+              <button onClick={closeUploadModal} disabled={isBatchUploading} className="text-slate-400 hover:text-slate-600 disabled:opacity-40">
                 <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
-            <div className="p-6 space-y-4">
-              <div className="border-2 border-dashed border-slate-300 rounded-lg p-8 text-center hover:border-sovereign-400 transition-colors">
+
+            <div className="p-6 space-y-4 overflow-y-auto flex-1">
+              <div
+                onDragOver={(e) => { e.preventDefault(); if (!isBatchUploading) setIsDragging(true); }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setIsDragging(false);
+                  if (!isBatchUploading) addFilesToQueue(e.dataTransfer.files);
+                }}
+                className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                  isDragging
+                    ? 'border-sovereign-500 bg-sovereign-50'
+                    : 'border-slate-300 hover:border-sovereign-400'
+                }`}
+              >
                 <input
+                  ref={fileInputRef}
                   type="file"
+                  multiple
                   accept=".pdf,.docx,.md,.txt"
                   onChange={handleFileChange}
                   className="hidden"
                   id="file-upload"
-                  disabled={uploadMutation.isPending}
+                  disabled={isBatchUploading}
                 />
-                <label htmlFor="file-upload" className="cursor-pointer">
-                  <Upload className="h-12 w-12 text-slate-300 mx-auto mb-3" />
-                  <p className="text-slate-600 mb-1">Cliquez ou glissez-déposez un fichier</p>
-                  <p className="text-sm text-slate-400">PDF, DOCX, Markdown, Texte (max 50 Mo)</p>
+                <label htmlFor="file-upload" className={`block ${isBatchUploading ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
+                  <Upload className="h-10 w-10 text-slate-300 mx-auto mb-2" />
+                  <p className="text-slate-700 font-medium mb-1">Cliquez ou glissez-déposez vos fichiers ici</p>
+                  <p className="text-xs text-slate-400">PDF, DOCX, Markdown, Texte · Sélection multiple autorisée (max 50 Mo / fichier)</p>
                 </label>
-                {uploadFile && (
-                  <div className="mt-3 p-3 bg-sovereign-50 border border-sovereign-200 rounded-lg">
-                    <p className="font-medium text-sovereign-700">{uploadFile.name}</p>
-                    <p className="text-sm text-sovereign-600">{formatSize(uploadFile.size)}</p>
-                  </div>
-                )}
               </div>
 
               <div>
-                <label className="label">Type de document (optionnel)</label>
+                <label className="label">Type par défaut pour les nouveaux fichiers (optionnel)</label>
                 <select
-                  value={documentType}
-                  onChange={(e) => setDocumentType(e.target.value)}
+                  value={defaultDocumentType}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setDefaultDocumentType(val);
+                    setQueuedFiles((prev) =>
+                      prev.map((q) => (q.status === 'pending' ? { ...q, documentType: val } : q)),
+                    );
+                  }}
                   className="input"
+                  disabled={isBatchUploading}
                 >
-                  <option value="">Détection automatique</option>
-                  <option value="cahier_charges">Cahier des charges</option>
-                  <option value="privacy_policy">Politique de confidentialité</option>
-                  <option value="contract">Contrat</option>
-                  <option value="terms_conditions">Conditions générales</option>
-                  <option value="internal_procedure">Procédure interne</option>
-                  <option value="compliance_dossier">Dossier de conformité</option>
-                  <option value="technical_specs">Spécifications techniques</option>
-                  <option value="governance">Gouvernance des données</option>
+                  {DOCUMENT_TYPE_OPTIONS.map((opt) => (
+                    <option key={opt.value || 'auto'} value={opt.value}>{opt.label}</option>
+                  ))}
                 </select>
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
-                <Button variant="secondary" onClick={() => setIsUploadOpen(false)} disabled={uploadMutation.isPending}>
-                  Annuler
-                </Button>
-                <Button onClick={handleUpload} disabled={!uploadFile || uploadMutation.isPending}>
-                  {uploadMutation.isPending ? 'Téléversement...' : 'Téléverser'}
-                </Button>
-              </div>
+              {queuedFiles.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-slate-700">
+                      {queuedFiles.length} fichier{queuedFiles.length > 1 ? 's' : ''} sélectionné{queuedFiles.length > 1 ? 's' : ''}
+                    </span>
+                    {!isBatchUploading && (
+                      <button
+                        type="button"
+                        onClick={() => setQueuedFiles([])}
+                        className="text-xs text-slate-500 hover:text-danger-600"
+                      >
+                        Tout retirer
+                      </button>
+                    )}
+                  </div>
+                  <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
+                    {queuedFiles.map((item) => (
+                      <div
+                        key={item.id}
+                        className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-lg border text-sm ${
+                          item.status === 'done'
+                            ? 'bg-emerald-50/70 border-emerald-200'
+                            : item.status === 'error'
+                            ? 'bg-danger-50 border-danger-200'
+                            : 'bg-slate-50 border-slate-200'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          {item.status === 'uploading' && <Loader2 className="h-4 w-4 shrink-0 animate-spin text-sovereign-600" />}
+                          {item.status === 'done' && <CheckCircle className="h-4 w-4 shrink-0 text-emerald-600" />}
+                          {item.status === 'error' && <AlertCircle className="h-4 w-4 shrink-0 text-danger-600" />}
+                          {item.status === 'pending' && <FileText className="h-4 w-4 shrink-0 text-slate-400" />}
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium text-slate-800 truncate">{item.file.name}</p>
+                            <p className="text-xs text-slate-500">
+                              {formatSize(item.file.size)}
+                              {item.error && <span className="text-danger-600 ml-2">· {item.error}</span>}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <select
+                            value={item.documentType}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setQueuedFiles((prev) =>
+                                prev.map((q) => (q.id === item.id ? { ...q, documentType: val } : q)),
+                              );
+                            }}
+                            disabled={isBatchUploading || item.status === 'done'}
+                            className="text-xs border border-slate-300 rounded-md px-2 py-1 bg-white"
+                            aria-label={`Type de document pour ${item.file.name}`}
+                          >
+                            {DOCUMENT_TYPE_OPTIONS.map((opt) => (
+                              <option key={opt.value || 'auto'} value={opt.value}>{opt.label}</option>
+                            ))}
+                          </select>
+                          {!isBatchUploading && item.status !== 'done' && (
+                            <button
+                              type="button"
+                              onClick={() => setQueuedFiles((prev) => prev.filter((q) => q.id !== item.id))}
+                              className="p-1 text-slate-400 hover:text-danger-600"
+                              aria-label={`Retirer ${item.file.name}`}
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="p-6 flex justify-end gap-3 border-t border-slate-200 bg-slate-50/50 rounded-b-xl">
+              <Button variant="secondary" onClick={closeUploadModal} disabled={isBatchUploading}>
+                Annuler
+              </Button>
+              <Button
+                onClick={handleUpload}
+                disabled={
+                  queuedFiles.filter((q) => q.status === 'pending' || q.status === 'error').length === 0 ||
+                  isBatchUploading
+                }
+              >
+                {isBatchUploading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Téléversement ({queuedFiles.filter((q) => q.status === 'done').length}/{queuedFiles.length})...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="mr-2 h-4 w-4" />
+                    Téléverser ({queuedFiles.filter((q) => q.status === 'pending' || q.status === 'error').length})
+                  </>
+                )}
+              </Button>
             </div>
           </div>
         </div>
@@ -262,6 +518,12 @@ export function ProjectWorkspaceDocuments({ projectId }: { projectId: string }) 
             </div>
           </div>
         </div>
+      )}
+      {isContextDocOpen && (
+        <ContextDocumentModal
+          projectId={projectId}
+          onClose={() => setIsContextDocOpen(false)}
+        />
       )}
     </div>
   );

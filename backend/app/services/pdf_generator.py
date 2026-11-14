@@ -1,6 +1,10 @@
 """PDF generation service using WeasyPrint."""
+import logging
 from weasyprint import HTML, CSS
 from typing import Optional
+
+for _noisy_logger in ("fontTools", "fontTools.subset", "fontTools.ttLib", "weasyprint"):
+    logging.getLogger(_noisy_logger).setLevel(logging.ERROR)
 
 
 def generate_pdf_from_html(html: str, base_url: str = "") -> bytes:
@@ -39,7 +43,7 @@ def generate_pdf_from_markdown(markdown: str, title: str = "Rapport") -> bytes:
         .badge-modere {{ background: #fff8e1; color: #e6a800; }}
         .badge-a_surveiller {{ background: #e8f1fa; color: #0052a5; }}
         .badge-conforme {{ background: #e8f5ed; color: #007b3f; }}
-        pre {{ background: #f1f5f9; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; }}
+        pre {{ background: #f1f5f9; padding: 1rem; border-radius: 0.5rem; white-space: pre-wrap; word-break: break-word; }}
         code {{ background: #f1f5f9; padding: 0.1rem 0.3rem; border-radius: 0.25rem; font-family: monospace; }}
         table {{ width: 100%; border-collapse: collapse; margin: 1rem 0; }}
         th, td {{ border: 1px solid #e2e8f0; padding: 0.5rem; text-align: left; }}

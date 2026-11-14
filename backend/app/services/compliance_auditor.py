@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 import json
 import logging
+import math
 import re
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Sequence
@@ -11,10 +13,11 @@ from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.admin import ScoringRule
 from app.models.corpus import LegalArticle
-from app.models.document import Document, DocumentAnalysis, DocumentExtraction
+from app.models.document import Document, DocumentAnalysis, DocumentExtraction, DocumentStatus
 from app.models.legal import ConfidenceLevel, ReportVersion, RiskFinding, RiskLevel
 from app.models.user import Project
 from app.services.article_rag import (
@@ -66,6 +69,11 @@ class ProjectDossier:
     project_treatments: List[str]
     documents: List[DocumentEvidence]
     incremental_context: Optional[Dict[str, Any]] = None
+    stored_context_markdown: Optional[str] = None
+    previous_report_summary: Optional[str] = None
+    represented_entity_type: str = "entreprise"
+    represented_entity_other: Optional[str] = None
+    represented_role_details: Optional[str] = None
 
 
 @dataclass
@@ -111,12 +119,54 @@ def _parse_json_object(raw: str) -> Dict[str, Any]:
             return {}
 
 
+async def _load_previous_report_summary(
+    session: AsyncSession,
+    project_id: UUID,
+    previous_report_id: Optional[UUID] = None,
+) -> Optional[str]:
+    """Build a bounded summary of the previous ReportVersion and its findings for continuity."""
+    if previous_report_id is not None:
+        res = await session.execute(
+            select(ReportVersion)
+            .options(selectinload(ReportVersion.findings))
+            .where(ReportVersion.id == previous_report_id)
+        )
+        prev = res.scalar_one_or_none()
+    else:
+        res = await session.execute(
+            select(ReportVersion)
+            .options(selectinload(ReportVersion.findings))
+            .where(ReportVersion.project_id == project_id)
+            .order_by(ReportVersion.created_at.desc())
+        )
+        prev = res.scalars().first()
+
+    if not prev:
+        return None
+
+    lines = [
+        f"Version précédente : v{prev.version} | Score global : {prev.global_score}/100 | Confiance : {prev.confidence_global.value}",
+    ]
+    if prev.severity_counts:
+        lines.append(f"Répartition sévérité : {json.dumps(prev.severity_counts, ensure_ascii=False)}")
+    findings = list(prev.findings or [])
+    if findings:
+        lines.append(f"Constats de la version précédente ({len(findings)}) :")
+        for idx, f in enumerate(findings[:20], start=1):
+            lines.append(
+                f"  {idx}. [{f.risk_level.value}] {f.clause_ref} — {f.finding_text[:240]}"
+            )
+    summary = "\n".join(lines)
+    return summary[:3800]
+
+
 async def load_project_dossier(
     session: AsyncSession,
     project_id: UUID,
     *,
     focus_document_id: Optional[UUID] = None,
     incremental_context: Optional[Dict[str, Any]] = None,
+    previous_report_id: Optional[UUID] = None,
 ) -> ProjectDossier:
     """Load the project and ALL its documents (extractions + analyses) for holistic cross-doc checks."""
     project = await session.get(Project, project_id)
@@ -154,12 +204,15 @@ async def load_project_dossier(
                 analyses_by_doc[ana.extraction_id] = ana
 
     evidences: List[DocumentEvidence] = []
+    stored_context_parts: List[str] = []
     for doc in all_docs:
         ext = extractions_by_doc.get(doc.id)
         ana = analyses_by_doc.get(ext.id) if ext else None
         markdown = (ext.markdown if ext else "") or ""
         if not markdown and not ana:
             continue
+        if doc.document_type == "contexte_complementaire" and markdown.strip():
+            stored_context_parts.append(markdown.strip())
         evidences.append(
             DocumentEvidence(
                 document_id=doc.id,
@@ -171,6 +224,12 @@ async def load_project_dossier(
             )
         )
 
+    previous_report_summary = await _load_previous_report_summary(
+        session,
+        project_id,
+        previous_report_id=previous_report_id,
+    )
+
     return ProjectDossier(
         project_id=project.id,
         project_name=project.name,
@@ -179,21 +238,58 @@ async def load_project_dossier(
         project_treatments=list(project.treatments or []),
         documents=evidences,
         incremental_context=incremental_context,
+        stored_context_markdown="\n\n".join(stored_context_parts) if stored_context_parts else None,
+        previous_report_summary=previous_report_summary,
+        represented_entity_type=getattr(project, "represented_entity_type", "entreprise") or "entreprise",
+        represented_entity_other=getattr(project, "represented_entity_other", None),
+        represented_role_details=getattr(project, "represented_role_details", None),
     )
+
+
+REPRESENTED_ROLE_LABELS = {
+    "entreprise": "L'entreprise / maître d'ouvrage (responsable du traitement)",
+    "developpeur_engage": "Un développeur engagé / salarié / stagiaire (évaluation de sa responsabilité et de ses obligations propres)",
+    "prestataire_externe": "Un prestataire externe / sous-traitant (évaluation des risques contractuels et réglementaires encourus par le prestataire)",
+    "dpo_juriste": "Un DPO / juriste / auditeur interne",
+}
 
 
 def format_dossier_for_prompt(dossier: ProjectDossier, max_total_chars: int = 44000) -> str:
     """Serialize all project documents fairly into a bounded multi-document context string."""
+    if dossier.represented_entity_type == "autre":
+        role_label = f"Autre : {dossier.represented_entity_other or 'Non précisé'}"
+    else:
+        role_label = REPRESENTED_ROLE_LABELS.get(
+            dossier.represented_entity_type,
+            dossier.represented_entity_type,
+        )
+
     parts = [
         f"PROJET : {dossier.project_name}",
         f"PAYS / JURIDICTION PRINCIPALE : {dossier.country_code}",
         f"SECTEUR : {dossier.sector}",
         f"TRAITEMENTS DÉCLARÉS : {', '.join(dossier.project_treatments) if dossier.project_treatments else 'Non précisé'}",
+        f"ENTITÉ / RÔLE REPRÉSENTÉ POUR L'ANALYSE : {role_label}",
     ]
+    if dossier.represented_role_details:
+        parts.append(f"PRÉCISIONS SUR LE RÔLE REPRÉSENTÉ : {dossier.represented_role_details}")
+    parts.append(
+        "CONSIGNE DE PERSPECTIVE : Évalue la conformité, la responsabilité juridique et les recommandations spécifiquement du point de vue de l'entité/rôle représenté ci-dessus."
+    )
+    if dossier.stored_context_markdown:
+        parts.append(
+            "DOCUMENT DE CONTEXTE COMPLÉMENTAIRE DU PROJET :\n"
+            + dossier.stored_context_markdown[:4000]
+        )
     if dossier.incremental_context:
         parts.append(
-            "CONTEXTE COMPLÉMENTAIRE FOURNI PAR L'ÉQUIPE :\n"
+            "NOUVEAU CONTEXTE COMPLÉMENTAIRE SOUMIS :\n"
             + json.dumps(dossier.incremental_context, ensure_ascii=False, indent=2)
+        )
+    if dossier.previous_report_summary:
+        parts.append(
+            "ANCIENNE VERSION DU RAPPORT (RÉFÉRENCE POUR CONTINUITÉ ET RÉÉVALUATION) :\n"
+            + dossier.previous_report_summary
         )
 
     doc_count = max(len(dossier.documents), 1)
@@ -587,7 +683,14 @@ def _normalize_findings(
             continue
 
         legal_risk = str(item.get("legal_risk") or ("; ".join(sanction_notes[:2]) if sanction_notes else "")).strip()
-        facet = str(item.get("facet") or "").strip()
+        raw_facet = str(item.get("facet") or item.get("domain") or "").strip()
+        facet = raw_facet if raw_facet in FACET_KEYS else _infer_finding_domain(
+            {
+                "facet": raw_facet,
+                "clause_ref": item.get("clause_ref"),
+                "finding_text": constat,
+            }
+        )
 
         enriched_finding_parts = [constat]
         if verdict == "conforme" and parade_proven:
@@ -627,7 +730,31 @@ def _normalize_findings(
             }
         )
 
-    return normalized
+    # Deduplicate findings targeting the exact same (facet, matched_articles) pair, keeping highest severity
+    severity_rank = {
+        RiskLevel.CRITIQUE: 4,
+        RiskLevel.ELEVE: 3,
+        RiskLevel.MODERE: 2,
+        RiskLevel.A_SURVEILLER: 1,
+        RiskLevel.CONFORME: 0,
+    }
+    deduped: List[Dict[str, Any]] = []
+    seen_keys: Dict[tuple, int] = {}
+    for entry in normalized:
+        article_sig = frozenset(entry["matched_articles"])
+        if not article_sig:
+            deduped.append(entry)
+            continue
+        key = (entry["facet"], article_sig)
+        if key not in seen_keys:
+            seen_keys[key] = len(deduped)
+            deduped.append(entry)
+        else:
+            existing_idx = seen_keys[key]
+            if severity_rank.get(entry["risk_level"], 0) > severity_rank.get(deduped[existing_idx]["risk_level"], 0):
+                deduped[existing_idx] = entry
+
+    return deduped
 
 
 async def evaluate_project_compliance(
@@ -682,6 +809,9 @@ Si aucune parade explicite et probante n'apparaît dans AUCUN document du dossie
 RÈGLE D'OR N°3 — TRAÇABILITÉ STRICTE PAR UUID D'ARTICLE :
 Chaque constat DOIT référencer un ou plusieurs `matched_articles` choisis EXCLUSIVEMENT parmi les UUID `[...]` listés dans le RÉFÉRENTIEL D'ARTICLES DE LOI ci-dessous. N'invente jamais d'UUID ni de numéro d'article absent du référentiel.
 
+RÈGLE D'OR N°4 — CONSOLIDATION THÉMATIQUE PAR FACETTE (ANTI-FRAGMENTATION) :
+Regroupe les constats par thématique juridique (au maximum 1 à 2 constats consolidés par facette : `donnees_manipulees`, `flux_et_architecture`, `securite_et_droits`, `relations_contractuelles_et_fintech`). Ne scinde pas une même obligation ou un même article en plusieurs constats redondants.
+
 FACETTES IDENTIFIÉES :
 {facets_json}
 
@@ -690,7 +820,7 @@ FACETTES IDENTIFIÉES :
 RÉFÉRENTIEL D'ARTICLES DE LOI DISPONIBLES (avec UUID réels) :
 {articles_catalog}
 
-Produis un objet JSON strict contenant `"findings"` (entre 4 et 10 constats couvrant les facettes clés, incluant aussi les points où une parade d'annulation a évité un faux positif) :
+Produis un objet JSON strict contenant `"findings"` (entre 4 et 8 constats consolidés couvrant les 4 facettes clés, incluant aussi les points où une parade d'annulation a évité un faux positif) :
 {{
   "findings": [
     {{
@@ -836,6 +966,7 @@ async def run_holistic_compliance_audit(
     *,
     focus_document_id: Optional[UUID] = None,
     incremental_context: Optional[Dict[str, Any]] = None,
+    previous_report_id: Optional[UUID] = None,
     llm_client: Optional[LLMClient] = None,
     search_fn: Optional[SearchArticlesFn] = None,
 ) -> AuditExecutionResult:
@@ -846,6 +977,7 @@ async def run_holistic_compliance_audit(
         project_id,
         focus_document_id=focus_document_id,
         incremental_context=incremental_context,
+        previous_report_id=previous_report_id,
     )
     facets = await deconstruct_project_facets(dossier, client)
     articles_map, _ = await retrieve_articles_for_facets(
@@ -907,6 +1039,31 @@ async def resolve_applicable_scoring_rule(
     return eligible[0][1]
 
 
+def _infer_finding_domain(finding: Dict[str, Any]) -> str:
+    """Resolve a finding's canonical facet/domain for diminishing-returns scoring."""
+    raw = str(finding.get("domain") or finding.get("facet") or "").strip().lower()
+    if raw in FACET_KEYS:
+        return raw
+
+    haystack = " ".join(
+        [
+            raw,
+            str(finding.get("clause_ref") or ""),
+            str(finding.get("finding_text") or ""),
+        ]
+    ).lower()
+
+    if any(k in haystack for k in ("donnees", "données", "biomet", "biomèt", "santé", "sante", "mineur", "sensible", "collecte")):
+        return "donnees_manipulees"
+    if any(k in haystack for k in ("flux", "héberg", "heberg", "transfert", "architecture", "cloud", "aws", "serveur", "hors cedeao", "international")):
+        return "flux_et_architecture"
+    if any(k in haystack for k in ("sécurit", "securit", "chiffrement", "droit", "conservation", "durée", "duree", "apdp", "cdp", "dpo", "consentement", "notification", "formalit")):
+        return "securite_et_droits"
+    if any(k in haystack for k in ("sous-trait", "contrat", "fintech", "paiement", "bceao", "kyc", "lbc", "ft", "mobile money", "prestataire")):
+        return "relations_contractuelles_et_fintech"
+    return "general"
+
+
 def compute_initial_severity_and_score(
     findings: Sequence[Dict[str, Any]],
     *,
@@ -917,10 +1074,14 @@ def compute_initial_severity_and_score(
 
     Politique de scoring juridique ECE :
     - Non-hasardeux : piloté par ScoringRule (weights par domaine & juridiction).
-    - Sanctions légales : majoration proportionnée si l'article enfreint comporte une
-      sanction pénale (+8 pts) ou amende administrative (+4 pts).
+    - Rendements décroissants par domaine (1.0, 0.5, 0.25...) pour éviter la volatilité
+      lorsque le LLM scinde un constat en plusieurs sous-constats du même domaine.
+    - Sanctions légales dédupliquées par article unique : majoration proportionnée si
+      l'article enfreint comporte une sanction pénale (+8 pts) ou administrative (+4 pts),
+      plafonnée à +25 pts.
     - Principe de précaution : si un risque critique subsiste (non-mitigé), le score global
       est plancher à 50/100 au minimum.
+    - Compression graduée au-delà de 70/100 pour éviter la saturation prématurée à 100.
     - Zéro risque si tout est conforme : score de 0/100.
     """
     severity_counts = {
@@ -937,11 +1098,20 @@ def compute_initial_severity_and_score(
     w_surveiller = (rule.weight_a_surveiller * 5.0) if rule else 5.0
     w_conforme = (rule.weight_conforme * 0.0) if rule else 0.0
 
-    raw_score = 0.0
+    weight_by_level = {
+        "critique": w_critique,
+        "eleve": w_eleve,
+        "modere": w_modere,
+        "a_surveiller": w_surveiller,
+        "conforme": w_conforme,
+    }
+
     conf_scores = {ConfidenceLevel.HIGH: 3, ConfidenceLevel.MEDIUM: 2, ConfidenceLevel.LOW: 1}
     total_conf = 0
     has_unmitigated_critical = False
     has_non_conforme = False
+    domain_weights: Dict[str, List[float]] = defaultdict(list)
+    seen_sanctioned_articles: set[UUID] = set()
     sanction_penalty = 0.0
 
     for f in findings:
@@ -951,28 +1121,27 @@ def compute_initial_severity_and_score(
         total_conf += conf_scores.get(conf, 2)
 
         if rl == "critique":
-            raw_score += w_critique
             has_unmitigated_critical = True
             has_non_conforme = True
-        elif rl == "eleve":
-            raw_score += w_eleve
+        elif rl in ("eleve", "modere", "a_surveiller"):
             has_non_conforme = True
-        elif rl == "modere":
-            raw_score += w_modere
-            has_non_conforme = True
-        elif rl == "a_surveiller":
-            raw_score += w_surveiller
-            has_non_conforme = True
-        elif rl == "conforme":
-            raw_score += w_conforme
 
-        # Evaluation des sanctions légales réelles attachées aux articles
+        domain = _infer_finding_domain(f)
+        if rl != "conforme":
+            domain_weights[domain].append(weight_by_level.get(rl, 0.0))
+        elif w_conforme:
+            domain_weights[domain].append(w_conforme)
+
+        # Evaluation des sanctions légales réelles attachées aux articles (dédupliquées par article unique)
         if rl != "conforme" and articles_map:
             for uid in (f.get("matched_articles") or []):
                 try:
                     uuid_obj = uid if isinstance(uid, UUID) else UUID(str(uid))
+                    if uuid_obj in seen_sanctioned_articles:
+                        continue
                     art = articles_map.get(uuid_obj)
                     if art and getattr(art, "has_sanction", False):
+                        seen_sanctioned_articles.add(uuid_obj)
                         nature = str(getattr(art, "sanction_nature", "") or "").lower()
                         if "penale" in nature or "prison" in nature:
                             sanction_penalty += 8.0
@@ -982,13 +1151,25 @@ def compute_initial_severity_and_score(
                 except Exception:
                     pass
 
-    # Plafonnement du malus de sanction légale à +25 max
+    # Rendements décroissants par domaine juridique (1.0, 0.5, 0.25, ...)
+    raw_score = 0.0
+    for weights in domain_weights.values():
+        for idx, weight in enumerate(sorted(weights, reverse=True)):
+            raw_score += weight * (0.5 ** idx)
+
+    # Plafonnement du malus de sanction légale à +25 max (par article unique)
     raw_score += min(25.0, sanction_penalty)
 
     if not has_non_conforme:
         global_score = 0
     else:
-        global_score = min(100, max(0, round(raw_score)))
+        # Compression graduée au-delà de 70 pour éviter la saturation prématurée à 100
+        if raw_score <= 70.0:
+            compressed_score = raw_score
+        else:
+            compressed_score = 70.0 + 30.0 * (1.0 - math.exp(-(raw_score - 70.0) / 45.0))
+
+        global_score = min(100, max(0, round(compressed_score)))
         if has_unmitigated_critical and global_score < 50:
             global_score = 50
 
@@ -1070,3 +1251,30 @@ async def persist_audit_report_version(
     await session.commit()
     await session.refresh(report_version)
     return report_version
+
+
+async def get_project_analysis_readiness(
+    session: AsyncSession,
+    project_id: UUID,
+) -> tuple[list[UUID], list[UUID]]:
+    """Return (ready_doc_ids, pending_doc_ids) for non-failed documents in a project."""
+    docs_res = await session.execute(
+        select(Document)
+        .options(selectinload(Document.extraction).selectinload(DocumentExtraction.analysis))
+        .where(Document.project_id == project_id, Document.status != DocumentStatus.FAILED)
+        .order_by(Document.created_at.asc())
+        .execution_options(populate_existing=True)
+    )
+    docs = docs_res.scalars().all()
+    ready_doc_ids: list[UUID] = []
+    pending_doc_ids: list[UUID] = []
+    for doc in docs:
+        if (
+            doc.status == DocumentStatus.EXTRACTED
+            and doc.extraction is not None
+            and doc.extraction.analysis is not None
+        ):
+            ready_doc_ids.append(doc.id)
+        else:
+            pending_doc_ids.append(doc.id)
+    return ready_doc_ids, pending_doc_ids

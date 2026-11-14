@@ -1,6 +1,10 @@
+import logging
 from celery import Celery
 from celery.schedules import crontab
 from app.core.config import get_settings
+
+for _noisy_logger in ("fontTools", "fontTools.subset", "fontTools.ttLib", "weasyprint"):
+    logging.getLogger(_noisy_logger).setLevel(logging.ERROR)
 
 settings = get_settings()
 

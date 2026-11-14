@@ -41,6 +41,14 @@ async def init_db() -> None:
         await conn.exec_driver_sql(
             "ALTER TABLE document ADD COLUMN IF NOT EXISTS document_type VARCHAR(50);"
         )
+        for column, definition in {
+            "represented_entity_type": "VARCHAR(64) NOT NULL DEFAULT 'entreprise'",
+            "represented_entity_other": "VARCHAR(255) NULL",
+            "represented_role_details": "VARCHAR(1000) NULL",
+        }.items():
+            await conn.exec_driver_sql(
+                f"ALTER TABLE project ADD COLUMN IF NOT EXISTS {column} {definition};"
+            )
         # Additive fields for scheduled collection of registered legal URLs.
         for column, definition in {
             "collection_enabled": "BOOLEAN NOT NULL DEFAULT FALSE",

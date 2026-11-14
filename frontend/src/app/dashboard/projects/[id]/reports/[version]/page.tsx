@@ -47,7 +47,7 @@ export default function ReportDetailPage() {
     return Array.from(map.values());
   }, [findings]);
 
-  const downloadReport = (reportType: 'report1' | 'report2', format: 'pdf' | 'markdown') => {
+  const downloadReport = (reportType: 'full' | 'report1' | 'report2' = 'full', format: 'pdf' | 'markdown' = 'pdf') => {
     setDownloadingType(`${reportType}-${format}`);
     downloadMutation.mutate(
       { versionId, reportType, format },
@@ -276,29 +276,34 @@ export default function ReportDetailPage() {
       </Tabs>
 
       {/* Export Buttons */}
-      <div className="flex flex-wrap justify-end gap-3">
-        <Button variant="outline" onClick={() => downloadReport('report1', 'pdf')} disabled={downloadMutation.isPending}>
-          {downloadingType === 'report1-pdf' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-          Exporter Rapport 1 (PDF)
-        </Button>
-        <Button variant="outline" onClick={() => downloadReport('report2', 'pdf')} disabled={downloadMutation.isPending}>
-          {downloadingType === 'report2-pdf' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-          Exporter Rapport 2 (PDF)
-        </Button>
-        <Button variant="outline" onClick={() => downloadReport('report1', 'markdown')} disabled={downloadMutation.isPending}>
-          {downloadingType === 'report1-markdown' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
-          Exporter Rapport 1 (MD)
-        </Button>
-        <Button variant="outline" onClick={() => downloadReport('report2', 'markdown')} disabled={downloadMutation.isPending}>
-          {downloadingType === 'report2-markdown' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
-          Exporter Rapport 2 (MD)
-        </Button>
-        <Button variant="outline" asChild>
-          <Link href={`/dashboard/projects/${projectId}/reports/${versionId}/diff?compare=${reportVersion.parent_version_id || ''}`}>
-            <Search className="h-4 w-4 mr-2" />
-            Voir les différences
-          </Link>
-        </Button>
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+        <div className="flex items-center gap-2 text-xs text-slate-500">
+          <span>Exports partiels :</span>
+          <Button variant="ghost" size="sm" className="h-8 px-2 text-xs text-slate-600 hover:text-slate-900" onClick={() => downloadReport('report1', 'pdf')} disabled={downloadMutation.isPending}>
+            {downloadingType === 'report1-pdf' ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Download className="mr-1 h-3 w-3" />}
+            Volet Analyse
+          </Button>
+          <Button variant="ghost" size="sm" className="h-8 px-2 text-xs text-slate-600 hover:text-slate-900" onClick={() => downloadReport('report2', 'pdf')} disabled={downloadMutation.isPending}>
+            {downloadingType === 'report2-pdf' ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Download className="mr-1 h-3 w-3" />}
+            Volet Articles
+          </Button>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" onClick={() => downloadReport('full', 'markdown')} disabled={downloadMutation.isPending}>
+            {downloadingType === 'full-markdown' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
+            Exporter en Markdown (Complet)
+          </Button>
+          <Button className="bg-sovereign-600 hover:bg-sovereign-700 text-white" onClick={() => downloadReport('full', 'pdf')} disabled={downloadMutation.isPending}>
+            {downloadingType === 'full-pdf' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+            Télécharger le Rapport Complet (PDF)
+          </Button>
+          <Button variant="outline" asChild>
+            <Link href={`/dashboard/projects/${projectId}/reports/${versionId}/diff?compare=${reportVersion.parent_version_id || ''}`}>
+              <Search className="h-4 w-4 mr-2" />
+              Voir les différences
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {/* Add Context Modal */}

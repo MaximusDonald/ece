@@ -47,19 +47,32 @@ def extract_pdf(content: bytes) -> tuple[str, int]:
 
 
 def extract_docx(content: bytes) -> tuple[str, int]:
-    """Extract text from DOCX using python-docx."""
+    """Extract text and tables from DOCX using python-docx."""
     import io
     doc = docx.Document(io.BytesIO(content))
     markdown_parts = []
     
     for para in doc.paragraphs:
         if para.text.strip():
-            # Detect headings by style
-            if para.style.name.startswith("Heading"):
-                level = int(para.style.name[-1]) if para.style.name[-1].isdigit() else 1
-                markdown_parts.append(f"{'#' * level} {para.text}")
+            # Detect headings by style safely (para.style can be None)
+            style_name = para.style.name if para.style and para.style.name else ""
+            if style_name.startswith("Heading") or style_name.startswith("Titre"):
+                digits = "".join(ch for ch in style_name if ch.isdigit())
+                level = min(6, max(1, int(digits))) if digits else 1
+                markdown_parts.append(f"{'#' * level} {para.text.strip()}")
             else:
-                markdown_parts.append(para.text)
+                markdown_parts.append(para.text.strip())
+
+    for table in doc.tables:
+        table_rows = []
+        for row_idx, row in enumerate(table.rows):
+            cells = [cell.text.strip().replace("\n", " ") for cell in row.cells]
+            if any(cells):
+                table_rows.append("| " + " | ".join(cells) + " |")
+                if row_idx == 0:
+                    table_rows.append("| " + " | ".join(["---"] * len(cells)) + " |")
+        if table_rows:
+            markdown_parts.append("\n".join(table_rows))
     
     # Simple page estimation
     page_count = max(1, len(markdown_parts) // 10)
@@ -67,8 +80,11 @@ def extract_docx(content: bytes) -> tuple[str, int]:
 
 
 def extract_markdown(content: bytes) -> tuple[str, int]:
-    """Parse markdown content."""
-    text = content.decode("utf-8")
+    """Parse markdown or plain text content safely."""
+    try:
+        text = content.decode("utf-8")
+    except UnicodeDecodeError:
+        text = content.decode("cp1252", errors="replace")
     # Count approximate pages
     page_count = max(1, len(text) // 3000)
     return text, page_count

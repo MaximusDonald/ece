@@ -10,12 +10,14 @@ import { AlertTriangle, CheckCircle, FileText, ChevronDown, ChevronUp, Search, P
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { toast } from '@/hooks/use-toast';
+import { ContextDocumentModal } from './ContextDocumentModal';
 
 export function ProjectWorkspaceReports({ projectId }: { projectId: string }) {
   const { data: versions, isLoading } = useReportVersions(projectId);
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'findings' | 'sources' | 'recommendations'>('findings');
   const [showContextModal, setShowContextModal] = useState(false);
+  const [showContextDocModal, setShowContextDocModal] = useState(false);
 
   useEffect(() => {
     if (versions && versions.length > 0 && !selectedVersionId) {
@@ -29,7 +31,7 @@ export function ProjectWorkspaceReports({ projectId }: { projectId: string }) {
   const downloadMutation = useDownloadReport();
   const [downloadingType, setDownloadingType] = useState<string | null>(null);
 
-  const downloadReport = (reportType: 'report1' | 'report2', format: 'pdf' | 'markdown') => {
+  const downloadReport = (reportType: 'full' | 'report1' | 'report2' = 'full', format: 'pdf' | 'markdown' = 'pdf') => {
     if (!reportVersion) return;
     setDownloadingType(`${reportType}-${format}`);
     downloadMutation.mutate(
@@ -87,10 +89,16 @@ export function ProjectWorkspaceReports({ projectId }: { projectId: string }) {
               ))}
             </select>
             {reportVersion && (
-              <Button variant="outline" onClick={() => setShowContextModal(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Ajouter contexte
-              </Button>
+              <>
+                <Button variant="outline" onClick={() => setShowContextDocModal(true)}>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Consulter / Modifier contexte
+                </Button>
+                <Button variant="outline" onClick={() => setShowContextModal(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Ajouter contexte
+                </Button>
+              </>
             )}
           </div>
         </CardHeader>
@@ -208,23 +216,28 @@ export function ProjectWorkspaceReports({ projectId }: { projectId: string }) {
               </Tabs>
 
               {/* Export Buttons */}
-              <div className="flex flex-wrap justify-end gap-3 mt-6 pt-6 border-t border-slate-200">
-                <Button variant="outline" onClick={() => downloadReport('report1', 'pdf')} disabled={downloadMutation.isPending}>
-                  {downloadingType === 'report1-pdf' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                  Exporter Rapport 1 (PDF)
-                </Button>
-                <Button variant="outline" onClick={() => downloadReport('report2', 'pdf')} disabled={downloadMutation.isPending}>
-                  {downloadingType === 'report2-pdf' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                  Exporter Rapport 2 (PDF)
-                </Button>
-                <Button variant="outline" onClick={() => downloadReport('report1', 'markdown')} disabled={downloadMutation.isPending}>
-                  {downloadingType === 'report1-markdown' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
-                  Exporter Rapport 1 (MD)
-                </Button>
-                <Button variant="outline" onClick={() => downloadReport('report2', 'markdown')} disabled={downloadMutation.isPending}>
-                  {downloadingType === 'report2-markdown' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
-                  Exporter Rapport 2 (MD)
-                </Button>
+              <div className="flex flex-wrap items-center justify-between gap-3 mt-6 pt-6 border-t border-slate-200">
+                <div className="flex items-center gap-2 text-xs text-slate-500">
+                  <span>Exports partiels :</span>
+                  <Button variant="ghost" size="sm" className="h-8 px-2 text-xs text-slate-600 hover:text-slate-900" onClick={() => downloadReport('report1', 'pdf')} disabled={downloadMutation.isPending}>
+                    {downloadingType === 'report1-pdf' ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Download className="mr-1 h-3 w-3" />}
+                    Volet Analyse
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-8 px-2 text-xs text-slate-600 hover:text-slate-900" onClick={() => downloadReport('report2', 'pdf')} disabled={downloadMutation.isPending}>
+                    {downloadingType === 'report2-pdf' ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Download className="mr-1 h-3 w-3" />}
+                    Volet Articles
+                  </Button>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button variant="outline" onClick={() => downloadReport('full', 'markdown')} disabled={downloadMutation.isPending}>
+                    {downloadingType === 'full-markdown' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
+                    Exporter en Markdown (Complet)
+                  </Button>
+                  <Button className="bg-sovereign-600 hover:bg-sovereign-700 text-white" onClick={() => downloadReport('full', 'pdf')} disabled={downloadMutation.isPending}>
+                    {downloadingType === 'full-pdf' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                    Télécharger le Rapport Complet (PDF)
+                  </Button>
+                </div>
               </div>
             </>
           )}
@@ -276,6 +289,14 @@ export function ProjectWorkspaceReports({ projectId }: { projectId: string }) {
           onClose={() => setShowContextModal(false)}
           onSubmit={handleAddContext}
           vagueZones={reportVersion ? extractVagueZones(reportVersion.report1_markdown) : []}
+        />
+      )}
+
+      {/* View / Edit Stored Context Document Modal */}
+      {showContextDocModal && (
+        <ContextDocumentModal
+          projectId={projectId}
+          onClose={() => setShowContextDocModal(false)}
         />
       )}
     </div>
