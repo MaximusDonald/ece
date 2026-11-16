@@ -1,6 +1,7 @@
 #!/bin/sh
 set -e
 
+python -c "import asyncio; from app.core.database import init_db; asyncio.run(init_db())"
 alembic upgrade head
 
 if [ "${RUN_CELERY_IN_PROCESS:-false}" = "true" ]; then
