@@ -14,7 +14,13 @@ export function useLogin() {
     onSuccess: (response) => {
       const { access_token } = response;
       if (access_token) {
-        Cookies.set('access_token', access_token, { expires: 7, sameSite: 'lax' });
+        const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+        Cookies.set('access_token', access_token, {
+          expires: 7,
+          sameSite: 'lax',
+          secure: isHttps,
+          path: '/',
+        });
       }
       // Do not reuse the previous account's cached role while a login switches identities.
       queryClient.removeQueries({ queryKey: ['me'] });

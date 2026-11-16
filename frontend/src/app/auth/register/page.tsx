@@ -30,6 +30,7 @@ const registerSchema = z.object({
       }),
     ),
   confirmPassword: z.string(),
+  website: z.string().optional(), // Honeypot anti-spam
 }).refine((data) => data.password === data.confirmPassword, {
   message: 'Les mots de passe ne correspondent pas',
   path: ['confirmPassword'],
@@ -51,6 +52,9 @@ export default function RegisterPage() {
   const passwordColor = passwordStrengthColor(passwordScore);
 
   const onSubmit = async (data: RegisterForm) => {
+    if (data.website) {
+      return;
+    }
     try {
       await registerMutation.mutateAsync({ email: data.email, password: data.password });
       toast({ title: 'Inscription réussie', description: 'Bienvenue sur ECE !' });
@@ -90,6 +94,11 @@ export default function RegisterPage() {
           </CardHeader>
           <CardContent className="space-y-6">
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+              {/* Honeypot anti-spam invisible */}
+              <div className="hidden" aria-hidden="true">
+                <label htmlFor="website">Site web</label>
+                <input id="website" type="text" tabIndex={-1} autoComplete="off" {...register('website')} />
+              </div>
               <div>
                 <Label htmlFor="email">Email</Label>
                 <div className="relative mt-1">
@@ -194,7 +203,7 @@ export default function RegisterPage() {
           </CardContent>
         </Card>
 
-        <p className="text-center text-xs text-slate-400 mt-6">
+        <p className="text-center text-xs text-slate-600 mt-6">
           En créant un compte, vous acceptez nos <Link href="/terms" className="text-sovereign-600 hover:underline">CGU</Link> et notre <Link href="/privacy" className="text-sovereign-600 hover:underline">politique de confidentialité</Link>.
         </p>
       </div>

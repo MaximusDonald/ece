@@ -21,9 +21,6 @@ passlib[bcrypt]==1.7.4
 bcrypt==4.3.0
 python-multipart==0.0.20
 
-# Auth OAuth
-httpx-oauth>=0.11.1
-
 # Async Tasks
 celery==5.4.0
 redis>=6.1.0

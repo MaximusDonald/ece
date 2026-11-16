@@ -42,7 +42,13 @@ http.interceptors.response.use(
           );
 
           const { access_token } = response.data;
-          Cookies.set('access_token', access_token, { expires: 7 });
+          const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+          Cookies.set('access_token', access_token, {
+            expires: 7,
+            sameSite: 'lax',
+            secure: isHttps,
+            path: '/',
+          });
 
           if (originalRequest.headers) {
             originalRequest.headers.Authorization = `Bearer ${access_token}`;

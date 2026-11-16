@@ -1,0 +1,56 @@
+# Production override for Docker Compose
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+services:
+  postgres:
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in production}
+      POSTGRES_DB: ${POSTGRES_DB:-ece}
+    restart: unless-stopped
+
+  redis:
+    restart: unless-stopped
+
+  minio:
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?MINIO_ROOT_USER must be set in production}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD must be set in production}
+    restart: unless-stopped
+
+  backend:
+    environment:
+      ENVIRONMENT: production
+      FORCE_HTTPS: ${FORCE_HTTPS:-true}
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set in production}
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:?MINIO_ROOT_USER must be set in production}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD must be set in production}
+      MINIO_SECURE: ${MINIO_SECURE:-false}
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set in production}
+      FRONTEND_URL: ${FRONTEND_URL:?FRONTEND_URL must be set in production}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2 --proxy-headers --forwarded-allow-ips="*"
+    restart: unless-stopped
+
+  frontend:
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?NEXT_PUBLIC_API_URL must be set in production}
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-${FRONTEND_URL}}
+      NEXT_PUBLIC_PLAUSIBLE_DOMAIN: ${NEXT_PUBLIC_PLAUSIBLE_DOMAIN:-}
+      NEXT_PUBLIC_GA_MEASUREMENT_ID: ${NEXT_PUBLIC_GA_MEASUREMENT_ID:-}
+    command: sh -c "npm run build && npm run start"
+    restart: unless-stopped
+
+  celery-worker:
+    environment:
+      ENVIRONMENT: production
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set in production}
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:?MINIO_ROOT_USER must be set in production}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD must be set in production}
+      MINIO_SECURE: ${MINIO_SECURE:-false}
+    restart: unless-stopped
+
+  celery-beat:
+    environment:
+      ENVIRONMENT: production
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set in production}
+    restart: unless-stopped

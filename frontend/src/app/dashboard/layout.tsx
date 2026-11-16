@@ -21,6 +21,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Scale,
+  Menu,
+  X,
 } from 'lucide-react';
 
 const navigation = [
@@ -75,6 +77,11 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const canManageTeam = Boolean(currentUser?.role === 'org_admin');
   const visibleNavigation = navigation.filter((item) => item.href !== '/dashboard/team' || canManageTeam);
   const [collapsed, setCollapsed] = React.useState(false);
+  const [mobileOpen, setMobileOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
 
   // Strict RBAC route guard: Platform Admin NEVER accesses user interfaces
   React.useEffect(() => {
@@ -109,15 +116,26 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-slate-50">
+      {/* Mobile backdrop */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-slate-900/50 lg:hidden"
+          onClick={() => setMobileOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
       {/* Sidebar */}
       <aside
         className={cn(
-          'fixed left-0 top-0 z-40 h-screen border-r border-slate-200 bg-white transition-all duration-300',
-          collapsed ? 'w-20' : 'w-72'
+          'fixed left-0 top-0 z-40 h-screen flex flex-col border-r border-slate-200 bg-white transition-all duration-300',
+          collapsed ? 'lg:w-20' : 'lg:w-72',
+          'w-72',
+          mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         )}
       >
         {/* Logo */}
-        <div className={cn('flex items-center justify-between h-16 px-4 border-b border-slate-200', collapsed && 'justify-center')}>
+        <div className={cn('flex items-center justify-between h-16 px-4 border-b border-slate-200', collapsed && 'lg:justify-center')}>
           {!collapsed && (
             <Link href={logoHref} className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-sovereign-500 flex items-center justify-center">
@@ -130,10 +148,19 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             variant="ghost"
             size="icon"
             onClick={() => setCollapsed(!collapsed)}
-            className={cn(collapsed && 'ml-auto')}
+            className={cn('hidden lg:inline-flex', collapsed && 'ml-auto')}
             aria-label={collapsed ? 'Étendre la barre latérale' : 'Réduire la barre latérale'}
           >
             {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setMobileOpen(false)}
+            className="lg:hidden"
+            aria-label="Fermer le menu"
+          >
+            <X className="h-5 w-5" />
           </Button>
         </div>
 
@@ -218,19 +245,28 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       {/* Main content */}
       <main
         className={cn(
-          'min-h-screen transition-all duration-300',
-          collapsed ? 'ml-20' : 'ml-72'
+          'min-h-screen transition-all duration-300 ml-0',
+          collapsed ? 'lg:ml-20' : 'lg:ml-72'
         )}
       >
         {/* Top bar */}
         <header className="sticky top-0 z-30 h-16 bg-white/95 backdrop-blur-md border-b border-slate-200">
-          <div className="h-full px-6 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold uppercase tracking-wider text-sovereign-600 bg-sovereign-50 px-2.5 py-1 rounded-md border border-sovereign-200/50">
+          <div className="h-full px-4 sm:px-6 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setMobileOpen(true)}
+                className="lg:hidden flex-shrink-0"
+                aria-label="Ouvrir le menu"
+              >
+                <Menu className="h-5 w-5" />
+              </Button>
+              <span className="hidden sm:inline-flex text-xs font-semibold uppercase tracking-wider text-sovereign-600 bg-sovereign-50 px-2.5 py-1 rounded-md border border-sovereign-200/50">
                 {getPageHeaderInfo(pathname).category}
               </span>
-              <span className="text-slate-300">/</span>
-              <h1 className="text-base font-semibold text-slate-900">
+              <span className="hidden sm:inline text-slate-300">/</span>
+              <h1 className="text-sm sm:text-base font-semibold text-slate-900 truncate">
                 {getPageHeaderInfo(pathname).title}
               </h1>
             </div>

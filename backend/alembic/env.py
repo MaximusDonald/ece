@@ -9,7 +9,9 @@ from app.core.config import get_settings
 from app import models  # noqa: F401 - register all SQLModel tables
 
 config = context.config
-database_url = os.getenv("DATABASE_URL", get_settings().database_url)
+database_url = os.getenv("DATABASE_URL", get_settings().database_url).strip()
+if database_url.startswith("postgres://"):
+    database_url = "postgresql://" + database_url[len("postgres://"):]
 config.set_main_option(
     "sqlalchemy.url", database_url.replace("+asyncpg", "").replace("%", "%%")
 )

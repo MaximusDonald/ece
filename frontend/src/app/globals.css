@@ -75,31 +75,31 @@
   }
   
   .badge-eleve {
-    @apply badge bg-warning-50 text-warning-600;
+    @apply badge bg-warning-50 text-warning-800;
   }
   
   .badge-modere {
-    @apply badge bg-warning-50 text-warning-700;
+    @apply badge bg-warning-50 text-warning-800;
   }
   
   .badge-a_surveiller {
-    @apply badge bg-sovereign-50 text-sovereign-600;
+    @apply badge bg-sovereign-50 text-sovereign-700;
   }
   
   .badge-conforme {
-    @apply badge bg-success-50 text-success-600;
+    @apply badge bg-success-50 text-success-700;
   }
   
   .badge-high {
-    @apply badge bg-success-50 text-success-600;
+    @apply badge bg-success-50 text-success-700;
   }
   
   .badge-medium {
-    @apply badge bg-warning-50 text-warning-600;
+    @apply badge bg-warning-50 text-warning-800;
   }
   
   .badge-low {
-    @apply badge bg-danger-50 text-danger-600;
+    @apply badge bg-danger-50 text-danger-700;
   }
   
   .table-container {
@@ -111,7 +111,7 @@
   }
   
   .table th {
-    @apply px-4 py-3 text-left font-medium text-slate-500 uppercase tracking-wider bg-slate-50 border-b border-slate-200;
+    @apply px-4 py-3 text-left font-medium text-slate-600 uppercase tracking-wider bg-slate-50 border-b border-slate-200;
   }
   
   .table td {
