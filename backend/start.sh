@@ -3,6 +3,7 @@ set -e
 
 python -c "import asyncio; from app.core.database import init_db; asyncio.run(init_db())"
 alembic upgrade head
+python -m app.scripts.ingest_master_corpus --codes BJ-NUM-2017
 
 if [ "${RUN_CELERY_IN_PROCESS:-false}" = "true" ]; then
   celery -A app.workers.celery_app worker --loglevel=info --concurrency="${CELERY_CONCURRENCY:-1}" &
